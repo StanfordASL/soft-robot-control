@@ -99,8 +99,6 @@ class TPWLSnapshotData(scutils.SnapshotData):
         self.dict['b'].append(self.rom.compute_RO_matrix(point.b, left=True))
         self.dict['f'].append(self.rom.compute_RO_matrix(point.f, left=True))
 
-        # self.dict['f'].append(self.rom.compute_RO_matrix(point.f, left=True)) # Not currently used
-
         self.dict['H'].append(self.rom.compute_RO_matrix(point.H, left=True))
         self.dict['S'].append(self.rom.compute_RO_matrix(point.S))
 
