@@ -1,0 +1,8 @@
+*.pyc
+*.pkl
+*.mat
+*.png
+**/.ipynb_checkpoints/*
+**/.idea/*
+*.log
+snapshots/*

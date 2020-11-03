@@ -1,0 +1,41 @@
+# Dimensions
+int8 horizon
+int8 n_u
+int8 n_x
+int8 n_z
+
+# Time (seconds) associated with x0
+float64 t0
+
+# Initial condition array
+float64[] x0
+
+# Initial guess for optimal u for GuSTO
+float64[] u_init
+
+# Initial guess for optimal x for GuSTO
+float64[] x_init
+
+# Desired output trajectory (cost function param)
+float64[] z
+
+# Desired final output value (cost function param)
+float64[] zf
+
+# Desired input (cost function param)
+float64[] u
+---
+# Time array for solution
+float64[] t
+
+# Optimal x trajectory
+float64[] xopt
+
+# Optimal u trajectory
+float64[] uopt
+
+# Optimal z trajectory
+float64[] zopt
+
+# solve time
+float64 solve_time

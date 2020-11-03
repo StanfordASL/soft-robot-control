@@ -1,8 +1,10 @@
 # Soft Robot Optimal Control via Reduced-Order Finite Element Models
 
-This repository contains the code for "Soft Robot Optimal Control via Reduced-Order Finite Element Models" by Sander Tonkens, Joseph Lorenzetti, and Marco Pavone.
+This repository accompanies the paper "Soft Robot Optimal Control via Reduced-Order Finite Element Models" by Sander Tonkens, Joseph Lorenzetti, and Marco Pavone.
 
-
+We provide an implementation of various optimal control algorithms (SCP, iLQR, LQR, etc.) for nonlinear reduced order
+ models based on nonlinear Finite Element Models (FEMs). Specifically, it interfaces with the 
+ [SOFA](https://www.sofa-framework.org/download/) simulation engine to simulate Soft Robots modeled using FEMs. 
 
 ---
 
@@ -24,13 +26,37 @@ Python packages: [cvxpy](https://www.cvxpy.org/install/), [control](https://pyth
 
 ---
 
+
+## Using the repository
+
+Three models (Finger, Trunk and Diamond), copied from [SOFA SoftRobots](https://github.com/SofaDefrost/SoftRobots) plugin are provided.
+
+
+The [examples folder](https://github.com/stonkens/trajopt_nlmor/tree/master/examples) is a great starting point once you have gone through the installation (see below).
+
+
+
+---
+
+---
+
+## Notes
+
+This project is under active development with limited documentation (for now). Any suggestions for improvements are welcome. 
+
+We would like to acknowledge the great work [SOFA](https://www.sofa-framework.org/) does and encourage you to check it out and get involved.
+
+---
+
+---
+
 ## Install and setup environment
 
 Tested platforms: Ubuntu: 20.04, Python 3.8 (tested with 3.8.2 and 3.8.3)
 
 ---
 
-### Get Plugin Libraries
+##### Get Plugin Libraries
 
 Download the libraries SoftRobots and STLIB
 ```
@@ -51,7 +77,7 @@ sofa_add_plugin(SoftRobots/  SoftRobots VERSION 1.0)
 ---
 
 
-### Install Sofa
+##### Install Sofa
 
 Follow [instructions](https://www.sofa-framework.org/community/doc/getting-started/build/linux/) to download dependencies (compiler, CMake, Qt, etc.)
 
@@ -64,7 +90,7 @@ git clone https://github.com/sofa-framework/sofa.git $HOME/sofa/src
 
 ---
 
-### Build Sofa
+##### Build Sofa
 
 Run `cmake-gui` to run the CMake GUI. Set the source path to `$HOME/sofa/src` and the build path to `$HOME/sofa/build`. Make sure the path to installation of Qt is correct by adding an entry `CMAKE_PREFIX_PATH` and setting it to the appropriate location (i.e. `/home/jlorenze/Qt/5.15.0/gcc_64`).
 
@@ -82,7 +108,7 @@ Additionally, add `SoftRobots 1.0` to the file `$HOME/sofa/build/lib/plugin_ist.
 
 ---
 
-### Set up virtual environment (optional)
+##### Set up virtual environment (optional)
 
 miniconda2 and anaconda3 (probably others, but these have been tested) can be used. SofaPython3 requires Python 3.8+. If using a package manager / virtual environment, ensure that `qmake --version` points to the same Qt version as Sofa (in order to enable running Sofa from the terminal (without `runSofa`))
 
@@ -95,23 +121,26 @@ Note that you can activate and deactivate this environment with ``conda activate
 
 ---
 
-### Install python packages
+##### Install python packages
 ```
 pip install pybind11 numpy scipy  # conda install pybind11, numpy, scipy
 pip install slycot   # required for control package
 pip install control
 pip install pyDOE
 pip install cvxpy
+pip install osqp
 ```
  There should now be a directory {PYTHON_ENV}/share/cmake/pybind11.
 
+Optional: Install [Gurobi](https://www.gurobi.com/)
+
 ---
 
-### Build SofaPython3
+##### Build SofaPython3
 
 Development of SofaPython3 is ongoing. Additionally, the libraries SofaPython and STLIB are based on Python 2 but some of their functionality is needed. A temporary solution is to just add some stuff to the cloned SofaPython3 repo. In particular, the SofaPython3 module splib does not contain the `numerics` submodule that is included in STLIB.
 ```
-cd /path/to/trajopt_nlmor
+cd {$REPO_ROOT}
 cp -r ./dependencies/numerics $HOME/sofa-plugins/SofaPython3/splib
 ```
 Modify the file `$HOME/sofa-plugins/SofaPython3/splib/__init__.py` to include the numerics submodule by modifying the line `__all__=["animation", "caching", "meshing", "numerics"]`.
@@ -140,13 +169,13 @@ ln -sFfv $(find $SP3_BLD/lib/site-packages -maxdepth 1 -mindepth 1 -not -name "*
 Adding the variables `SP3_BLD` and `SOFA_BLD` to the environment variables is a nice shortcut. Adding them to the `~/.bashrc` means they will automatically be defined on terminal startup.
 
 Test that Sofa launches by running `$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so`.
-Test that trajopt_nlmor works by running `$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so ~/lab/trajopt_nlmor/launch_sofa.py`.
+Test that soft-robot-control works by running `$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so {$REPO_ROOT}/launch_sofa.py`.
 
 Some more info on these instructions are given [here](https://github.com/SofaDefrost/plugin.SofaPython3/issues/137#issuecomment-571128647) and [here](https://www.sofa-framework.org/community/forum/topic/using-softrobots-sofapython3/).
 
 -----
 
-### Installation of ROS2
+##### Installation of ROS2
 
 SofaPython3 requires Python 3.8, hence the instructions for ROS2 compatible with python3.8 (which is default for ubuntu 20.04) is provided. 
 
@@ -170,18 +199,18 @@ Next we will setup a package (using cmake) to have the service required for usin
 
 ```
 # Navigate to src directory in root of workspace.
-ros2 pkg create --build-type ament_cmake trajopt_nlmor_ros
-cd trajopt_nlmor_ros
+ros2 pkg create --build-type ament_cmake soft_robot_control_ros
+cd soft_robot_control_ros
 mkdir srv
 cp {$REPO_DIR}/dependencies/ros/GuSTOsrv.srv srv/
 ```
 
-Add the following to `CMakeLists.txt` in `${WS_DIR}/src/trajopt_nlmor_ros`:
+Add the following to `CMakeLists.txt` in `${WS_DIR}/src/soft_robot_control_ros`:
 
 ```
 find_package(rosidl_default_generators REQUIRED)
 
-rosidl_generate_interfaces(trajopt_nlmor_ros
+rosidl_generate_interfaces(soft_robot_control_ros
   "srv/GuSTOsrv.srv"
  )
 ```
@@ -196,10 +225,10 @@ Add the following to `package.xml`
 <member_of_group>rosidl_interface_packages</member_of_group>
 ```
 
-Build the `trajopt_nlmor_ros` package. From `${WS_DIR}` run
+Build the `soft_robot_control_ros` package. From `${WS_DIR}` run
 
 ```
-colcon build --packages-select trajopt_nlmor_ros
+colcon build --packages-select soft_robot_control_ros
 ```
 
 Within your workspace `${WS_DIR}`, to source it run:
@@ -211,31 +240,21 @@ Within your workspace `${WS_DIR}`, to source it run:
 To validate that the service is created run the `ros2 interface show` command:
 
 ```
-ros2 interface show trajopt_nlmor_ros/srv/GuSTOsrv
+ros2 interface show soft_robot_control_ros/srv/GuSTOsrv
 ```
 
 ---
 
 ---
 
-## Using the repository
+## Running soft-robot-control and Sofa
 
-Three models (Finger, Trunk and Diamond), copied from [SOFA SoftRobots](https://github.com/SofaDefrost/SoftRobots) plugin are provided.
+There are two methods to launching simulations using soft-robot-control with Sofa. Both require setting the problem file
+in `problem_specification.py`.
 
+1. Run with the simulation GUI. `$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so {$REPO_ROOT}/launch_sofa.py`
+2. Run in the background. `python launch_sofa.py` (Requires modifying `sofa_lib_path` to match environment in `launch_sofa.py` file)
 
-The [examples folder](https://github.com/stonkens/trajopt_nlmor/tree/master/examples) is a great starting point.
-
-
-
----
-
----
-
-## Notes
-
-This project is under active development with limited documentation (for now). Any suggestions for improvements are welcome. 
-
-We would like to acknowledge the great work [SOFA](https://www.sofa-framework.org/) does and encourage you to check it out and get involved.
 
 ---
 
@@ -243,5 +262,12 @@ We would like to acknowledge the great work [SOFA](https://www.sofa-framework.or
 
 ## References
 
-To be added
+[1] F. Faure, C. Duriez, H. Delingette, J. Allard, B. Gilles, S. Marchesseau,
+H. Talbot, H. Courtecuisse, G. Bousquet, I. Peterlik, and S. Cotin,
+“SOFA: A multi-model framework for interactive physical simulation,”
+in Soft Tissue Biomechanical Modeling for Computer Assisted Surgery, 2012. 
 
+[2] E. Coevoet, T. Morales-Bieze, F. Largilliere, Z. Zhang, M. Thieffry,
+M. Sanz-Lopez, B. Carrez, D. Marchal, O. Goury, J. Dequidt, and
+C. Duriez, “Software toolkit for modeling, simulation, and control of
+soft robots,” Advanced Robotics, vol. 31, no. 22, pp. 1208–1224, 2017.
