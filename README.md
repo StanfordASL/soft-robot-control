@@ -1,6 +1,6 @@
 # Soft Robot Optimal Control via Reduced-Order Finite Element Models
 
-This repository accompanies the paper "Soft Robot Optimal Control via Reduced-Order Finite Element Models" by Sander Tonkens, Joseph Lorenzetti, and Marco Pavone.
+This repository accompanies the paper "[Soft Robot Optimal Control via Reduced-Order Finite Element Models](https://arxiv.org/abs/2011.02092)" by Sander Tonkens, Joseph Lorenzetti, and Marco Pavone.
 
 We provide an implementation of various optimal control algorithms (SCP, iLQR, LQR, etc.) for nonlinear reduced order
  models based on nonlinear Finite Element Models (FEMs). Specifically, it interfaces with the 
