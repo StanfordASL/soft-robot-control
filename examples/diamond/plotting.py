@@ -115,12 +115,33 @@ plt.savefig(figure_file, dpi=300, bbox_inches='tight')
 # plt.legend()
 # ax4.set_xlim([0.85, 1.15])
 # ax4.set_ylim(bottom=0.)
-
+print('-------------Solve times ---------------')
 print('Ours: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_scp), np.mean(solve_times_scp),
                                                      np.max(solve_times_scp)))
 print('ROMPC: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_rompc), np.mean(solve_times_rompc),
                                                       np.max(solve_times_rompc)))
 print('Koopman: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_koop), np.mean(solve_times_koop),
                                                         np.max(solve_times_koop)))
+
+
+# MSE calculations
+# Calculation of desired trajectory
+zf_desired = zf_target.copy()
+zf_desired[:, 3] = np.maximum(z_lb[0], np.minimum(z_ub[0], zf_target[:,3]))
+zf_desired[:, 4] = np.maximum(z_lb[1], np.minimum(z_ub[1], zf_target[:,4]))
+
+err_koop = (z_koop[:-2,:] - zf_desired)[:,3:5]
+err_scp = (z_scp[:-2,:] - zf_desired)[:,3:5]
+err_rompc = (z_rompc[:-2,:] - zf_desired)[:,3:5]
+
+# inner norm gives euclidean distance, outer norm squared / nbr_samples gives MSE
+mse_koop = np.linalg.norm(np.linalg.norm(err_koop, axis=1))**2 / zf_desired.shape[0]
+mse_rompc = np.linalg.norm(np.linalg.norm(err_rompc, axis=1))**2 / zf_desired.shape[0]
+mse_scp = np.linalg.norm(np.linalg.norm(err_scp, axis=1))**2 / zf_desired.shape[0]
+
+print('------ Mean Squared Errors (MSEs)----------')
+print('Ours (SCP): {}'.format(mse_scp))
+print('Koopman: {}'.format(mse_koop))
+print('ROMPC: {}'.format(mse_rompc))
 
 plt.show()
