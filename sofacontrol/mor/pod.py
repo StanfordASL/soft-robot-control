@@ -135,8 +135,7 @@ def run_POD(snapshots_file, POD_file, config, rom_dim=None):
 
     # Save this stuff
     POD_info = {'U': U, 'q_ref': data['q'][0], 'v_ref': np.zeros(data['v'][0].shape)}
-    # results = {'U_full': U_full, 'Sigma': Sigma, 'POD_info': POD_info, 'config': vars(config)}
-    results = {'POD_info': POD_info, 'config': vars(config)}
+    results = {'POD_info': POD_info, 'config': vars(config), 'Sigma': Sigma}
     print('Saving POD data to {}'.format(POD_file))
     scutils.save_data(POD_file, results)
     return results

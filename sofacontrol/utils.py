@@ -51,6 +51,7 @@ class SnapshotData:
         self.save_dynamics = save_dynamics
         if self.save_dynamics:
             self.dict = {
+                't': [],
                 'q': [],
                 'v': [],
                 'u': [],
@@ -67,6 +68,7 @@ class SnapshotData:
             }
         else:
             self.dict = {
+                't': [],
                 'q': [],
                 'v': [],
                 'u': [],
@@ -78,6 +80,7 @@ class SnapshotData:
     def add_point(self, point):
         if self.dict['dt'] == -1:
             self.dict['dt'] = point.dt
+        self.dict['t'].append(point.t)
         self.dict['q'].append(point.q)
         self.dict['v'].append(point.v)
         self.dict['u'].append(point.u)

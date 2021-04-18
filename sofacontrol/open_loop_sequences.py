@@ -59,6 +59,27 @@ class BaseRobotSequences(object):
         t_sequence = self.dt * np.arange(u_sequence.shape[1])
         return u_sequence, save_sequence, t_sequence
 
+    def sine_input(self, u_max, t, add_base=True):
+        """
+        Simple sine wave sequence, by default saves no snapshots
+        :param u_max: np array of the sine wave with u_max amplitude
+        :param t: duration of the sequence (seconds)
+        """
+        self.name = 'sine'
+        num_steps = int(t / self.dt)
+        u_sequence = np.broadcast_to(np.expand_dims(u_max, axis=-1), (self.m, num_steps))
+        sine = np.broadcast_to(np.sin(np.linspace(0, np.pi, num_steps)), (self.m, num_steps))
+        u_sequence = u_sequence*sine
+        save_sequence = np.array([False] * num_steps)
+
+        # Combine with base sequence
+        if add_base:
+            u_sequence, save_sequence = self.combined_sequence([self.u_base, u_sequence],
+                                                               [self.save_base, save_sequence])
+
+        t_sequence = self.dt * np.arange(u_sequence.shape[1])
+        return u_sequence, save_sequence, t_sequence
+
     def individual_actuation(self, t_step=None, interp_pts=0, add_base=True, static=False):
         """
         Creates a sequence of inputs by actuating cables individually (one by one), interpolating

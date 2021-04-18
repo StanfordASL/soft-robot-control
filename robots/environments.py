@@ -11,18 +11,18 @@ path = os.path.dirname(os.path.abspath(__file__))
 
 
 class TemplateEnvironment:
-    def __init__(self, name='Template'):
+    def __init__(self, name='Template', rayleighMass=0.1, rayleighStiffness=0.1, dt=0.01):
         self.name = name
         self.robot = Sofa.Core.Node(name)
         # set-up solvers
-        self.robot.addObject('EulerImplicitSolver', name='odesolver', firstOrder="0", rayleighMass="0.1",
-                             rayleighStiffness="0.1")
+        self.robot.addObject('EulerImplicitSolver', name='odesolver', firstOrder="0", rayleighMass=str(rayleighMass),
+                             rayleighStiffness=str(rayleighStiffness))
         self.robot.addObject('SparseLDLSolver', name='preconditioner')
         self.robot.addObject('GenericConstraintCorrection', solverName="preconditioner")
         self.actuator_list = []
         self.nb_nodes = None
         self.gravity = [0., -9810., 0.]  # default
-        self.dt = 0.01  # default
+        self.dt = dt
 
     def get_measurement_model(self, nodes=None, pos=True, vel=True):
         if nodes is None:
@@ -235,8 +235,8 @@ class Finger(TemplateEnvironment):
 
 
 class Diamond(TemplateEnvironment):
-    def __init__(self, name='Diamond'):
-        super(Diamond, self).__init__(name=name)
+    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.01):
+        super(Diamond, self).__init__(name=name, rayleighMass=rayleighMass, rayleighStiffness=rayleighStiffness, dt=dt)
 
         self.nb_nodes = 1628
         self.gravity = [0., 0., -9810.]
@@ -254,10 +254,10 @@ class Diamond(TemplateEnvironment):
         self.robot.addObject('TetrahedronSetGeometryAlgorithms')
         self.robot.addObject('MechanicalObject', template='Vec3d', name='tetras', showIndices='false',
                              showIndicesScale='4e-5')
-        self.robot.addObject('UniformMass', totalMass=0.5, name='mass')
+        self.robot.addObject('UniformMass', totalMass=totalMass, name='mass')
         self.robot.addObject('TetrahedronFEMForceField', template='Vec3d',
                              method='large', name='forcefield',
-                             poissonRatio=0.45, youngModulus=450)
+                             poissonRatio=poissonRatio, youngModulus=youngModulus)
 
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)
         self.robot.addObject('BoxROI', name='boxROI', box=[-15, -15, -40, 15, 15, 10], drawBoxes=True)
@@ -266,7 +266,7 @@ class Diamond(TemplateEnvironment):
         ##########################################
         # Cable                                 #
         ##########################################
-        actuatorsParam = [
+        self.actuatorsParam = [
             {'withName': 'A',
              'withCableGeometry': [[0, 97, 45]],
              'withAPullPointLocation': [0, 10, 30]
@@ -287,13 +287,13 @@ class Diamond(TemplateEnvironment):
 
         actuators = self.robot.addChild('actuators')
 
-        for i in range(len(actuatorsParam)):
-            cable = actuators.addChild(actuatorsParam[i]['withName'])
-            cable.addObject('MechanicalObject', position=actuatorsParam[i]['withCableGeometry'])
+        for i in range(len(self.actuatorsParam)):
+            cable = actuators.addChild(self.actuatorsParam[i]['withName'])
+            cable.addObject('MechanicalObject', position=self.actuatorsParam[i]['withCableGeometry'])
             cable.addObject('CableConstraint',
                             name='cable',
-                            indices=list(range(len(actuatorsParam[i]['withCableGeometry']))),
-                            pullPoint=actuatorsParam[i]['withAPullPointLocation'],
+                            indices=list(range(len(self.actuatorsParam[i]['withCableGeometry']))),
+                            pullPoint=self.actuatorsParam[i]['withAPullPointLocation'],
                             valueType='force',
                             hasPullPoint=True,
                             minForce=self.robot.min_force[i] * self.robot.dt.value

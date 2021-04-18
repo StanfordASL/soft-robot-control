@@ -104,10 +104,6 @@ class GuSTO:
         self.epsilon = kwargs.get('epsilon', EPSILON)
         kwargs.pop('epsilon', None)
 
-        ## Problem parameters ##
-        self.max_gusto_iters = kwargs.get('max_gusto_iters', MAX_ITERS)
-        kwargs.pop('max_gusto_iters', None)
-
         ## Convergence threshold ##
         self.convg_thresh = kwargs.get('convg_thresh', CONVERGE)
         kwargs.pop('convg_thresh', None)
@@ -134,7 +130,13 @@ class GuSTO:
                          verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char, **kwargs)
 
         # Solve SCP
+        self.max_gusto_iters = MAX_ITERS # let first solve take more time
         self.solve(x0, u_init, x_init, z, zf, u)
+
+                ## Problem parameters ##
+        self.max_gusto_iters = kwargs.get('max_gusto_iters', MAX_ITERS)
+        kwargs.pop('max_gusto_iters', None)
+
 
     def is_converged(self, x, u):
         """
