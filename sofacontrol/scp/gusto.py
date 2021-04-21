@@ -369,7 +369,7 @@ class GuSTO:
         t_gusto = time.time() - t0
         if omega > self.omega_max:
             print('omega > omega_max, solution did not converge')
-        if not self.is_valid_iteration(itr):
+        if not self.is_valid_iteration(itr-1):
             print('Max iterations, solution did not converge')
         else:
             print('Solved in {} iterations/{:.3f} seconds, with {:.3f} s from LOCP solve'.format(itr, t_gusto, t_locp))
