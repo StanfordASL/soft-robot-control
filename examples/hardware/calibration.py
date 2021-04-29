@@ -199,45 +199,42 @@ def actuator_calibration():
     prob.ControllerClass = OpenLoopController
 
     # Define an open loop control sequence
-    max_val = 1500
-    u0 = np.array([0, 0, 0, 0])
+    lowval = 150
+    val = 1500
+    u0 = np.array([lowval, lowval, lowval, lowval])
     u0, save0, t0 = prob.Robot.sequences.constant_input(u_constant=u0, t=1.0, add_base=False)
     save0 += True
-    u1 = np.array([0.25*max_val, 0, 0, 0])
-    u1, save1, t1 = prob.Robot.sequences.constant_input(u_constant=u1, t=2.0, add_base=False)
+    u1 = np.array([val-lowval, 0, 0, 0])
+    u1, save1, t1 = prob.Robot.sequences.sine_input(u_max=u1, t=2.0, add_base=False)
+    u1 += lowval
     save1 += True
-    u2 = np.array([0, 0, 0, 0])
-    u2, save2, t2 = prob.Robot.sequences.constant_input(u_constant=u2, t=1.0, add_base=False)
+    u2 = np.array([0, val-lowval, 0, 0])
+    u2, save2, t2 = prob.Robot.sequences.sine_input(u_max=u2, t=2.0, add_base=False)
+    u2 += lowval
     save2 += True
-    u3 = np.array([0.5*max_val, 0, 0, 0])
-    u3, save3, t3 = prob.Robot.sequences.constant_input(u_constant=u3, t=2.0, add_base=False)
+    u3 = np.array([0, 0, val-lowval, 0])
+    u3, save3, t3 = prob.Robot.sequences.sine_input(u_max=u3, t=2.0, add_base=False)
+    u3 += lowval
     save3 += True
-    u4 = np.array([0, 0, 0, 0])
-    u4, save4, t4 = prob.Robot.sequences.constant_input(u_constant=u4, t=1.0, add_base=False)
+    u4 = np.array([0, 0, 0, val-lowval])
+    u4, save4, t4 = prob.Robot.sequences.sine_input(u_max=u4, t=2.0, add_base=False)
+    u4 += lowval
     save4 += True
-    u5 = np.array([0.75*max_val, 0, 0, 0])
-    u5, save5, t5 = prob.Robot.sequences.constant_input(u_constant=u5, t=2.0, add_base=False)
+    u5 = np.array([val-lowval, val-lowval, val-lowval, val-lowval])
+    u5, save5, t5 = prob.Robot.sequences.sine_input(u_max=u5, t=2.0, add_base=False)
+    u5 += lowval
     save5 += True
-    u6 = np.array([0, 0, 0, 0])
-    u6, save6, t6 = prob.Robot.sequences.constant_input(u_constant=u6, t=1.0, add_base=False)
-    save6 += True
-    u7 = np.array([max_val, 0, 0, 0])
-    u7, save7, t7 = prob.Robot.sequences.constant_input(u_constant=u7, t=2.0, add_base=False)
-    save7 += True
-    u8 = np.array([0, 0, 0, 0])
-    u8, save8, t8 = prob.Robot.sequences.constant_input(u_constant=u8, t=1.0, add_base=False)
-    save8 += True
 
-    u, save, t = prob.Robot.sequences.combined_sequence([u0, u1, u2, u3, u4, u5, u6, u7, u8], 
-        [save0, save1, save2, save3, save4, save5, save6, save7, save8], 
-        [t0, t1, t2, t3, t4, t5, t6, t7, t8])
+    u, save, t = prob.Robot.sequences.combined_sequence([u0, u1, u2, u3, u4, u5], 
+                                    [save0, save1, save2, save3, save4, save5], 
+                                    [t0, t1, t2, t3, t4, t5])
 
     prob.controller = OpenLoop(u.shape[0], t, u, save)
 
     prob.snapshots = SnapshotData(save_dynamics=False)
 
     # Save simulation data
-    prob.opt['sim_duration'] = 13
+    prob.opt['sim_duration'] = 11
     prob.snapshots_dir = path
     prob.opt['save_prefix'] = 'actuator_calibration'
 
