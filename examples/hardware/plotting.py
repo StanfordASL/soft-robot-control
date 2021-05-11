@@ -13,34 +13,34 @@ path = dirname(abspath(__file__))
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
-M = 3
-T = 10
-N = 500
-t_target = np.linspace(0, M*T, M*N)
-th = np.linspace(0, M * 2 * np.pi, M*N)
-zf_target = np.zeros((M*N, 6))
-zf_target[:, 3] = -15. * np.sin(th)
-zf_target[:, 4] = 15. * np.sin(2 * th)
-y_ub = 5
-name = 'figure8'
+# M = 3
+# T = 10
+# N = 500
+# t_target = np.linspace(0, M*T, M*N)
+# th = np.linspace(0, M * 2 * np.pi, M*N)
+# zf_target = np.zeros((M*N, 6))
+# zf_target[:, 3] = -15. * np.sin(th)
+# zf_target[:, 4] = 15. * np.sin(2 * th)
+# y_ub = 5
+# name = 'figure8'
 
 ##############################################
 # Problem 2, Circle on side
 ##############################################
-# M = 3
-# T = 5
-# N = 1000
-# r = 10
-# t_target = np.linspace(0, M*T, M*N)
-# th = np.linspace(0, M*2*np.pi, M*N)
-# x_target = np.zeros(M*N)
-# y_target = r * np.sin(th)
-# z_target = r - r * np.cos(th) + 107
-# zf_target = np.zeros((M*N, 6))
-# zf_target[:, 3] = x_target
-# zf_target[:, 4] = y_target
-# zf_target[:, 5] = z_target
-# name = 'circle'
+M = 3
+T = 5
+N = 1000
+r = 10
+t_target = np.linspace(0, M*T, M*N)
+th = np.linspace(0, M*2*np.pi, M*N)
+x_target = np.zeros(M*N)
+y_target = r * np.sin(th)
+z_target = r - r * np.cos(th) + 107
+zf_target = np.zeros((M*N, 6))
+zf_target[:, 3] = x_target
+zf_target[:, 4] = y_target
+zf_target[:, 5] = z_target
+name = 'circle'
 
 
 # Load SCP data
@@ -84,13 +84,13 @@ if name == 'figure8':
     ax2.plot(t_rompc, z_rompc[:, 3], 'tab:green', marker='x', markevery=m_w, label='ROMPC', linewidth=1)
     ax2.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
     ax2.plot(t_scp, z_scp[:, 3], 'tab:blue', label='Ours', linewidth=3)
-    ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1)
+    ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$x_{ee}$ [mm]', fontsize=14)
 else:
     ax2.plot(t_rompc, z_rompc[:, 4], 'tab:green', marker='x', markevery=m_w, label='ROMPC', linewidth=1)
     ax2.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
     ax2.plot(t_scp, z_scp[:, 4], 'tab:blue', label='Ours', linewidth=3)
-    ax2.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1)
+    ax2.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
 ax2.set_xlim([0, 10])
 plt.xlabel(r'$t$ [s]', fontsize=14)
@@ -102,13 +102,13 @@ if name == 'figure8':
     ax3.plot(t_rompc, z_rompc[:, 4], 'tab:green', marker='x', markevery=m_w, label='ROMPC', linewidth=1)
     ax3.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
     ax3.plot(t_scp, z_scp[:, 4], 'tab:blue', label='Ours', linewidth=3)
-    ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1)
+    ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
 else:
     ax3.plot(t_rompc, z_rompc[:, 5], 'tab:green', marker='x', markevery=m_w, label='ROMPC', linewidth=1)
     ax3.plot(t_koop, z_koop[:, 5], 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
     ax3.plot(t_scp, z_scp[:, 5], 'tab:blue', label='Ours', linewidth=3)
-    ax3.plot(t_target, zf_target[:, 5], '--k', alpha=1, linewidth=1)
+    ax3.plot(t_target, zf_target[:, 5], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$z_{ee}$ [mm]', fontsize=14) 
 ax3.set_xlim([0, 10])
 plt.xlabel(r'$t$ [s]', fontsize=14)
