@@ -138,7 +138,7 @@ class KoopmanMPC(TemplateController):
         sim_time = round(sim_time, 4)
         # Startup portion of controller, before OCP controller is activated
         self.observer.update(None, y, None)
-        # if self.Y is not None:
+
         if self.Y is not None and not self.Y.contains(y):
             y = self.Y.project_to_polyhedron(y)
         self.data.add_measurement(y, u_prev)

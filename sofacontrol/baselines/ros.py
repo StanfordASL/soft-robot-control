@@ -98,8 +98,10 @@ class MPCSolverNode(Node):
 
         if success:
             if self.verbose:
-                print('{:.3f} s from LOCP solve'.format(solver_stats.solve_time))
-
+                try:
+                    print('{:.3f} s from LOCP solve'.format(solver_stats.solve_time))
+                except:
+                    print('Solver failed.')
             self.xopt, self.uopt, _ = self.locp.get_solution()
 
         else:
@@ -110,7 +112,10 @@ class MPCSolverNode(Node):
         response.t = np2arr(self.topt)
         response.xopt = np2arr(self.xopt)
         response.uopt = np2arr(self.uopt)
-        response.solve_time = solver_stats.solve_time
+        try:
+            response.solve_time = solver_stats.solve_time
+        except:
+            response.solve_time = 0.0
         return response
 
     def get_target(self, t0):

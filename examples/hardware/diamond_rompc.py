@@ -67,32 +67,32 @@ def run_rompc():
     ##############################################
     # Problem 1, Figure 8 with constraints
     ##############################################
-    # cost = QuadraticCost()
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100  # corresponding to x position of end effector
-    # Qz[4, 4] = 100  # corresponding to y position of end effector
-    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    # cost.Q = model.H.T @ Qz @ model.H
-    # cost.R = 0.00001 * np.eye(4)
-
-    # costL = QuadraticCost()
-    # costL.Q = cost.Q
-    # costL.R = .000001 * np.eye(30)
-
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
     cost = QuadraticCost()
     Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 0.0  # corresponding to x position of end effector
+    Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 100  # corresponding to z position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
     cost.R = 0.00001 * np.eye(4)
 
     costL = QuadraticCost()
     costL.Q = cost.Q
     costL.R = .000001 * np.eye(30)
+
+    ##############################################
+    # Problem 2, Circle on side
+    ##############################################
+    # cost = QuadraticCost()
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 0.0  # corresponding to x position of end effector
+    # Qz[4, 4] = 100  # corresponding to y position of end effector
+    # Qz[5, 5] = 100  # corresponding to z position of end effector
+    # cost.Q = model.H.T @ Qz @ model.H
+    # cost.R = 0.00001 * np.eye(4)
+
+    # costL = QuadraticCost()
+    # costL.Q = cost.Q
+    # costL.R = .000001 * np.eye(30)
 
 
     # Define controller
@@ -128,71 +128,71 @@ def run_rompc_solver():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    # target = Target()
-    # M = 3
-    # T = 10
-    # N = 500
-    # target.t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M * 2 * np.pi, M*N)
-    # zf_target = np.zeros((M*N, model.output_dim))
-    # zf_target[:, 3] = -15. * np.sin(th)
-    # zf_target[:, 4] = 15. * np.sin(2 * th)
-    # target.z = model.zfyf_to_zy(zf=zf_target)
-
-    # # Cost
-    # cost = QuadraticCost()
-    # cost.R = .00001 * np.eye(model.input_dim)
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100  # corresponding to x position of end effector
-    # Qz[4, 4] = 100  # corresponding to y position of end effector
-    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    # cost.Q = Qz
-    
-    # # Control constraints
-    # low = 200.0
-    # high = 1500.0
-    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
-
-    # # State constraints
-    # Hz = np.zeros((1, 6))
-    # Hz[0, 4] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
-
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
     target = Target()
     M = 3
-    T = 5
-    N = 1000
-    r = 10
+    T = 10
+    N = 500
     target.t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M*2*np.pi, M*N)
-    x_target = np.zeros(M*N)
-    y_target = r * np.sin(th)
-    z_target = r - r * np.cos(th) + 107.0
-    zf_target = np.zeros((M*N, 6))
-    zf_target[:, 3] = x_target
-    zf_target[:, 4] = y_target
-    zf_target[:, 5] = z_target
+    th = np.linspace(0, M * 2 * np.pi, M*N)
+    zf_target = np.zeros((M*N, model.output_dim))
+    zf_target[:, 3] = -15. * np.sin(th)
+    zf_target[:, 4] = 15. * np.sin(2 * th)
     target.z = model.zfyf_to_zy(zf=zf_target)
 
     # Cost
     cost = QuadraticCost()
-    cost.R = .00001 * np.eye(4)
-    Qz = np.zeros((6, 6))
-    Qz[3, 3] = 0.0  # corresponding to x position of end effector
-    Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    cost.R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100  # corresponding to x position of end effector
+    Qz[4, 4] = 100  # corresponding to y position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
     cost.Q = Qz
-
-    # Constraints
+    
+    # Control constraints
     low = 200.0
     high = 1500.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
-    X = None
+
+    # State constraints
+    Hz = np.zeros((1, 6))
+    Hz[0, 4] = 1
+    H = Hz @ model.H
+    b_z = np.array([5])
+    X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
+
+    ##############################################
+    # Problem 2, Circle on side
+    ##############################################
+    # target = Target()
+    # M = 3
+    # T = 5
+    # N = 1000
+    # r = 10
+    # target.t = np.linspace(0, M*T, M*N)
+    # th = np.linspace(0, M*2*np.pi, M*N)
+    # x_target = np.zeros(M*N)
+    # y_target = r * np.sin(th)
+    # z_target = r - r * np.cos(th) + 107.0
+    # zf_target = np.zeros((M*N, 6))
+    # zf_target[:, 3] = x_target
+    # zf_target[:, 4] = y_target
+    # zf_target[:, 5] = z_target
+    # target.z = model.zfyf_to_zy(zf=zf_target)
+
+    # # Cost
+    # cost = QuadraticCost()
+    # cost.R = .00001 * np.eye(4)
+    # Qz = np.zeros((6, 6))
+    # Qz[3, 3] = 0.0  # corresponding to x position of end effector
+    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    # cost.Q = Qz
+
+    # # Constraints
+    # low = 200.0
+    # high = 1500.0
+    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
+    # X = None
 
     # Define GuSTO model
     N = 5
