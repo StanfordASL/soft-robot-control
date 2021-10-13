@@ -53,6 +53,7 @@ def run_rompc():
     prob.ControllerClass = ClosedLoopController
 
     # Specify a measurement and output model
+    # covariance between states of v (and q) but not together
     cov_q = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, 1628, S_q=cov_q, S_v=cov_v)

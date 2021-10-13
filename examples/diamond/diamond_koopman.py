@@ -83,15 +83,16 @@ def run_koopman():
     """
     from robots import environments
     from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.baselines.koopman import koopman
+    from sofacontrol.baselines.koopman import koopman_utils
     from scipy.io import loadmat
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.utils import Polyhedron
+    from sofacontrol.baselines.koopman import koopman
     koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
     raw_model = koopman_data['model']
     raw_params = koopman_data['params']
-    model = koopman.KoopmanModel(raw_model, raw_params)
-    scaling = koopman.KoopmanScaling(scale=model.scale)
+    model = koopman_utils.KoopmanModel(raw_model, raw_params)
+    scaling = koopman_utils.KoopmanScaling(scale=model.scale)
 
     prob = Problem()
     prob.Robot = environments.Diamond()
@@ -127,7 +128,7 @@ def run_koopman_solver():
     python3 diamond_koopman.py run_koopman_solver
     """
     from scipy.io import loadmat
-    from sofacontrol.baselines.koopman import koopman
+    from sofacontrol.baselines.koopman import koopman_utils
     from sofacontrol.baselines.ros import runMPCSolverNode
     from sofacontrol.tpwl.tpwl_utils import Target
     from sofacontrol.utils import QuadraticCost
@@ -136,7 +137,7 @@ def run_koopman_solver():
     koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
     raw_model = koopman_data['model']
     raw_params = koopman_data['params']
-    model = koopman.KoopmanModel(raw_model, raw_params)
+    model = koopman_utils.KoopmanModel(raw_model, raw_params)
 
     Ts = model.Ts
     cost_params = QuadraticCost()
@@ -150,7 +151,7 @@ def run_koopman_solver():
     zf_target[:, 1] = 10. * np.sin(2 * th) + 1.5
     zf_target[:, 2] -= 114
 
-    scaling = koopman.KoopmanScaling(scale=model.scale)
+    scaling = koopman_utils.KoopmanScaling(scale=model.scale)
     zf_target_norm = scaling.scale_down(y=zf_target)
 
     target.z = zf_target_norm

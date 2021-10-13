@@ -40,11 +40,9 @@ class Trunk(TemplateEnvironment):
         self.gravity = [0., 0., 9810.]
 
         self.robot.min_force = [0.] * 8  # Without premultiplication with dt
-
         self.robot.addObject('MeshVTKLoader', name='loader', filename=path + '/mesh/trunk.vtk')
         self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
         self.robot.addObject('TetrahedronSetTopologyModifier')
-        self.robot.addObject('TetrahedronSetTopologyAlgorithms')
         self.robot.addObject('TetrahedronSetGeometryAlgorithms')
         # Option 1:
         self.robot.addObject('MechanicalObject', name='tetras', template='Vec3d', showIndices='false',
@@ -157,7 +155,6 @@ class Finger(TemplateEnvironment):
         self.robot.addObject('MeshVTKLoader', name='loader', filename=path + '/mesh/finger.vtk')
         self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
         self.robot.addObject('TetrahedronSetTopologyModifier')
-        self.robot.addObject('TetrahedronSetTopologyAlgorithms')
         self.robot.addObject('TetrahedronSetGeometryAlgorithms')
         self.robot.addObject('MechanicalObject', name='tetras', template='Vec3d', showIndices='false',
                              showIndicesScale='4e-5')
@@ -182,9 +179,9 @@ class Finger(TemplateEnvironment):
 
         cable = actuators.addChild('cable')
 
-        #  This create a MechanicalObject, a componant holding the degree of freedom of our
+        #  This create a MechanicalObject, a componant holding the degree of freedom of our
         # mechanical modelling. In the case of a cable it is a set of positions specifying
-        #  the points where the cable is passing by.
+        #  the points where the cable is passing by.
         cable.addObject('MechanicalObject', name='meca',
                         position=(
                                 "-17.5 12.5 2.5 " +
@@ -212,8 +209,8 @@ class Finger(TemplateEnvironment):
                         pullPoint="0.0 12.5 2.5", valueType='force',
                         minForce=self.robot.min_force[0] * self.robot.dt.value)
         # This create a BarycentricMapping. A BarycentricMapping is a key element as it will create a bi-directional link
-        #  between the cable's DoFs and the finger's ones so that movements of the cable's DoFs will be mapped
-        #  to the finger and vice-versa;
+        #  between the cable's DoFs and the finger's ones so that movements of the cable's DoFs will be mapped
+        #  to the finger and vice-versa;
         cable.addObject('BarycentricMapping', name='mapping', mapForces='false', mapMasses='false')
 
         self.actuator_list.append(cable.cable)
@@ -223,7 +220,7 @@ class Finger(TemplateEnvironment):
         # Visualization                          #
         ##########################################
         # In Sofa, visualization is handled by adding a rendering model.
-        #  Create an empty child node to store this rendering model.
+        #  Create an empty child node to store this rendering model.
         fingerVisu = self.robot.addChild('VisualModel')
 
         # Add to this empty node a rendering model made of triangles and loaded from an stl file.
@@ -250,7 +247,6 @@ class Diamond(TemplateEnvironment):
                              translation=translation)
         self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
         self.robot.addObject('TetrahedronSetTopologyModifier')
-        self.robot.addObject('TetrahedronSetTopologyAlgorithms')
         self.robot.addObject('TetrahedronSetGeometryAlgorithms')
         self.robot.addObject('MechanicalObject', template='Vec3d', name='tetras', showIndices='false',
                              showIndicesScale='4e-5')
