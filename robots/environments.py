@@ -3,7 +3,7 @@ from math import cos
 from math import sin
 
 import Sofa.Core
-from splib.numerics import Quat, Vec3
+from splib3.numerics import Quat, Vec3
 
 from sofacontrol import measurement_models
 

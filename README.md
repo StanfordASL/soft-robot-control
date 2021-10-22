@@ -96,7 +96,7 @@ Run `cmake-gui` to run the CMake GUI. Set the source path to `$HOME/sofa/src` an
 
 Run **Configure**, and set the compiler according to the instructions [here](https://www.sofa-framework.org/community/doc/getting-started/build/linux/).
 
-Then, add entry `SOFA_BUILD_METIS` and enable it. Find the entry `SOFA_EXTERNAL_DIRECTORIES` and set it to `$HOME/sofa-plugins/SoftRobots` where `$HOME` is replaced with the actual path (i.e. `/home/jlorenze/`). Also, add and enable entry `SOFTROBOTS_IGNORE_ERRORS` which will allow SoftRobots to compile without the STLIB library. Run **Configure** again (should complete with no errors), and then run **Generate**.
+Then, add entry `SOFA_BUILD_METIS` and enable it. Find the entry `SOFA_EXTERNAL_DIRECTORIES` and set it to `$HOME/sofa-plugins` where `$HOME` is replaced with the actual path (i.e. `/home/jlorenze/`). Also, add and enable entry `SOFTROBOTS_IGNORE_ERRORS` which will allow SoftRobots to compile without the STLIB library. Run **Configure** again (should complete with no errors), and then run **Generate**.
 
 To build (use `-j` flag to use all cores):
 ```
