@@ -172,13 +172,6 @@ export GRB_LICENSE_FILE=/opt/gurobi950/gurobi.lic
 # TODO: Potentially get rid of this
 ##### Build SofaPython3
 
-# Development of SofaPython3 is ongoing. Additionally, the libraries SofaPython and STLIB are based on Python 2 but some of their functionality is needed. A temporary solution is to just add some stuff to the cloned SofaPython3 repo. In particular, the SofaPython3 module splib does not contain the `numerics` submodule that is included in STLIB.
-# ```
-# cd {$REPO_ROOT}
-# cp -r ./dependencies/numerics $HOME/sofa-plugins/SofaPython3/splib
-# ```
-# Modify the file `$HOME/sofa-plugins/SofaPython3/splib/__init__.py` to include the numerics submodule by modifying the line `__all__=["animation", "caching", "meshing", "numerics"]`.
-
 Now we can build:
 ```
 cd $HOME/sofa-plugins/SofaPython3
