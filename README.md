@@ -14,7 +14,7 @@ We provide an implementation of various optimal control algorithms (SCP, iLQR, L
 
 SOFA plugins:
 
-- [SOFA Python3](https://github.com/sofa-framework/plugin.SofaPython3): Python 3 development for python interface to SOFA. Installation help for out-of-tree builds can be found [here](https://github.com/SofaDefrost/plugin.SofaPython3/issues/137). Requires py37+
+- [SOFA Python3](https://github.com/sofa-framework/SofaPython3): Python 3 development for python interface to SOFA. Installation help for out-of-tree builds can be found [here](https://github.com/SofaDefrost/plugin.SofaPython3/issues/137). Requires py37+
 - [SOFA SoftRobots](https://github.com/SofaDefrost/SoftRobots)
 - [SOFA STLIB](https://github.com/SofaDefrost/STLIB)
 
@@ -96,7 +96,7 @@ Run `cmake-gui` to run the CMake GUI. Set the source path to `$HOME/sofa/src` an
 
 Run **Configure**, and set the compiler according to the instructions [here](https://www.sofa-framework.org/community/doc/getting-started/build/linux/).
 
-Then, add entry `SOFA_BUILD_METIS` and enable it. Find the entry `SOFA_EXTERNAL_DIRECTORIES` and set it to `$HOME/sofa-plugins/SoftRobots` where `$HOME` is replaced with the actual path (i.e. `/home/jlorenze/`). Also, add and enable entry `SOFTROBOTS_IGNORE_ERRORS` which will allow SoftRobots to compile without the STLIB library. Run **Configure** again (should complete with no errors), and then run **Generate**.
+Then, add entry `SOFA_BUILD_METIS` and enable it. Find the entry `SOFA_EXTERNAL_DIRECTORIES` and set it to `$HOME/sofa-plugins` where `$HOME` is replaced with the actual path (i.e. `/home/jlorenze/`). Also, add and enable entry `SOFTROBOTS_IGNORE_ERRORS` which will allow SoftRobots to compile without the STLIB library. Run **Configure** again (should complete with no errors), and then run **Generate**.
 
 To build (use `-j` flag to use all cores):
 ```
@@ -123,27 +123,61 @@ Note that you can activate and deactivate this environment with ``conda activate
 
 ##### Install python packages
 ```
-pip install pybind11 numpy scipy  # conda install pybind11, numpy, scipy
+conda install numpy, scipy
+conda install pyqt
 pip install slycot   # required for control package
 pip install control
 pip install pyDOE
 pip install cvxpy
 pip install osqp
+pip install sip
 ```
- There should now be a directory {PYTHON_ENV}/share/cmake/pybind11.
-
-Optional: Install [Gurobi](https://www.gurobi.com/)
+Install pybind11 2.6.0 - DO NOT install 2.8.0 as it will throw compilation errors when compiling SofaPython3
+```
+conda install -c conda-forge pybind11=2.6.0
+```
+ There should now be a directory {PYTHON_ENV}/share/cmake/pybind11 (e.g. ${HOME}/anaconda3/envs/sofa/share/cmake/pybind11.
+ This stores the cmake files for pybind11, necessary to compile SofaPython3. Track pybind2.8 issue here: [pybindissue](https://github.com/sofa-framework/SofaPython3/pull/216)
 
 ---
+##### Install Gurobi
 
+Install [Gurobi](https://cdn.gurobi.com/wp-content/plugins/hd_documentations/documentation/9.0/quickstart_linux.pdf)
+```
+tar xvfz ~/Downloads/gurobi9.5.0_linux64.tar.gz /opt/
+cd /opt/
+chmod +777 /opt/gurobi950
+chmod +777 /opt/gurobi950/linux64
+```
+Once gurobi is installed, you need to install the license. Follow link above for instructions to get and install academic license. 
+You then need to put the license in /opt/gurobi950 during `grbgetkey`.
+
+Next, install Gurobi modules for Python (see [pyGurobi](https://support.gurobi.com/hc/en-us/articles/360044290292-How-do-I-install-Gurobi-for-Python-))
+```
+cd $GUROBI_HOME
+python setup.py install
+```
+
+Set your environment variables in `$HOME/.bashrc`. Should look like below
+```
+export PYTHONPATH="$HOME/sofa-plugins/STLIB/python3/src"
+export SP3_BLD=$HOME/sofa-plugins/SofaPython3/build
+export SOFA_BLD=$HOME/sofa/build
+export GUROBI_HOME="/opt/gurobi950/linux64"
+export PATH="${PATH}:${GUROBI_HOME}/bin"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib"
+export GRB_LICENSE_FILE=/opt/gurobi950/gurobi.lic
+```
+---
+# TODO: Potentially get rid of this
 ##### Build SofaPython3
 
-Development of SofaPython3 is ongoing. Additionally, the libraries SofaPython and STLIB are based on Python 2 but some of their functionality is needed. A temporary solution is to just add some stuff to the cloned SofaPython3 repo. In particular, the SofaPython3 module splib does not contain the `numerics` submodule that is included in STLIB.
-```
-cd {$REPO_ROOT}
-cp -r ./dependencies/numerics $HOME/sofa-plugins/SofaPython3/splib
-```
-Modify the file `$HOME/sofa-plugins/SofaPython3/splib/__init__.py` to include the numerics submodule by modifying the line `__all__=["animation", "caching", "meshing", "numerics"]`.
+# Development of SofaPython3 is ongoing. Additionally, the libraries SofaPython and STLIB are based on Python 2 but some of their functionality is needed. A temporary solution is to just add some stuff to the cloned SofaPython3 repo. In particular, the SofaPython3 module splib does not contain the `numerics` submodule that is included in STLIB.
+# ```
+# cd {$REPO_ROOT}
+# cp -r ./dependencies/numerics $HOME/sofa-plugins/SofaPython3/splib
+# ```
+# Modify the file `$HOME/sofa-plugins/SofaPython3/splib/__init__.py` to include the numerics submodule by modifying the line `__all__=["animation", "caching", "meshing", "numerics"]`.
 
 Now we can build:
 ```
@@ -163,8 +197,9 @@ Now a couple of additional steps:
 mkdir -p $(python3 -m site --user-site)
 echo "export SP3_BLD=$HOME/sofa-plugins/SofaPython3/build" >> ~/.bashrc
 echo "export SOFA_BLD=$HOME/sofa/build" >> ~/.bashrc
+echo "export PYTHONPATH=$HOME/sofa-plugins/STLIB/python3/src"
 source ~/.bashrc
-ln -sFfv $(find $SP3_BLD/lib/site-packages -maxdepth 1 -mindepth 1 -not -name "*.py") $(python3 -m site --user-site)
+ln -sFfv $(find $SP3_BLD/lib/python3/site-packages -maxdepth 1 -mindepth 1 -not -name "*.py") $(python3 -m site --user-site)
 ```
 Adding the variables `SP3_BLD` and `SOFA_BLD` to the environment variables is a nice shortcut. Adding them to the `~/.bashrc` means they will automatically be defined on terminal startup.
 
@@ -174,17 +209,18 @@ Test that soft-robot-control works by running `$SOFA_BLD/bin/runSofa -l $SP3_BLD
 Some more info on these instructions are given [here](https://github.com/SofaDefrost/plugin.SofaPython3/issues/137#issuecomment-571128647) and [here](https://www.sofa-framework.org/community/forum/topic/using-softrobots-sofapython3/).
 
 -----
-
 ##### Installation of ROS2
 
 SofaPython3 requires Python 3.8, hence the instructions for ROS2 compatible with python3.8 (which is default for ubuntu 20.04) is provided. 
 
-Download the Debian binaries for [ROS2 Foxy Fitzroy](https://index.ros.org/doc/ros2/Installation/Foxy/) on ubuntu. Follow the steps provided in the link to complete the setup of ROS2. Follow steps below for further installation instructions.
+Download the Debian binaries for [ROS2 Foxy Fitzroy](https://index.ros.org/doc/ros2/Installation/Foxy/) on ubuntu. 
+Follow the steps provided in the link to complete the setup of ROS2. Follow steps below for further installation instructions.
 
 ROS2 recommends the usage of colcon for building packages:
 
 ```
 sudo apt install python3-colcon-common-extensions
+pip install -U git+https://github.com/colcon/colcon-common-extensions.git
 ```
 
 Lark parser is required for ROS2 
@@ -259,6 +295,20 @@ in `problem_specification.py`.
 ---
 
 ---
+
+## Setup Environment variables
+```
+source /home/jjalora/ros2_foxy/install/setup.bash
+source /home/jjalora/ros2_ws/install/setup.bash
+conda activate sofa
+```
+
+## Run the following commands to run minimal example
+```
+$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so ~/soft-robot-control/launch_sofa.py
+
+python3 ~/soft-robot-control/examples/diamond/diamond_rompc.py run_rompc_solver
+```
 
 ## References
 
