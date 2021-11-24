@@ -52,7 +52,7 @@ We would like to acknowledge the great work [SOFA](https://www.sofa-framework.or
 
 ## Install and setup environment
 
-Tested platforms: Ubuntu: 20.04, Python 3.8 (tested with 3.8.2 and 3.8.3)
+Tested platforms: Ubuntu: 20.04, Python 3.8 (tested with 3.8.2, 3.8.3, 3.8.12)
 
 ---
 
@@ -275,10 +275,12 @@ ros2 interface show soft_robot_control_ros/srv/GuSTOsrv
 ```
 
 ---
-## Setup Environment variables
+## Setup Environment variables (optional)
+
+Add the following to your `.bashrc` file to auto source ROS 2 workspaces
 ```
-source /home/jjalora/ros2_foxy/install/setup.bash
-source /home/jjalora/ros2_ws/install/setup.bash
+source $HOME/ros2_foxy/install/setup.bash
+source $HOME/ros2_ws/install/setup.bash
 conda activate sofa
 ```
 
