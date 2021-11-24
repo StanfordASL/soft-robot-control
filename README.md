@@ -75,7 +75,6 @@ conda activate sofa
 Note that you can activate and deactivate this environment with ``conda activate`` and ``conda deactivate``.
 
 ---
-
 ##### Install python packages
 ```
 conda install numpy, scipy
@@ -107,10 +106,9 @@ export PATH="${PATH}:${GUROBI_HOME}/bin"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib"
 export GRB_LICENSE_FILE=/opt/gurobi950/gurobi.lic
 ```
-
 Execute `source ~/.bashrc` in terminal to make the appropriate changes.
----
 
+---
 ##### Get Plugin Libraries
 
 Download the libraries SoftRobots, STLIB, and SofaPython3
