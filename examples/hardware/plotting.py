@@ -44,13 +44,15 @@ name = 'circle'
 
 
 # Load SCP data
-scp_simdata_file = join(path, name + '_scp.pkl')
+scp_simdata_file = join(path, 'scp_sim.pkl')
 scp_data = load_data(scp_simdata_file)
 idx = np.argwhere(scp_data['t'] >= 3)[0][0]
+u_scp = scp_data['u'][idx:, :]
+x_scp = scp_data['x']
+#q_scp = scp_data['q']
 t_scp = scp_data['t'][idx:] - scp_data['t'][idx]
 z_scp = scp_data['z'][idx:, :]
 zhat = scp_data['z_hat'][idx:, :]
-u_scp = scp_data['u'][idx:, :]
 solve_times_scp = scp_data['info']['solve_times']
 real_time_limit_scp = scp_data['info']['rollout_time']
 

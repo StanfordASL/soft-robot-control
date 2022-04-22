@@ -31,6 +31,10 @@ class ClosedLoopController(Sofa.Core.Controller):
         self.save_prefix = self.opt.get("save_prefix", datetime.now().strftime("%Y%m%d_%H%M"))
         self.dt = self.rootNode.dt.value
 
+        #TODO: For now, store q. Include this as an argument later
+        self.store_q = False
+        self.store_x = True
+
         # Define controller, measurement model, output model, etc.
         self.controller = kwargs.get("controller")
         self.measurement = kwargs.get("measurement_model")
@@ -48,7 +52,9 @@ class ClosedLoopController(Sofa.Core.Controller):
             "t": [],
             "z": [],
             "u": [],
-            "z_hat": []
+            "z_hat": [],
+            "q": [],
+            "x": []
         }
         self.auto_paused = False
 
@@ -68,6 +74,13 @@ class ClosedLoopController(Sofa.Core.Controller):
             self.sim_data["t"].append(self.t)
             self.sim_data["u"].append(self.get_command())
             self.sim_data["z"].append(self.output.evaluate(x))
+
+            # TODO: Only store configuration of robot
+            if self.store_q:
+                q = utils.get_q(self.robot)
+                self.sim_data["q"].append(q)
+            elif self.store_x:
+                self.sim_data["x"].append(x)
 
             # Evaluate belief state of observer
             self.sim_data["z_hat"].append(self.controller.observer.z)

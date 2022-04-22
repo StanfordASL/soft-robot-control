@@ -1,0 +1,5 @@
+pip install slycot
+pip install control
+pip install pyDOE
+pip install cvxpy
+pip install osqp

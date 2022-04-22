@@ -5,7 +5,7 @@ import numpy as np
 
 path = dirname(abspath(__file__))
 root = dirname(dirname(path))
-sys.path.append(root)
+sys.path.insert(0, root) # insert to beginning of array to reduce chance of file name collision
 
 from examples import Problem
 

@@ -73,6 +73,7 @@ class MeasurementModel(linearModel):
 
 def buildCq(nodes, num_nodes):
     Cq = lil_matrix((3 * len(nodes), 6 * num_nodes))
+    # Format of x: [vx_0, vy_0, vz_0, (up to num_nodes), qx_0, qy_0, qz_0,...]
     for (i, node) in enumerate(nodes):
         Cq[3 * i, 3 * num_nodes + 3 * node] = 1.
         Cq[3 * i + 1, 3 * num_nodes + 3 * node + 1] = 1.

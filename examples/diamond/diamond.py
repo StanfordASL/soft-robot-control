@@ -14,6 +14,57 @@ from sofacontrol.open_loop_sequences import DiamondRobotSequences
 # Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
+#TODO: Run decay sims here
+def apply_constant_input(input=np.zeros(4), q0=None):
+    """
+    In problem_specification add:
+
+    import examples.diamond as diamond
+    problem = diamond.apply_constant_input():
+
+    then run:
+
+    $SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.py
+
+    or
+
+    python3 launch_sofa.py
+
+    This function runs a Sofa simulation with an open loop controller to collect decaying
+    trajectory data
+    """
+    from robots import environments
+    from examples.hardware.model import diamondRobot
+    from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
+    from sofacontrol.utils import SnapshotData
+
+    prob = Problem()
+    #prob.Robot = environments.Diamond(q0=q0)
+    prob.Robot = diamondRobot(q0=q0)
+    prob.ControllerClass = OpenLoopController
+
+    Sequences = DiamondRobotSequences(t0=0.5)
+
+    # 1) Wind up the robot
+    t_duration = 1.0
+    u_const = input
+    u1, save1, t1 = Sequences.constant_input(u_const, t_duration)
+
+    # 2) Remove force
+    t_duration = 3.0
+    u_const = np.array([0, 0, 0, 0])
+    u2, save2, t2 = Sequences.constant_input(u_const, t_duration)
+
+    u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+    prob.controller = OpenLoop(u.shape[0], t, u, save)
+
+    prob.snapshots = SnapshotData(save_dynamics=False)
+
+    prob.snapshots_dir = path
+    prob.opt['save_prefix'] = 'decay'
+    prob.opt['sim_duration'] = 4.5
+
+    return prob
 
 def collect_POD_data():
     """
@@ -103,13 +154,18 @@ def collect_TPWL_data():
     from sofacontrol.mor import pod
     from sofacontrol.tpwl import tpwl_config
     from sofacontrol.tpwl.tpwl_utils import TPWLSnapshotData
+    from examples.hardware.model import diamondRobot
 
     prob = Problem()
-    prob.Robot = environments.Diamond()
+    #prob.Robot = environments.Diamond()
+    prob.Robot = diamondRobot()
+
     prob.ControllerClass = OpenLoopController
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354], pos=True, vel=True)
 
-    Sequences = DiamondRobotSequences(t0=0.5)
+    # Let robot settle down to equilibrium
+    t0 = 2.0
+    Sequences = DiamondRobotSequences(t0=t0)
     u1, save1, t1 = Sequences.lhs_sequence(nbr_samples=500, interp_pts=10, seed=1234,
                                            add_base=True)  # ramp inputs between lhs samples
     u2, save2, t2 = Sequences.lhs_sequence(nbr_samples=500, t_step=0.5, seed=4321)  # step inputs of 0.5 seconds

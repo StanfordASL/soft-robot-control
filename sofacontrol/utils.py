@@ -123,6 +123,8 @@ def get_x(robot):
     v = robot.tetras.velocity.value.flatten()
     return qv2x(q, v)
 
+def get_q(robot):
+    return robot.tetras.position.value.flatten()
 
 def qv2x(q, v):
     return np.concatenate((v, q), axis=-1)  # Extends to multiple point case

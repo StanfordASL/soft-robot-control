@@ -5,6 +5,8 @@ import Sofa.Core
 import Sofa.Simulation
 import SofaRuntime
 import numpy as np
+import scipy.io as spio
+
 """
 Provides direct interface with SOFA and is either opened from sofa gui or run in the following command style:
 $SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.py
@@ -27,11 +29,18 @@ def createScene(rootNode):
     rootNode.addObject('OglSceneFrame', style="Arrows", alignment="TopRight")
 
     # Define the specific instance via the problem_specification script
+    # Run modal analysis or collect decaying trajectories
+    input_const = np.array([1500., 1500., 0., 0.])
+    path = os.path.dirname(os.path.abspath(__file__))
+    modeName = 'mode1'
+    datafile = path + '/robots/data/' + modeName + '.mat'
+    direction = -1
+    q0 = direction * spio.loadmat(datafile)[modeName].T
+
     import problem_specification
-    #input1 = np.array([1400, 1400, 0, 0])
-    input2 = np.array([1400, 1400, 1400, 1400])
-    prob = problem_specification.problem(input=input2)
-    #prob = problem_specification.problem()
+
+    # Rotation in degrees
+    prob = problem_specification.problem(q0=q0, input=input_const)
     prob.checkDefinition()
 
     # Set the gravity and simulation time step
@@ -49,10 +58,10 @@ def createScene(rootNode):
               'Undesired behavior might occur'.format(max(robot.min_force)))
 
     rootNode.addObject(prob.ControllerClass(rootNode=rootNode,
-                                            robot=robot, 
+                                            robot=robot,
                                             snapshots=prob.snapshots,
-                                            controller=prob.controller, 
-                                            measurement_model=prob.measurement_model, 
+                                            controller=prob.controller,
+                                            measurement_model=prob.measurement_model,
                                             output_model=prob.output_model,
                                             simdata_dir=prob.simdata_dir,
                                             snapshots_dir=prob.snapshots_dir,
@@ -65,8 +74,6 @@ def createScene(rootNode):
 def main():
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
-    # sofa_lib_path = "/home/jlorenze/sofa/build/lib"
-    # sofa_lib_path = "/home/tonkens/dev/os_libs/sofa/build/master/lib"  # Modify to match your environment
     sofa_lib_path = "/home/jjalora/sofa/build/lib"
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'
@@ -92,5 +99,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

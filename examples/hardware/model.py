@@ -11,14 +11,15 @@ BETA = 0.01 # Rayleigh stiffness
 U_MAX = 1500 # mN
 DT = 0.01
 
-def diamondRobot():
+def diamondRobot(q0=None):
     from robots import environments
     robot = environments.Diamond(totalMass=M, 
                                  poissonRatio=NU, 
                                  youngModulus=E, 
                                  rayleighMass=ALPHA, 
                                  rayleighStiffness=BETA,
-                                 dt=DT)
+                                 dt=DT,
+                                 q0=q0)
 
     # Add open loop input sequences
     from sofacontrol.open_loop_sequences import DiamondRobotSequences

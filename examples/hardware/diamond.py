@@ -217,6 +217,10 @@ def run_gusto_solver():
 
     output_model = linearModel(nodes=[1354], num_nodes=1628)
 
+    # TODO: Get output Matrix
+    output_pos_model = linearModel(nodes=[1354], num_nodes=1628, vel=False)
+    C_pos = output_pos_model.C.A
+
     # Load and configure the TPWL model from data saved
     tpwl_model_file = join(path, 'tpwl_model_snapshots.pkl')
     config = tpwl_config.tpwl_dynamics_config()
@@ -249,12 +253,14 @@ def run_gusto_solver():
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
     # State constraints
-    Hz = np.zeros((1, 6))
-    Hz[0, 4] = 1
-    H = Hz @ model.H
-    b_z = np.array([5])
-    X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
+    # Hz = np.zeros((1, 6))
+    # Hz[0, 4] = 1
+    # H = Hz @ model.H
+    # b_z = np.array([5])
+    # X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
 
+    # No constraints for now
+    X = None
     ##############################################
     # Problem 2, Circle on side
     ##############################################

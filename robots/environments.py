@@ -1,6 +1,7 @@
 import os
 from math import cos
 from math import sin
+import sys
 
 import Sofa.Core
 from splib3.numerics import Quat, Vec3
@@ -232,24 +233,32 @@ class Finger(TemplateEnvironment):
 
 
 class Diamond(TemplateEnvironment):
-    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.01):
+    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.01, q0=None):
         super(Diamond, self).__init__(name=name, rayleighMass=rayleighMass, rayleighStiffness=rayleighStiffness, dt=dt)
 
         self.nb_nodes = 1628
         self.gravity = [0., 0., -9810.]
 
-        rotation = [90, 0.0, 0.0]
+        # Don't change these values (affects physics)
+        rotation = [90., 0.0, 0.0]
         translation = [0.0, 0.0, 35]
 
         self.robot.min_force = [0, 0, 0, 0]  # Without premultiplication with dt
 
         self.robot.addObject('MeshVTKLoader', name='loader', filename=path + "/mesh/diamond.vtu", rotation=rotation,
                              translation=translation)
+        position = self.robot.loader.position.toList()
+
+        # Set initial configuration of robot
+        if q0 is not None:
+            SCALE_MODE = 500
+            position += SCALE_MODE * q0
+
         self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
         self.robot.addObject('TetrahedronSetTopologyModifier')
         self.robot.addObject('TetrahedronSetGeometryAlgorithms')
         self.robot.addObject('MechanicalObject', template='Vec3d', name='tetras', showIndices='false',
-                             showIndicesScale='4e-5')
+                             showIndicesScale='4e-5', position=position)
         self.robot.addObject('UniformMass', totalMass=totalMass, name='mass')
         self.robot.addObject('TetrahedronFEMForceField', template='Vec3d',
                              method='large', name='forcefield',
