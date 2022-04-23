@@ -38,18 +38,19 @@ class BaseRobotSequences(object):
         self.active_inputs = None
         self.name = None
 
-    def constant_input(self, u_constant, t, add_base=True):
+    def constant_input(self, u_constant, t, add_base=True, save_data=False):
         """
         Simple constant input sequence, by default saves no snapshots
         :param u_constant: np array of the constant step input value, defaults
         :param t: duration of the sequence (seconds)
+        :param save_data: save sequence. Helpful when applying zero inputs
         """
         self.name = 'constant'
         num_steps = int(t / self.dt)
         if u_constant.shape[0] != self.m or u_constant.ndim != 1:
             raise AssertionError('Dimension mismatch for control input')
         u_sequence = np.broadcast_to(np.expand_dims(u_constant, axis=-1), (self.m, num_steps))
-        save_sequence = np.array([False] * num_steps)
+        save_sequence = np.array([save_data] * num_steps)
 
         # Combine with base sequence
         if add_base:
