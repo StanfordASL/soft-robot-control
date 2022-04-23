@@ -8,6 +8,11 @@ E = 175 # Young's modulus, MPa # at 175
 NU = .45 # Poisson's ratio
 ALPHA = 2.5 # Rayleigh mass
 BETA = 0.01 # Rayleigh stiffness
+
+# Testing
+# ALPHA = 1e-12 # Rayleigh mass
+# BETA = 1e-12 # Rayleigh stiffness
+
 U_MAX = 1500 # mN
 DT = 0.01
 

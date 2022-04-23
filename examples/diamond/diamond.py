@@ -14,8 +14,7 @@ from sofacontrol.open_loop_sequences import DiamondRobotSequences
 # Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
-#TODO: Run decay sims here
-def apply_constant_input(input=np.zeros(4), q0=None):
+def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0):
     """
     In problem_specification add:
 
@@ -43,17 +42,18 @@ def apply_constant_input(input=np.zeros(4), q0=None):
     prob.Robot = diamondRobot(q0=q0)
     prob.ControllerClass = OpenLoopController
 
-    Sequences = DiamondRobotSequences(t0=0.5)
+    # TODO: Setting this to zero for now
+    Sequences = DiamondRobotSequences(t0=t0)
 
     # 1) Wind up the robot
     t_duration = 1.0
     u_const = input
-    u1, save1, t1 = Sequences.constant_input(u_const, t_duration)
+    u1, save1, t1 = Sequences.constant_input(u_const, t_duration, save_data=save_data)
 
     # 2) Remove force
-    t_duration = 3.0
+    t_duration = 2.0
     u_const = np.array([0, 0, 0, 0])
-    u2, save2, t2 = Sequences.constant_input(u_const, t_duration)
+    u2, save2, t2 = Sequences.constant_input(u_const, t_duration, save_data=save_data)
 
     u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
     prob.controller = OpenLoop(u.shape[0], t, u, save)
@@ -62,7 +62,7 @@ def apply_constant_input(input=np.zeros(4), q0=None):
 
     prob.snapshots_dir = path
     prob.opt['save_prefix'] = 'decay'
-    prob.opt['sim_duration'] = 4.5
+    prob.opt['sim_duration'] = 3.0
 
     return prob
 

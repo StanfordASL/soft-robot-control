@@ -30,17 +30,19 @@ def createScene(rootNode):
 
     # Define the specific instance via the problem_specification script
     # Run modal analysis or collect decaying trajectories
-    input_const = np.array([1500., 1500., 0., 0.])
+    #input_const = np.array([1500., 1500., 0., 0.])
     path = os.path.dirname(os.path.abspath(__file__))
     modeName = 'mode1'
     datafile = path + '/robots/data/' + modeName + '.mat'
-    direction = -1
+    direction = 1
     q0 = direction * spio.loadmat(datafile)[modeName].T
 
     import problem_specification
 
     # Rotation in degrees
-    prob = problem_specification.problem(q0=q0, input=input_const)
+    #prob = problem_specification.problem(input=input_const)
+    prob = problem_specification.problem(q0=q0, save_data=True)
+    #prob = problem_specification.problem()
     prob.checkDefinition()
 
     # Set the gravity and simulation time step
@@ -74,7 +76,8 @@ def createScene(rootNode):
 def main():
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
-    sofa_lib_path = "/home/jjalora/sofa/build/lib"
+    #sofa_lib_path = "/home/jjalora/sofa/build/lib"
+    sofa_lib_path = "/home/jalora/sofa/build/lib"
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'
                            'in main() in launch_sofa.py')

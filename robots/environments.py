@@ -1,12 +1,16 @@
+import copy
 import os
 from math import cos
 from math import sin
 import sys
+from pathlib import Path
+import numpy as np
 
 import Sofa.Core
 from splib3.numerics import Quat, Vec3
 
 from sofacontrol import measurement_models
+from sofacontrol.utils import load_data
 
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,6 +26,7 @@ class TemplateEnvironment:
         self.robot.addObject('GenericConstraintCorrection', solverName="preconditioner")
         self.actuator_list = []
         self.nb_nodes = None
+        #TODO: Is gravity force here correct???
         self.gravity = [0., -9810., 0.]  # default
         self.dt = dt
 
@@ -238,6 +243,7 @@ class Diamond(TemplateEnvironment):
 
         self.nb_nodes = 1628
         self.gravity = [0., 0., -9810.]
+        #self.gravity = [0., 0., 0.]
 
         # Don't change these values (affects physics)
         rotation = [90., 0.0, 0.0]
@@ -247,18 +253,31 @@ class Diamond(TemplateEnvironment):
 
         self.robot.addObject('MeshVTKLoader', name='loader', filename=path + "/mesh/diamond.vtu", rotation=rotation,
                              translation=translation)
-        position = self.robot.loader.position.toList()
+
+        # Rest position before gravity
+        default_rest_position = self.robot.loader.position.toList()
+
+        rest_file = path + "/../examples/diamond/rest.pkl"
+        path_rest_file = Path(rest_file)
+        if path_rest_file.exists():
+            print("Loading Rest File after gravity effect")
+            rest_data = load_data(rest_file)
+            rest_position_1d = rest_data["rest"]
+            rest_position = np.array([rest_position_1d[3*ii:(3*ii+3)] for ii in range(len(rest_position_1d) // 3)])
+
+        initial_position = copy.deepcopy(default_rest_position)
 
         # Set initial configuration of robot
         if q0 is not None:
-            SCALE_MODE = 500
-            position += SCALE_MODE * q0
+            assert(path_rest_file.exists(), "No rest file found")
+            SCALE_MODE = 1000
+            initial_position = rest_position + SCALE_MODE * q0
 
         self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
         self.robot.addObject('TetrahedronSetTopologyModifier')
         self.robot.addObject('TetrahedronSetGeometryAlgorithms')
         self.robot.addObject('MechanicalObject', template='Vec3d', name='tetras', showIndices='false',
-                             showIndicesScale='4e-5', position=position)
+                             showIndicesScale='4e-5', position=initial_position, rest_position=default_rest_position)
         self.robot.addObject('UniformMass', totalMass=totalMass, name='mass')
         self.robot.addObject('TetrahedronFEMForceField', template='Vec3d',
                              method='large', name='forcefield',
