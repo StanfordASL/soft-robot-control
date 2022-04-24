@@ -32,10 +32,19 @@ def createScene(rootNode):
     # Run modal analysis or collect decaying trajectories
     #input_const = np.array([1500., 1500., 0., 0.])
     path = os.path.dirname(os.path.abspath(__file__))
-    modeName = 'mode1'
-    datafile = path + '/robots/data/' + modeName + '.mat'
-    direction = 1
-    q0 = direction * spio.loadmat(datafile)[modeName].T
+
+    modeName1 = 'mode2'
+    datafile1 = path + '/robots/data/' + modeName1 + '.mat'
+
+    modeName2 = 'mode3'
+    datafile2 = path + '/robots/data/' + modeName2 + '.mat'
+
+    # Set corresponding direction to zero if desiring just one mode
+    direction1 = 1
+    direction2 = -1
+
+    # Single trajectory
+    q0 = direction1 * spio.loadmat(datafile1)[modeName1].T + direction2 * spio.loadmat(datafile2)[modeName2].T
 
     import problem_specification
 
