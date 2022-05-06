@@ -22,11 +22,10 @@ class TemplateEnvironment:
         # set-up solvers
         self.robot.addObject('EulerImplicitSolver', name='odesolver', firstOrder="0", rayleighMass=str(rayleighMass),
                              rayleighStiffness=str(rayleighStiffness))
-        self.robot.addObject('SparseLDLSolver', name='preconditioner')
+        self.robot.addObject('SparseLDLSolver', name='preconditioner', template="CompressedRowSparseMatrixd")
         self.robot.addObject('GenericConstraintCorrection', solverName="preconditioner")
         self.actuator_list = []
         self.nb_nodes = None
-        #TODO: Is gravity force here correct???
         self.gravity = [0., -9810., 0.]  # default
         self.dt = dt
 
@@ -238,7 +237,8 @@ class Finger(TemplateEnvironment):
 
 
 class Diamond(TemplateEnvironment):
-    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.01, q0=None):
+    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.001,
+                 q0=None, scale_mode=1000):
         super(Diamond, self).__init__(name=name, rayleighMass=rayleighMass, rayleighStiffness=rayleighStiffness, dt=dt)
 
         self.nb_nodes = 1628
@@ -264,14 +264,14 @@ class Diamond(TemplateEnvironment):
             rest_data = load_data(rest_file)
             rest_position_1d = rest_data["rest"]
             rest_position = np.array([rest_position_1d[3*ii:(3*ii+3)] for ii in range(len(rest_position_1d) // 3)])
+        else:
+            rest_position = copy.deepcopy(default_rest_position)
 
         initial_position = copy.deepcopy(default_rest_position)
 
-        # Set initial configuration of robot
+        # Set initial configuration of robot (default is 1000)
         if q0 is not None:
-            assert(path_rest_file.exists(), "No rest file found")
-            SCALE_MODE = 1000
-            initial_position = rest_position + SCALE_MODE * q0
+            initial_position = rest_position + scale_mode * q0
 
         self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
         self.robot.addObject('TetrahedronSetTopologyModifier')

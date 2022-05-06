@@ -21,8 +21,8 @@ problem = diamond.apply_constant_input
 # problem = calibration.actuator_calibration
 
 #from examples.hardware import diamond
-# problem = diamond.collect_POD_data
-# problem = diamond.collect_TPWL_data
+#problem = diamond.collect_POD_data
+#problem = diamond.collect_TPWL_data
 #problem = diamond.run_scp
 
 # from examples.hardware import diamond_rompc

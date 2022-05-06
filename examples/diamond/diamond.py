@@ -14,7 +14,7 @@ from sofacontrol.open_loop_sequences import DiamondRobotSequences
 # Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
-def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0):
+def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0, filename=None, scale_mode=1000):
     """
     In problem_specification add:
 
@@ -39,11 +39,11 @@ def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0):
 
     prob = Problem()
     #prob.Robot = environments.Diamond(q0=q0)
-    prob.Robot = diamondRobot(q0=q0)
+    prob.Robot = diamondRobot(q0=q0, scale_mode=scale_mode)
     prob.ControllerClass = OpenLoopController
 
     # TODO: Setting this to zero for now
-    Sequences = DiamondRobotSequences(t0=t0)
+    Sequences = DiamondRobotSequences(t0=t0, dt=0.0001)
 
     # 1) Wind up the robot
     t_duration = 1.0
@@ -51,7 +51,7 @@ def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0):
     u1, save1, t1 = Sequences.constant_input(u_const, t_duration, save_data=save_data)
 
     # 2) Remove force
-    t_duration = 2.0
+    t_duration = 1.0
     u_const = np.array([0, 0, 0, 0])
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration, save_data=save_data)
 
@@ -60,9 +60,13 @@ def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0):
 
     prob.snapshots = SnapshotData(save_dynamics=False)
 
-    prob.snapshots_dir = path
-    prob.opt['save_prefix'] = 'decay'
-    prob.opt['sim_duration'] = 3.0
+    prob.snapshots_dir = path + "/dataCollection/"
+
+    if filename is None:
+        prob.opt['save_prefix'] = 'decay'
+    else:
+        prob.opt['save_prefix'] = filename
+    prob.opt['sim_duration'] = 2.0
 
     return prob
 

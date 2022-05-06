@@ -51,7 +51,8 @@ class OpenLoopController(Sofa.Core.Controller):
             "dt": self.dt,
             "t": [],
             "z": [],
-            "u": []
+            "u": [],
+            "rest": []
         }
         self.snapshots = kwargs.get("snapshots")  # the object for storing snapshots
 
@@ -100,7 +101,14 @@ class OpenLoopController(Sofa.Core.Controller):
             self.prev_point = copy.copy(self.point)
 
     def onAnimateEndEvent(self, params):
-        scutils.turn_off_LDL_saver(self.robot.preconditioner)
+        # TODO: This is breaking code. Can't extract matrices in this way anymore
+        #scutils.turn_off_LDL_saver(self.robot.preconditioner)
+
+        #TODO: Hardcoded - Let me extract and save rest position of robot
+        # if self.t >= 2.0:
+        #     self.sim_data["rest"] = self.robot.tetras.position.value.flatten().copy()
+        #     filename = os.path.join(self.snapshots_dir, self.save_prefix + '_rest.pkl')
+        #     scutils.save_data(filename, self.sim_data)
 
         # Gather remaining information for saving the current point
         if self.save_point:
