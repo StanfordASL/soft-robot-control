@@ -44,8 +44,8 @@ def generate_koopman_data():
     """
     Prepare Koopman data in .mat format for MATLAB Koopman code (generate_koopman_model.m)
     """
-    from scipy.io import savemat
-    from sofacontrol.utils import load_data, qv2x
+    from scipy.io import savemat, loadmat
+    from sofacontrol.utils import load_data, qv2x, save_data
     from sofacontrol.measurement_models import linearModel
 
     koopman_data_name = 'pod_snapshots'
@@ -57,6 +57,7 @@ def generate_koopman_data():
     names = ['ee_pos']
     measurement_models = [linearModel(nodes=ee_node, num_nodes=num_nodes, pos=True, vel=False)]
 
+
     for i, name in enumerate(names):
         mat_data_file = join(path, '{}.mat'.format(name))
         y = measurement_models[i].evaluate(x=state.T)
@@ -67,6 +68,17 @@ def generate_koopman_data():
 
         savemat(mat_data_file, matlab_data)
 
+        # # Also save dataset as pkl file
+        # koopman_dataset = dict()
+        # koopman_dataset['x'] = y.T
+        # koopman_dataset['u'] = np.asarray(koopman_data['u'])
+        # koopman_dataset['t'] = np.atleast_2d(koopman_data['dt'] * np.asarray(range(len(matlab_data['u']))))
+        #
+        # save_data(join(path, '{}.pkl'.format('koopman_diamond_dataset')), koopman_dataset)
+        #
+        # # Load old mat and save to pkl
+        # koopman_old_model = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
+        # save_data(join(path, '{}.pkl'.format('koopman_diamond_old_model')), koopman_old_model['model'])
 
 def run_koopman():
     """
@@ -135,30 +147,30 @@ def run_koopman_solver():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    # M = 3
-    # T = 10
-    # N = 500
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M * 2 * np.pi, M*N)
-    # zf_target = np.zeros((M*N, model.n))
-    # zf_target[:, 0] = -15. * np.sin(th)
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
+    M = 3
+    T = 10
+    N = 500
+    t = np.linspace(0, M*T, M*N)
+    th = np.linspace(0, M * 2 * np.pi, M*N)
+    zf_target = np.zeros((M*N, model.n))
+    zf_target[:, 0] = -15. * np.sin(th)
+    zf_target[:, 1] = 15. * np.sin(2 * th)
 
-    # # Cost
-    # cost.R = .00001 * np.eye(model.m)
-    # cost.Q = np.zeros((model.n, model.n))
-    # cost.Q[0, 0] = 100  # corresponding to x position of end effector
-    # cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    # cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
+    # Cost
+    cost.R = .00001 * np.eye(model.m)
+    cost.Q = np.zeros((model.n, model.n))
+    cost.Q[0, 0] = 100  # corresponding to x position of end effector
+    cost.Q[1, 1] = 100  # corresponding to y position of end effector
+    cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
 
-    # # Control constraints
-    # u_ub = 1500. * np.ones(model.m)
-    # u_lb = 200. * np.ones(model.m)
-    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+    # Control constraints
+    u_ub = 1500. * np.ones(model.m)
+    u_lb = 200. * np.ones(model.m)
+    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
 
-    # # State constraints
+    # State constraints
     # Hz = np.zeros((1, 3))
     # Hz[0, 1] = 1
     # H = Hz @ model.H
@@ -169,34 +181,34 @@ def run_koopman_solver():
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    M = 3
-    T = 5
-    N = 1000
-    r = 10
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M*2*np.pi, M*N)
-    x_target = np.zeros(M*N)
-    y_target = r * np.sin(th)
-    z_target = r - r * np.cos(th) + 107.0
-    zf_target = np.zeros((M*N, 3))
-    zf_target[:, 0] = x_target
-    zf_target[:, 1] = y_target
-    zf_target[:, 2] = z_target
-
-    # Cost
-    cost.R = .00001 * np.eye(model.m)
-    cost.Q = np.zeros((3, 3))
-    cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
-    cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
-    cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-
-    # Constraints
-    u_ub = 1500. * np.ones(model.m)
-    u_lb = 200. * np.ones(model.m)
-    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-    X = None
+    # M = 3
+    # T = 5
+    # N = 1000
+    # r = 10
+    # t = np.linspace(0, M*T, M*N)
+    # th = np.linspace(0, M*2*np.pi, M*N)
+    # x_target = np.zeros(M*N)
+    # y_target = r * np.sin(th)
+    # z_target = r - r * np.cos(th) + 107.0
+    # zf_target = np.zeros((M*N, 3))
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+    # zf_target[:, 2] = z_target
+    #
+    # # Cost
+    # cost.R = .00001 * np.eye(model.m)
+    # cost.Q = np.zeros((3, 3))
+    # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
+    # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
+    # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+    #
+    # # Constraints
+    # u_ub = 1500. * np.ones(model.m)
+    # u_lb = 200. * np.ones(model.m)
+    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+    # X = None
 
     
     # Define target trajectory for optimization
@@ -212,7 +224,8 @@ def run_koopman_solver():
 
     # Using osqp instead of Gurobi because Gurobi had some numerical issues
     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
-                     warm_start=True, U=U, X=X, solver='OSQP')
+                     warm_start=True, U=U, solver='OSQP')
+
 
 
 if __name__ == '__main__':

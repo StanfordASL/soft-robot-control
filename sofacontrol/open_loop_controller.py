@@ -94,29 +94,36 @@ class OpenLoopController(Sofa.Core.Controller):
             if self.save_snapshot() and self.snapshots.save_snapshot(self.point, self.prev_point):
                 self.save_point = True
                 if self.snapshots.save_dynamics:
-                    scutils.turn_on_LDL_saver(self.robot.preconditioner,
-                                              os.path.join(self.LDL_dir, 'temp/LDL_%05d.txt'))
+                    scutils.turn_on_LDL_saver(self.robot.matrixExporter,
+                                              os.path.join(self.LDL_dir, 'temp/LDL_%05d' % self.step))
                     self.point.H = scutils.extract_H_matrix(self.robot)
 
             self.prev_point = copy.copy(self.point)
 
     def onAnimateEndEvent(self, params):
-        # TODO: This is breaking code. Can't extract matrices in this way anymore
-        #scutils.turn_off_LDL_saver(self.robot.preconditioner)
+        #scutils.turn_off_LDL_saver(self.robot.matrixExporter)
 
         #TODO: Hardcoded - Let me extract and save rest position of robot
         # if self.t >= 2.0:
-        #     self.sim_data["rest"] = self.robot.tetras.position.value.flatten().copy()
-        #     filename = os.path.join(self.snapshots_dir, self.save_prefix + '_rest.pkl')
-        #     scutils.save_data(filename, self.sim_data)
+        #      self.sim_data["rest"] = (self.robot.tetras.position.value.flatten().copy(),
+        #                               self.robot.tetras.velocity.value.flatten().copy())
+        #      filename = os.path.join(self.snapshots_dir, 'rest_qv.pkl')
+        #      scutils.save_data(filename, self.sim_data)
 
         # Gather remaining information for saving the current point
-        if self.save_point:
+        #self.save_point = False #TODO: debugging
+        LDL_path = os.path.join(self.LDL_dir, 'temp/')
+        currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
+                     os.path.isfile(os.path.join(LDL_path, f))]
+
+        # TODO: checking if directory is empty here prevents POD_collection
+        # but putting in the second if breaks stuff
+        if self.save_point and currFiles:
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
             if self.snapshots.save_dynamics:
                 dv = self.point.v_next - self.point.v
-                K, D, M, b, f, S = scutils.extract_KDMb(self.robot, self.LDL_dir, self.step, params['dt'], dv,
+                K, D, M, b, f, S = scutils.extract_KDMb(self.robot, currFiles, self.step, params['dt'], dv,
                                                         self.point)
                 self.point.K = K
                 self.point.D = D

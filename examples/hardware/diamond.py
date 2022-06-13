@@ -10,6 +10,8 @@ sys.path.append(root)
 
 from examples import Problem
 from examples.hardware.model import diamondRobot
+from sofacontrol.open_loop_sequences import DiamondRobotSequences
+
 
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
@@ -167,7 +169,7 @@ def run_scp():
     # Set up an EKF observer
     dt_char = model.get_characteristic_dx(dt)
     W = np.diag(dt_char)
-    V = 0.1 * np.eye(model.get_meas_dim())
+    V = 0.0 * np.eye(model.get_meas_dim())
     EKF = DiscreteEKFObserver(model, W=W, V=V)
 
 
@@ -204,7 +206,6 @@ def run_scp():
 
     return prob
 
-
 def run_gusto_solver():
     """
     python3 diamond.py run_gusto_solver
@@ -216,10 +217,6 @@ def run_gusto_solver():
     from sofacontrol.utils import HyperRectangle, Polyhedron
 
     output_model = linearModel(nodes=[1354], num_nodes=1628)
-
-    # TODO: Get output Matrix
-    output_pos_model = linearModel(nodes=[1354], num_nodes=1628, vel=False)
-    C_pos = output_pos_model.C.A
 
     # Load and configure the TPWL model from data saved
     tpwl_model_file = join(path, 'tpwl_model_snapshots.pkl')
@@ -235,7 +232,7 @@ def run_gusto_solver():
     t = np.linspace(0, M*T, M*N)
     th = np.linspace(0, M * 2 * np.pi, M*N)
     zf_target = np.zeros((M*N, model.output_dim))
-    zf_target[:, 3] = -15. * np.sin(th)
+    zf_target[:, 3] = -15. * np.sin(th) - 7.1
     zf_target[:, 4] = 15. * np.sin(2 * th)
     z = model.zfyf_to_zy(zf=zf_target)
 
@@ -306,6 +303,83 @@ def run_gusto_solver():
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
                        max_gusto_iters=5)
 
+def run_ilqr():
+    """
+     In problem_specification add:
+
+     from examples.diamond import diamond
+     problem = diamond.run_scp
+
+     then run:
+
+     python3 launch_sofa.py
+     """
+    from robots import environments
+    from examples.hardware.model import diamondRobot
+    from sofacontrol.closed_loop_controller import ClosedLoopController
+    from sofacontrol.measurement_models import MeasurementModel
+    from sofacontrol.tpwl.controllers import ilqr, rh_ilqr, TrajTracking
+    from sofacontrol.tpwl.observer import DiscreteEKFObserver
+    from sofacontrol.tpwl import tpwl_config, tpwl
+    from sofacontrol.utils import QuadraticCost
+    from sofacontrol.measurement_models import linearModel
+    from sofacontrol.baselines.rompc.rompc_utils import LinearROM
+
+    prob = Problem()
+    #prob.Robot = environments.Diamond()
+    prob.Robot = diamondRobot()
+    prob.ControllerClass = ClosedLoopController
+
+    # Specify a measurement and output model
+    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
+
+    output_model = linearModel(nodes=[1354], num_nodes=1628)
+
+    # Load and configure the linear ROM model from data saved
+    tpwl_model_file = join(path, 'tpwl_model_snapshots.pkl')
+    config = tpwl_config.tpwl_dynamics_config()
+    model = tpwl.TPWLATV(data=tpwl_model_file, params=config.constants_sim, Hf=output_model.C)
+
+    dt = 0.1
+    model.pre_discretize(dt=dt)
+
+    cost = QuadraticCost()
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100  # corresponding to x position of end effector
+    Qz[4, 4] = 100  # corresponding to y position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    cost.Q = Qz
+    cost.Qf = np.zeros_like(Qz)
+    cost.R = .00001 * np.eye(model.input_dim)
+
+    # Define target trajectory for optimization
+    M = 3
+    T = 10
+    N = 1000
+    t = np.linspace(0, M * T, M * N)
+    th = np.linspace(0, M * 2 * np.pi, M * N)
+    zf_target = np.zeros((M * N, model.output_dim))
+    zf_target[:, 3] = -15. * np.sin(th)
+    zf_target[:, 4] = 15. * np.sin(2 * th)
+    z = model.zfyf_to_zy(zf=zf_target)
+
+    # Define controller (wait 2 seconds of simulation time to start)
+    from types import SimpleNamespace
+    target = SimpleNamespace(z=z, Hf=output_model.C, t=t)
+    N = 20
+
+    #prob.controller = rh_ilqr(model, cost, target, dt, observer=None, delay=3, planning_horizon=N)
+    prob.controller = ilqr(model, cost, target, dt, observer=None, delay=3)
+
+    # Saving paths
+    prob.opt['sim_duration'] = 13.
+    prob.simdata_dir = path
+    prob.opt['save_prefix'] = 'ilqr'
+
+    return prob
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:

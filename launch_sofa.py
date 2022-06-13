@@ -18,6 +18,7 @@ def createScene(rootNode):
     rootNode.addObject("RequiredPlugin", name="SofaPreconditioner")
     rootNode.addObject('RequiredPlugin', pluginName='SofaOpenglVisual')
     rootNode.addObject("VisualStyle", displayFlags="showBehavior")
+    rootNode.addObject('RequiredPlugin', pluginName='SofaMatrix')
 
     rootNode.addObject("FreeMotionAnimationLoop")
     # rootNode.addObject('DefaultAnimationLoop', name='loop')

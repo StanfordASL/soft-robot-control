@@ -82,6 +82,7 @@ def run_koopman():
     python3 launch_sofa.py
     """
     from robots import environments
+    from examples.hardware.model import diamondRobot
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.baselines.koopman import koopman_utils
     from scipy.io import loadmat
@@ -95,7 +96,8 @@ def run_koopman():
     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
 
     prob = Problem()
-    prob.Robot = environments.Diamond()
+    #prob.Robot = environments.Diamond()
+    prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
     cov_q = 0.1 * np.eye(3)
@@ -147,8 +149,8 @@ def run_koopman_solver():
     target.t = np.linspace(0, T, 1000)
     th = np.linspace(0, 2 * np.pi, 1000)
     zf_target = np.zeros((1000, model.n))
-    zf_target[:, 0] = -20. * np.sin(th) - 5.5
-    zf_target[:, 1] = 10. * np.sin(2 * th) + 1.5
+    zf_target[:, 0] = -15. * np.sin(th)
+    zf_target[:, 1] = 15. * np.sin(2 * th)
     zf_target[:, 2] -= 114
 
     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
@@ -169,31 +171,31 @@ def run_koopman_solver():
     cost_params.Q *= np.diag(scaling.y_factor[0])
 
     # Constraints
-    u_ub = 6000. * np.ones(model.m)
-    u_lb = np.zeros(model.m)
+    u_ub = 1500. * np.ones(model.m)
+    u_lb = 200. * np.ones(model.m)
     u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
     u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
     U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
 
     # Constraints - State constraints
     # Building A matrix
-    Hz = np.zeros((2, 3))
-    Hz[0, 0] = 1
-    Hz[1, 1] = 1
-    H = Hz @ model.H
-    H_full = np.vstack([-H, H])
-    b_z_lb = np.array([-17.5 - 5.5, -20 + 1.5, 0])
-    b_z_ub = np.array([17.5 - 5.5, 20 + 1.5, 0])
-    b_z_lb_norm = scaling.scale_down(y=b_z_lb).reshape(-1)[0:2]
-    b_z_ub_norm = scaling.scale_down(y=b_z_ub).reshape(-1)[0:2]
-
-    b_z = np.hstack([-b_z_lb_norm, b_z_ub_norm])
-    X = Polyhedron(A=H_full, b=b_z)
+    # Hz = np.zeros((2, 3))
+    # Hz[0, 0] = 1
+    # Hz[1, 1] = 1
+    # H = Hz @ model.H
+    # H_full = np.vstack([-H, H])
+    # b_z_lb = np.array([-17.5 - 5.5, -20 + 1.5, 0])
+    # b_z_ub = np.array([17.5 - 5.5, 20 + 1.5, 0])
+    # b_z_lb_norm = scaling.scale_down(y=b_z_lb).reshape(-1)[0:2]
+    # b_z_ub_norm = scaling.scale_down(y=b_z_ub).reshape(-1)[0:2]
+    #
+    # b_z = np.hstack([-b_z_lb_norm, b_z_ub_norm])
+    # X = Polyhedron(A=H_full, b=b_z)
 
     planning_horizon = 5
 
     runMPCSolverNode(model=model, N=planning_horizon, cost_params=cost_params, target=target, dt=Ts, verbose=1,
-                     warm_start=True, U=U, X=X, solver='GUROBI')
+                     warm_start=True, U=U, solver='GUROBI')
 
 
 if __name__ == '__main__':

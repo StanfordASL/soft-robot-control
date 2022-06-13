@@ -231,7 +231,7 @@ class TPWLATV(TPWL):
         A_d, B_d, d_d = self.get_jacobians(x, dt)
         return self.update_dynamics(x, u, A_d, B_d, d_d)
 
-    def get_jacobians(self, x, dt=None):
+    def get_jacobians(self, x, dt=None, u=None):
         """
         Extract the Jacobians A, B, d (or A_d, B_d, d_d) at the state x
         :x: state

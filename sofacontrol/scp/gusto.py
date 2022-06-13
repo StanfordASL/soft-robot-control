@@ -133,7 +133,7 @@ class GuSTO:
         self.max_gusto_iters = MAX_ITERS # let first solve take more time
         self.solve(x0, u_init, x_init, z, zf, u)
 
-                ## Problem parameters ##
+        ## Problem parameters ##
         self.max_gusto_iters = kwargs.get('max_gusto_iters', MAX_ITERS)
         kwargs.pop('max_gusto_iters', None)
 
@@ -228,6 +228,8 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
+    # TODO: Function for getting linearization for observer: get_observer_linearizations
+
     def solve(self, x0, u_init, x_init, z=None, zf=None, u=None):
         """
         :x0: initial condition np.array
@@ -267,6 +269,7 @@ class GuSTO:
             omega_cur = omega  # just for printing
 
             # Update the LOCP with new parameters and solve
+            # TODO: Need to modify locp.update to ensure linearization points for observer
             if new_solution:
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u)
                 new_solution = False
@@ -275,6 +278,7 @@ class GuSTO:
 
             # Solve the LOCP
             Jstar, success, stats = self.locp.solve()
+            # TODO: Modify self.zopt here to handle nonlinear measurements
             if not success:
                 print('Iteration {} of problem cannot be solved, see solver status for more information'.format(itr))
                 self.xopt = np.copy(self.x_k)

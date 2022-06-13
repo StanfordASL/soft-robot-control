@@ -187,6 +187,9 @@ class LOCP:
         Rfull = block_diag(*[self.R for j in range(self.N)])
         J += cp.quad_form(self.u - self.u_des, Rfull)
 
+        # TODO: Need to modify this to allow for nonlinear observer. Note H_full
+        # TODO: is now dependent on reduced state. Make H a vector of matrices and add
+        # TODO: affine term c_k
         # Performance cost
         Qzfull = block_diag(*[self.Qz for j in range(self.N + 1)])
         Hfull = block_diag(*[self.H for j in range(self.N + 1)])
@@ -225,6 +228,9 @@ class LOCP:
             Bdfull = block_diag(*self.Bd)
 
         constr += [self.x[self.n_x:] == Adfull @ self.x[:-self.n_x] + Bdfull @ self.u + self.dd]
+
+        # TODO: Add nonlinear observer constraints here. Similar to format of
+        # TODO: dynamical constraints above.
 
         # Trust region constraints
         if self.tr_active:

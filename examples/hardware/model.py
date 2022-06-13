@@ -19,16 +19,16 @@ BETA = 0.01 # Rayleigh stiffness
 # BETA = 1e-12 # Rayleigh stiffness
 
 U_MAX = 1500 # mN
-DT = 0.001
+DT = 0.01
 
-def diamondRobot(q0=None, scale_mode=1000):
+def diamondRobot(q0=None, scale_mode=1000, dt=DT):
     from robots import environments
     robot = environments.Diamond(totalMass=M, 
                                  poissonRatio=NU, 
                                  youngModulus=E, 
                                  rayleighMass=ALPHA, 
                                  rayleighStiffness=BETA,
-                                 dt=DT,
+                                 dt=dt,
                                  q0=q0,
                                  scale_mode=scale_mode)
 

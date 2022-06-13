@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import block_diag
 from scipy.sparse import lil_matrix, vstack
+from sofacontrol.utils import x2qv
 
 
 class linearModel:
@@ -34,8 +35,12 @@ class linearModel:
             Cq = buildCq(nodes, num_nodes)
             self.C = vstack((Cv, Cq))
 
-    def evaluate(self, x):
-        return self.C @ x
+    def evaluate(self, x, qv=False):
+        z = self.C @ x
+        if qv:
+            return np.concatenate(x2qv(z))
+        else:
+            return z
 
 
 class MeasurementModel(linearModel):

@@ -41,6 +41,14 @@ class LinearROM():
             self.z_ref = None
             self.output_dim = None
 
+    def get_jacobians(self, x, dt):
+        return self.A_d, self.B_d, self.d_d
+
+    @staticmethod
+    def update_dynamics(x, u, A_d, B_d, d_d):
+        x_next = A_d @ x + np.squeeze(B_d @ u) + d_d
+        return x_next
+
     def update_state(self, x, u):
         return self.A_d @ x + np.squeeze(self.B_d @ u) + self.d_d
 

@@ -8,6 +8,8 @@ import numpy as np
 import scipy.io as spio
 from itertools import combinations, permutations, product
 from tqdm.auto import tqdm
+from pathlib import Path
+
 
 """
 Provides direct interface with SOFA and is either opened from sofa gui or run in the following command style:
@@ -15,7 +17,7 @@ $SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.p
 Imports problem_specification to add specified robot (FEM model) and specific controller.
 """
 
-def createDataCollectionScene(rootNode, modes, directions, amplitude):
+def createDataCollectionScene(rootNode, q0, save_filename, amplitude):
     # Start building scene
     rootNode.addObject("RequiredPlugin", name="SoftRobots")
     rootNode.addObject("RequiredPlugin", name="SofaSparseSolver")
@@ -34,34 +36,6 @@ def createDataCollectionScene(rootNode, modes, directions, amplitude):
     # Define the specific instance via the problem_specification script
     # Run modal analysis or collect decaying trajectories
     #input_const = np.array([1500., 1500., 0., 0.])
-    path = os.path.dirname(os.path.abspath(__file__))
-
-    modeName1 = modes[0]
-    datafile1 = path + '/robots/data/' + modeName1 + '.mat'
-
-    modeName2 = modes[1]
-    datafile2 = path + '/robots/data/' + modeName2 + '.mat'
-
-    # Set corresponding direction to zero if desiring just one mode (Takes int values 0, 1, or -1)
-    direction1 = directions[0]
-    direction2 = directions[1]
-
-    modal_direction = ["", "pos", "neg"]
-    signMode1 = modal_direction[direction1]
-    signMode2 = modal_direction[direction2]
-
-
-    if signMode1 == "":
-        save_filename = signMode2 + modeName2 + "_" + str(amplitude)
-        print("Now simulating " + modeName2 + " with " + str(amplitude) + " amplitude")
-    elif signMode2 == "":
-        save_filename = signMode1 + modeName1 + "_" + str(amplitude)
-        print("Now simulating " + modeName1 + " with " + str(amplitude) + " amplitude")
-    else:
-        save_filename = signMode1 + modeName1 + "_" + signMode2 + modeName2 + "_" + str(amplitude)
-        print("Now simulating " + modeName1 + " and " + modeName2 + " with " + str(amplitude) + " amplitude")
-    # Single trajectory
-    q0 = direction1 * spio.loadmat(datafile1)[modeName1].T + direction2 * spio.loadmat(datafile2)[modeName2].T
 
     import problem_specification
 
@@ -104,6 +78,7 @@ def createScene(rootNode):
     rootNode.addObject("RequiredPlugin", name="SofaSparseSolver")
     rootNode.addObject("RequiredPlugin", name="SofaPreconditioner")
     rootNode.addObject('RequiredPlugin', pluginName='SofaOpenglVisual')
+    rootNode.addObject('RequiredPlugin', pluginName='SofaMatrix')
     rootNode.addObject("VisualStyle", displayFlags="showBehavior")
 
     rootNode.addObject("FreeMotionAnimationLoop")
@@ -115,10 +90,12 @@ def createScene(rootNode):
 
     # Define the specific instance via the problem_specification script
     # Run modal analysis or collect decaying trajectories
-    #input_const = np.array([1500., 1500., 0., 0.])
+    #input_const = np.array([1., 0., 0., 0.])
+    #input_const = np.array([0., 1., 0., 0.])
+    #input_const = np.array([0., 2000., 0., 2000.])
     path = os.path.dirname(os.path.abspath(__file__))
 
-    modeName1 = 'mode1'
+    modeName1 = 'mode3'
     datafile1 = path + '/robots/data/' + modeName1 + '.mat'
 
     modeName2 = 'mode2'
@@ -128,7 +105,7 @@ def createScene(rootNode):
     direction1 = 0
     direction2 = 0
 
-    amplitude = 100
+    amplitude = 2000
 
     modal_direction = ["", "pos", "neg"]
     signMode1 = modal_direction[direction1]
@@ -150,8 +127,9 @@ def createScene(rootNode):
     import problem_specification
 
     # Rotation in degrees
-    #prob = problem_specification.problem(input=input_const)
-    prob = problem_specification.problem(q0=q0, save_data=True, scale_mode=amplitude, filename=save_filename)
+    # TODO: To save data, need to specify file
+    #prob = problem_specification.problem(q0=q0, input=input_const, save_data=True, filename=save_filename)
+    prob = problem_specification.problem(q0=q0, save_data=False, scale_mode=amplitude, filename=save_filename)
     #prob = problem_specification.problem()
     prob.checkDefinition()
 
@@ -199,10 +177,10 @@ def main():
     _runAsPythonScript = True
 
     #modesList = list(combinations(["mode2", "mode3"], 2))
-    modesList = list(combinations(["mode1", "mode2", "mode3"], 2))
-    #amplitudeList = [1500, 2000]
-    amplitudeList = [1000]
-    directionList = list(filter(lambda elem: elem != (0, 0), [p for p in product([1, 0, -1], repeat=2)]))
+    modesList = list(combinations(["mode1", "mode2", "mode3"], 3))
+    amplitudeList = [1500, 2000]
+    #amplitudeList = [1000]
+    directionList = list(filter(lambda elem: elem != (0, 0, 0), [p for p in product([1, 0, -1], repeat=3)]))
 
     runSingleSimulation = True
 
@@ -220,7 +198,60 @@ def main():
         for (modes, directions, amplitude) in tqdm(product(modesList, directionList, amplitudeList)):
             root = Sofa.Core.Node()
 
-            rootNode = createDataCollectionScene(root, modes, directions, amplitude)
+            path = os.path.dirname(os.path.abspath(__file__))
+
+            modeName1 = modes[0]
+            datafile1 = path + '/robots/data/' + modeName1 + '.mat'
+
+            modeName2 = modes[1]
+            datafile2 = path + '/robots/data/' + modeName2 + '.mat'
+
+            modeName3 = modes[2]
+            datafile3 = path + '/robots/data/' + modeName3 + '.mat'
+
+            # Set corresponding direction to zero if desiring just one mode (Takes int values 0, 1, or -1)
+            direction1 = directions[0]
+            direction2 = directions[1]
+            direction3 = directions[2]
+
+            modal_direction = ["", "pos", "neg"]
+            signMode1 = modal_direction[direction1]
+            signMode2 = modal_direction[direction2]
+            signMode3 = modal_direction[direction3]
+
+            if signMode1 == "":
+                if signMode3 == "":
+                    save_filename = signMode2 + modeName2 + "_" + str(amplitude)
+                    print("Now simulating " + modeName2 + " with " + str(amplitude) + " amplitude")
+                elif signMode2 == "":
+                    save_filename = signMode3 + modeName3 + "_" + str(amplitude)
+                    print("Now simulating " + modeName3 + " with " + str(amplitude) + " amplitude")
+                else:
+                    save_filename = signMode2 + modeName2 + "_" + signMode3 + modeName3 + "_" + str(amplitude)
+                    print("Now simulating " + modeName2 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
+            elif signMode2 == "":
+                if signMode3 == "":
+                    save_filename = signMode1 + modeName1 + "_" + str(amplitude)
+                    print("Now simulating " + modeName1 + " with " + str(amplitude) + " amplitude")
+                else:
+                    save_filename = signMode1 + modeName1 + "_" + signMode3 + modeName3 + "_" + str(amplitude)
+                    print("Now simulating " + modeName1 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
+            elif signMode3 == "":
+                save_filename = signMode1 + modeName1 + "_" + signMode2 + modeName2 + "_" + str(amplitude)
+                print("Now simulating " + modeName1 + " and " + modeName2 + " with " + str(amplitude) + " amplitude")
+            else:
+                save_filename = signMode1 + modeName1 + "_" + signMode2 + modeName2 + "_" + signMode3 + modeName3 + "_" + str(amplitude)
+                print("Now simulating " + modeName1 + " and " + modeName2 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
+
+            # Single trajectory
+            q0 = direction1 * spio.loadmat(datafile1)[modeName1].T + direction2 * spio.loadmat(datafile2)[modeName2].T + direction3 * spio.loadmat(datafile3)[modeName3].T
+
+            currentModalFile = Path(path + "/examples/diamond/dataCollection/" + save_filename + '_snapshots' + '.pkl')
+            if currentModalFile.exists():
+                print(save_filename + " exists! Skipping to next initial condition")
+                continue
+
+            rootNode = createDataCollectionScene(root, q0, save_filename, amplitude)
             Sofa.Simulation.init(root)
 
             while True:

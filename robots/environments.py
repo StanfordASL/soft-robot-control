@@ -37,38 +37,29 @@ class TemplateEnvironment:
 
 
 class Trunk(TemplateEnvironment):
-    def __init__(self, name='Trunk', all_cables=True):
+    def __init__(self, name='Trunk', youngModulus=450, poissonRatio=0.45, totalMass=0.042, inverseMode=False, all_cables=True):
         super(Trunk, self).__init__(name=name)
 
         self.nb_nodes = 709
-
         self.gravity = [0., 0., 9810.]
 
-        self.robot.min_force = [0.] * 8  # Without premultiplication with dt
+        self.inverseMode = inverseMode
         self.robot.addObject('MeshVTKLoader', name='loader', filename=path + '/mesh/trunk.vtk')
-        self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
-        self.robot.addObject('TetrahedronSetTopologyModifier')
-        self.robot.addObject('TetrahedronSetGeometryAlgorithms')
-        # Option 1:
+        self.robot.addObject('MeshTopology', src='@loader', name='container')
+
         self.robot.addObject('MechanicalObject', name='tetras', template='Vec3d', showIndices='false',
                              showIndicesScale='4e-5')
-        # Option 2: Equivalent to option 1 (we believe)
-        # self.robot.addObject('MechanicalObject', src='@loader')
-
-        # Gives a mass to the model
-        self.robot.addObject('UniformMass', totalMass=0.042)
-        # Add a TetrahedronFEMForceField componant which implement an elastic material model solved using the Finite
-        # Element Method on tetrahedrons.
-        self.robot.addObject('TetrahedronFEMForceField', template='Vec3d', name='FEM', method='large',
-                             poissonRatio=0.45,
-                             youngModulus=450)
+        self.robot.addObject('UniformMass', totalMass=totalMass)
+        self.robot.addObject('TetrahedronFEMForceField', template='Vec3', name='FEM', method='large',
+                             poissonRatio=poissonRatio, youngModulus=youngModulus)
+        self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
+                             precision='10', name='matrixExporter')
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)
         self.robot.addObject('BoxROI', name='boxROI', box=[[-20, -20, 0], [20, 20, 20]], drawBoxes=False)
         self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12')
 
-        ##########################################
-        # Cable                                  #
-        ##########################################
+        self.robot.min_force = [0.] * 8
+
         actuator_names = ''
 
         length1 = 10.
@@ -143,101 +134,8 @@ class Trunk(TemplateEnvironment):
         trunkVisu.addObject('BarycentricMapping')
 
 
-class Trunk4Cables(Trunk):
-    def __init__(self, name='Trunk4Cables'):
-        super(Trunk4Cables, self).__init__(name=name, all_cables=False)
-        self.robot.min_force = [0, 0, 0, 0]  # Without premultiplication with dt
-
-
-class Finger(TemplateEnvironment):
-    def __init__(self, name='Finger'):
-        super(Finger, self).__init__(name=name)
-
-        self.nb_nodes = 158
-
-        self.robot.min_force = [0.]  # Without premultiplication with dt
-
-        self.robot.addObject('MeshVTKLoader', name='loader', filename=path + '/mesh/finger.vtk')
-        self.robot.addObject('TetrahedronSetTopologyContainer', src='@loader', name='container')
-        self.robot.addObject('TetrahedronSetTopologyModifier')
-        self.robot.addObject('TetrahedronSetGeometryAlgorithms')
-        self.robot.addObject('MechanicalObject', name='tetras', template='Vec3d', showIndices='false',
-                             showIndicesScale='4e-5')
-
-        self.robot.addObject('UniformMass', totalMass=0.075)
-
-        # Add a TetrahedronFEMForceField componant which implement an elastic material model solved using the Finite Element Method on tetrahedrons.
-        self.robot.addObject('TetrahedronFEMForceField', template='Vec3d', name='FEM', method='large',
-                             poissonRatio=0.45,
-                             youngModulus=600)
-
-        # Fix the base of the trunk by adding constraints in a region of interest (ROI)
-        self.robot.addObject('BoxROI', name='boxROI', box=[[-15, 0, 0], [5, 10, 15]], drawBoxes=False)
-        self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12')
-
-        ##########################################
-        # Cable                                 #
-        ##########################################
-
-        #  This creates a new node in the scene. This node is appended to the finger's node.
-        actuators = self.robot.addChild('actuators')
-
-        cable = actuators.addChild('cable')
-
-        #  This create a MechanicalObject, a componant holding the degree of freedom of our
-        # mechanical modelling. In the case of a cable it is a set of positions specifying
-        #  the points where the cable is passing by.
-        cable.addObject('MechanicalObject', name='meca',
-                        position=(
-                                "-17.5 12.5 2.5 " +
-                                "-32.5 12.5 2.5 " +
-                                "-47.5 12.5 2.5 " +
-                                "-62.5 12.5 2.5 " +
-                                "-77.5 12.5 2.5 " +
-
-                                "-83.5 12.5 4.5 " +
-                                "-85.5 12.5 6.5 " +
-                                "-85.5 12.5 8.5 " +
-                                "-83.5 12.5 10.5 " +
-
-                                "-77.5 12.5 12.5 " +
-                                "-62.5 12.5 12.5 " +
-                                "-47.5 12.5 12.5 " +
-                                "-32.5 12.5 12.5 " +
-                                "-17.5 12.5 12.5 "))
-
-        # Create a CableConstraint object with a name.
-        # the indices are referring to the MechanicalObject's positions.
-        # The last indice is where the pullPoint is connected.
-        cable.addObject('CableConstraint', name="cable",
-                        indices=list(range(14)),
-                        pullPoint="0.0 12.5 2.5", valueType='force',
-                        minForce=self.robot.min_force[0] * self.robot.dt.value)
-        # This create a BarycentricMapping. A BarycentricMapping is a key element as it will create a bi-directional link
-        #  between the cable's DoFs and the finger's ones so that movements of the cable's DoFs will be mapped
-        #  to the finger and vice-versa;
-        cable.addObject('BarycentricMapping', name='mapping', mapForces='false', mapMasses='false')
-
-        self.actuator_list.append(cable.cable)
-
-        self.robot.actuator_list = self.actuator_list
-        ##########################################
-        # Visualization                          #
-        ##########################################
-        # In Sofa, visualization is handled by adding a rendering model.
-        #  Create an empty child node to store this rendering model.
-        fingerVisu = self.robot.addChild('VisualModel')
-
-        # Add to this empty node a rendering model made of triangles and loaded from an stl file.
-        fingerVisu.addObject('MeshSTLLoader', filename=path + "/mesh/finger.stl")
-        fingerVisu.addObject('OglModel', template='Vec3d', color=[1., 1., 1., 0.8])
-
-        # Add a BarycentricMapping to deform rendering model in way that follow the ones of the parent mechanical model.
-        fingerVisu.addObject('BarycentricMapping')
-
-
 class Diamond(TemplateEnvironment):
-    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.001,
+    def __init__(self, name='Diamond', totalMass=0.5, poissonRatio=0.45, youngModulus=450, rayleighMass=0.1, rayleighStiffness=0.1, dt=0.01,
                  q0=None, scale_mode=1000):
         super(Diamond, self).__init__(name=name, rayleighMass=rayleighMass, rayleighStiffness=rayleighStiffness, dt=dt)
 
@@ -282,7 +180,8 @@ class Diamond(TemplateEnvironment):
         self.robot.addObject('TetrahedronFEMForceField', template='Vec3d',
                              method='large', name='forcefield',
                              poissonRatio=poissonRatio, youngModulus=youngModulus)
-
+        self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
+                             precision='10', name='matrixExporter')
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)
         self.robot.addObject('BoxROI', name='boxROI', box=[-15, -15, -40, 15, 15, 10], drawBoxes=True)
         self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12')

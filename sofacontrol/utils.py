@@ -141,6 +141,9 @@ def x2qv(x):
     else:
         raise IndexError('Unable to process x.ndim > 2')
 
+def vq2qv(x):
+    q, v = x2qv(x)
+    return np.hstack((q, v))
 
 def save_data(filename, data):
     if not os.path.isdir(os.path.split(filename)[0]):
@@ -160,23 +163,26 @@ def sparse_list_to_np_array(matrix_list):
     return np.asarray([matrix.todense() for matrix in matrix_list])
 
 
-def turn_on_LDL_saver(preconditioner, filepath):
-    preconditioner.findData('savingMatrixToFile').value = True
-    preconditioner.findData('savingFilename').value = filepath
-    preconditioner.findData('savingPrecision').value = 10
+def turn_on_LDL_saver(matrixExporter, filepath):
+    matrixExporter.findData('enable').value = True
+    matrixExporter.findData('exportEveryNumberOfSteps').value = 10
+    matrixExporter.findData('filename').value = filepath
+    matrixExporter.findData('format').value = 'txt'
+    matrixExporter.findData('precision').value = 10
 
 
-def turn_off_LDL_saver(preconditioner):
-    preconditioner.findData('savingMatrixToFile').value = False
+def turn_off_LDL_saver(matrixExporter):
+    matrixExporter.findData('enable').value = False
+    matrixExporter.findData('exportEveryNumberOfSteps').value = 0
 
 
-def extract_KDMb(robot, snapshots_dir, step, dt, dv, point):
+def extract_KDMb(robot, filesInDir, step, dt, dv, point):
     alpha = robot.odesolver.rayleighMass.value
     beta = robot.odesolver.rayleighStiffness.value
     node_mass = robot.mass.vertexMass.value
     num_nodes = robot.tetras.size.value
     # Load and parse the LDL matrix into the M, K, and D matrices
-    LDL_file = os.path.join(snapshots_dir, 'temp/LDL_%05d.txt' % step)
+    LDL_file = filesInDir[0]
     LDL = np.zeros((3 * num_nodes, 3 * num_nodes))
     with open(LDL_file, 'r') as file:
         for (i, line) in enumerate(file):
