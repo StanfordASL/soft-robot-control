@@ -7,6 +7,8 @@ from sofacontrol import open_loop_controller
 from sofacontrol.lqr.ilqr import iLQR
 from sofacontrol.lqr.traj_tracking_lqr import TrajTrackingLQR
 from sofacontrol.lqr.lqr import CLQR, DLQR
+
+#TODO: Modify this
 from sofacontrol.scp.ros import GuSTOClientNode
 """
 Functions provide different control techniques for optimal control tasks such as Trajectory Optimization, Trajectory 
@@ -206,76 +208,6 @@ class ilqr(TemplateController):
         return self.u
 
 
-class rh_ilqr(ilqr):
-    """
-    Implements a receding horizon ilqr controller that shares functionality with the ilqr class
-    It allows to specify the receding horizon length.
-    """
-    default_planning_horizon = 10
-    default_rollout_horizon = 1
-
-    def __init__(self, dyn_sys, cost_params, target, dt=0.01, observer=None, delay=2., u0=None, **kwargs):
-        self.planning_horizon = kwargs.get('planning_horizon', self.default_planning_horizon)
-        self.rollout_horizon = kwargs.get('rollout_horizon', self.default_rollout_horizon)
-        super().__init__(dyn_sys=dyn_sys, cost_params=cost_params, target=target, dt=dt, observer=observer,
-                         delay=delay, u0=u0, **kwargs)
-        self.u_bar = np.zeros((self.planning_horizon, self.input_dim))
-
-    def get_problem_horizon(self, tf):
-        if self.setpoint_reaching and tf is not None:
-            print('tf specified for receding horizon implementation, this does not determine planning horizon '
-                  'which is an optional argument')
-        final_time = tf
-        planning_horizon = self.planning_horizon
-        return final_time, planning_horizon
-
-    def warmstart_ilqr(self, u):
-        # Option 1: last u from previous solve
-        self.policy.set_u_last(u[self.rollout_horizon - 1])
-        # Option 2: Actual self.u applied, however not compatible with realtime
-        # self.policy.set_u_last(np.copy(self.u))
-
-        # Pad only along time axis
-        u_new = np.pad(u[self.rollout_horizon:], ((0, self.rollout_horizon), (0, 0)), mode='edge')
-        return u_new
-
-    def recompute_policy(self, t_step):
-        step = int(t_step / self.dt)
-        i = int(step % self.rollout_horizon)
-        return True if i == 0 else False  # Recompute if rollout horizon reached (more explicit than: not i)
-
-    def compute_policy(self, t_step, x_belief): # REFACTOR: Further optimize
-        # Update target with correct timestep
-        if self.final_time is None or t_step <= self.final_time:
-            if self.target.z.ndim == 1:
-                self.policy.set_target(np.repeat(self.target.z[np.newaxis, :], self.planning_horizon + 1, axis=0))
-
-            else:  # self.target.z.ndim == 2
-                z_interp = interp1d(self.target.t, self.target.z, axis=0)
-                try:
-                    self.policy.set_target(z_interp(np.linspace(t_step, t_step + self.planning_horizon * self.dt,
-                                                                self.planning_horizon + 1)))
-                except ValueError:
-                    # Outside of interpolation range --> end of sequence within planning horizon, append with last value
-                    z1 = z_interp(np.linspace(t_step, self.final_time, int((self.final_time - t_step) / self.dt) + 1))
-                    z2 = np.repeat(z_interp(self.final_time)[np.newaxis, :], self.planning_horizon - z1.shape[0] + 1,
-                                   axis=0)
-                    self.policy.set_target(np.concatenate([z1, z2], axis=0))
-
-            u_warmstart = self.warmstart_ilqr(self.u_bar)
-            self.x_bar, self.u_bar, self.K = self.policy.ilqr_computation(x_belief, u_warmstart=u_warmstart)
-
-    def compute_input(self, t_step, x_belief):
-        if self.final_time is not None and t_step > self.final_time:  # After end of control, return u0
-            self.u = self.u0
-
-        else:
-            step = int(t_step / self.dt)
-            i = int(step % self.rollout_horizon)
-            self.u = self.u_bar[i] + self.K[i] @ (x_belief - self.x_bar[i])
-        return self.u
-
-
 class scp(TemplateController):
     def __init__(self, dyn_sys, cost, dt, N_replan=None, observer=None, delay=2, u0=None, wait=True, **kwargs):
         super().__init__(dyn_sys, None, dt=dt, observer=observer, delay=delay, u0=u0)
@@ -300,6 +232,9 @@ class scp(TemplateController):
 
         # Set up the ROS client node
         self.GuSTO = GuSTOClientNode()
+
+        self.z_opt_horizon = []
+        self.t_opt_horizon = []
 
         # LQR
         from sofacontrol.lqr.lqr import dare
@@ -377,6 +312,10 @@ class scp(TemplateController):
             self.u_opt = np.concatenate((self.u_opt[:-1,:], u_opt_new))
             self.x_opt = np.concatenate((self.x_opt, x_opt_new[1:,:]))
 
+        # Define short time optimal horizon solutions
+        self.z_opt_horizon.append(self.dyn_sys.x_to_zfyf(x_opt_p, zf=True))
+        self.t_opt_horizon.append(t_opt_p)
+
         # Define interpolation functions for new optimal trajectory, note
         # that these include traj from time t = 0 onward
         self.u_bar = interp1d(self.t_opt, self.u_opt, axis=0)
@@ -400,6 +339,8 @@ class scp(TemplateController):
         info['z_opt'] = self.dyn_sys.x_to_zfyf(self.x_opt, zf=True)
         info['solve_times'] = self.solve_times
         info['rollout_time'] = self.N_replan * self.dt
+        info['z_rollout'] = self.z_opt_horizon
+        info['t_rollout'] = self.t_opt_horizon
         return info
 
 

@@ -111,10 +111,11 @@ def run_koopman():
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
     # Building A matrix
-    Hz = np.zeros((1, 3))
-    Hz[0, 1] = 1
-    b_z = np.array([5])
-    Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
+    # Hz = np.zeros((1, 3))
+    # Hz[0, 1] = 1
+    # b_z = np.array([5])
+    # Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
+    Y = None
 
     prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=3, rollout_horizon=1, Y=Y)
 
@@ -153,8 +154,11 @@ def run_koopman_solver():
     t = np.linspace(0, M*T, M*N)
     th = np.linspace(0, M * 2 * np.pi, M*N)
     zf_target = np.zeros((M*N, model.n))
-    zf_target[:, 0] = -15. * np.sin(th)
-    zf_target[:, 1] = 15. * np.sin(2 * th)
+    # zf_target[:, 0] = -15. * np.sin(th)
+    # zf_target[:, 1] = 15. * np.sin(2 * th)
+
+    zf_target[:, 0] = -25. * np.sin(th) + 13.
+    zf_target[:, 1] = 25. * np.sin(2 * th) + 20.
 
     # Cost
     cost.R = .00001 * np.eye(model.m)
@@ -164,7 +168,7 @@ def run_koopman_solver():
     cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
 
     # Control constraints
-    u_ub = 1500. * np.ones(model.m)
+    u_ub = 4000. * np.ones(model.m)
     u_lb = 200. * np.ones(model.m)
     u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
     u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
@@ -178,18 +182,20 @@ def run_koopman_solver():
     # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
     # X = Polyhedron(A=H, b=b_z_ub_norm)
 
+    X = None
+
     ##############################################
     # Problem 2, Circle on side
     ##############################################
     # M = 3
     # T = 5
     # N = 1000
-    # r = 10
+    # r = 20
     # t = np.linspace(0, M*T, M*N)
     # th = np.linspace(0, M*2*np.pi, M*N)
     # x_target = np.zeros(M*N)
-    # y_target = r * np.sin(th)
-    # z_target = r - r * np.cos(th) + 107.0
+    # y_target = r * np.sin(17 * th)
+    # z_target = r - r * np.cos(17 * th) + 107.0
     # zf_target = np.zeros((M*N, 3))
     # zf_target[:, 0] = x_target
     # zf_target[:, 1] = y_target
@@ -198,7 +204,7 @@ def run_koopman_solver():
     # # Cost
     # cost.R = .00001 * np.eye(model.m)
     # cost.Q = np.zeros((3, 3))
-    # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
+    # cost.Q[0, 0] = 50.0  # corresponding to x position of end effector
     # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
     # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
     #
@@ -224,7 +230,7 @@ def run_koopman_solver():
 
     # Using osqp instead of Gurobi because Gurobi had some numerical issues
     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
-                     warm_start=True, U=U, solver='OSQP')
+                     warm_start=True, U=U, solver='OSQP', X=X)
 
 
 

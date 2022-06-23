@@ -70,6 +70,7 @@ class ClosedLoopController(Sofa.Core.Controller):
         u = self.controller.evaluate(self.t, y, x, u_prev)
         self.apply_command(u)
 
+        # TODO: Confirm that I'm doing this correctly here
         if self.simdata_dir is not None:
             self.sim_data["t"].append(self.t)
             self.sim_data["u"].append(self.get_command())

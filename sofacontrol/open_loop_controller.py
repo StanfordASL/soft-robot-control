@@ -111,17 +111,20 @@ class OpenLoopController(Sofa.Core.Controller):
         #      scutils.save_data(filename, self.sim_data)
 
         # Gather remaining information for saving the current point
+        # TODO: This only works if I want to use snapshots. Otherwise it is breaking
+        # TODO: if I collect simulation data
         #self.save_point = False #TODO: debugging
-        LDL_path = os.path.join(self.LDL_dir, 'temp/')
-        currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
-                     os.path.isfile(os.path.join(LDL_path, f))]
+        #LDL_path = os.path.join(self.LDL_dir, 'temp/')
+        #currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
+        #             os.path.isfile(os.path.join(LDL_path, f))]
 
         # TODO: checking if directory is empty here prevents POD_collection
-        # but putting in the second if breaks stuff
-        if self.save_point and currFiles:
+        # TODO: but putting in the second if breaks stuff. Need to check that
+        # TODO: there exists LDL files in the directory before trying to extract the system matrices
+        if self.save_point:
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
-            if self.snapshots.save_dynamics:
+            if self.snapshots.save_dynamics and currFiles:
                 dv = self.point.v_next - self.point.v
                 K, D, M, b, f, S = scutils.extract_KDMb(self.robot, currFiles, self.step, params['dt'], dv,
                                                         self.point)
@@ -174,7 +177,12 @@ class OpenLoopController(Sofa.Core.Controller):
             if self.t >= round(t_next_save, 6):
                 if self.controller.save_seq[self.next_save_idx]:
                     save = True
-            self.next_save_idx += 1
+
+            # TODO: Make sure this doesn't give bad behavior
+            # Scaling by 100 due to floating point accuracy of modulus operation
+            scaled_controller_period = 100.*self.controller.dt
+            scaled_time = 100.*self.t
+            self.next_save_idx += 1 if round(scaled_time % scaled_controller_period, 6) == 0 else 0
         return save
 
     def apply_command(self, u):
@@ -199,12 +207,13 @@ class OpenLoop:
     :u_sequence: 
     """
 
-    def __init__(self, m, t_sequence, u_sequence, save_sequence):
+    def __init__(self, m, t_sequence, u_sequence, save_sequence, **kwargs):
         self.m = m
         self.t_seq = t_sequence
         self.save_seq = save_sequence
         self.u_seq = self.convert_u_standard_form(u_sequence)
         self.u_interp = interp1d(self.t_seq, self.u_seq)
+        self.dt = kwargs.get('dt', None)
 
     def save_controller_info(self):
         """

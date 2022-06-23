@@ -3,9 +3,10 @@ from scipy.interpolate import interp1d
 
 from sofacontrol import closed_loop_controller
 from sofacontrol import open_loop_controller
-from sofacontrol.lqr.ilqr import iLQR
-from sofacontrol.scp.ros import GuSTOClientNode
+from sofacontrol.scp_test.ros import GuSTOClientNode
 from sofacontrol.utils import vq2qv
+from sofacontrol.lqr.lqr import dare
+
 """
 Functions provide different control techniques for optimal control tasks such as Trajectory Optimization, Trajectory 
 Tracking and setpoint reaching. Interfaces with SOFA through closed_loop_controller.py
@@ -21,7 +22,7 @@ class TemplateController(closed_loop_controller.TemplateController):
     :param delay: Delay before control is considered active. Comprises settling time of simulation + hypothetical
                   observer convergence
     """
-    def __init__(self, dyn_sys, cost_params, dt=0.01, delay=2, u0=None):
+    def __init__(self, dyn_sys, cost_params, dt=0.01, delay=2, u0=None, **kwargs):
         super(TemplateController, self).__init__()
         self.dyn_sys = dyn_sys
         self.dt = dt
@@ -41,6 +42,8 @@ class TemplateController(closed_loop_controller.TemplateController):
 
         self.t_compute = 0.
         self.u = self.u0
+
+        self.Y = kwargs.pop('Y', None)
 
     def validate_problem(self):
         raise NotImplementedError('Must be subclassed')
@@ -88,6 +91,10 @@ class TemplateController(closed_loop_controller.TemplateController):
         # Update observer using previous control and current measurement, note that on the first
         # step self.u is set to self.u0 automatically in __init__
         sim_time = round(sim_time, 4)
+
+        if self.Y is not None and not self.Y.contains(y):
+            y = self.Y.project_to_polyhedron(y)
+
         self.observer.update(None, y, None)
 
         # Startup portion of controller, before OCP controller is activated
@@ -122,82 +129,9 @@ class TemplateController(closed_loop_controller.TemplateController):
             info['input_dim'] = self.dyn_sys.get_input_dim()
         return info
 
-
-class ilqr(TemplateController):
-
-    def __init__(self, dyn_sys, cost_params, target, dt=0.01, delay=2., u0=None, **kwargs):
-        super().__init__(dyn_sys=dyn_sys, cost_params=cost_params, dt=dt, delay=delay, u0=u0)
-
-        self.target = target
-        self.setpoint_reaching = True  # Updated in self.validate_problem() if target is moving horizon
-
-        self.validate_problem()
-
-        if self.setpoint_reaching:
-            self.final_time, self.planning_horizon = self.get_problem_horizon(kwargs.get('tf'))
-        else:
-            self.final_time, self.planning_horizon = self.get_problem_horizon(self.target.t[-1])
-
-        # ilqr policy
-        self.policy = iLQR(dt=self.dt, model=self.dyn_sys, cost_params=self.cost_params, planning_horizon=self.planning_horizon)
-        self.x_bar = None
-        self.u_bar = None
-        self.K = None
-
-        # No offline computation performed
-
-    def get_problem_horizon(self, tf):
-        if tf is None:
-            raise RuntimeError('Final time not set for single-shooting ilqr')
-        final_time = tf
-        planning_horizon = int(final_time / self.dt)  # = nbr_steps for single-shooting
-        return final_time, planning_horizon
-
-    def validate_problem(self):
-        # Validate target instance variables & their shape
-        # Hf is matrix used to obtain xyz of output node from simulation
-        assert self.target.z is not None and self.target.Hf is not None
-        assert self.target.Hf.shape[0] == self.target.z.shape[-1]
-        assert self.target.z.ndim <= 2
-
-        if self.target.z.ndim == 2:
-            self.setpoint_reaching = False  # Trajectory opt problem with moving target, i.e. a trajectory to follow
-
-        # Validate cost parameters & their shape
-        output_dim = self.dyn_sys.get_output_dim()
-        if self.setpoint_reaching:
-            assert self.cost_params.Qf.shape == (output_dim, output_dim)
-        assert self.cost_params.Q.shape == (output_dim, output_dim)
-
-        assert self.cost_params.R.shape == (self.input_dim, self.input_dim)
-
-    def compute_policy(self, t_step, x_belief):
-        """
-        Policy computed online based on observer belief state and current step
-        """
-        # Compute target with correct timestep
-        if self.setpoint_reaching:
-            self.policy.set_target(np.repeat(self.target.z[np.newaxis, :], self.planning_horizon + 1, axis=0))
-
-        else:  # trajectory tracking
-            z_interp = interp1d(self.target.t, self.target.z, axis=0)
-            self.policy.set_target(z_interp(np.linspace(0, self.final_time, self.planning_horizon + 1)))
-
-        # Compute policy for given z_target
-        self.x_bar, self.u_bar, self.K = self.policy.ilqr_computation(x_belief)
-
-    def compute_input(self, t_step, x_belief):
-        if t_step > self.final_time:  # After end of control, return u0
-            self.u = self.u0
-        else:
-            step = int(t_step / self.dt)
-            self.u = self.u_bar[step] + self.K[step] @ (x_belief - self.x_bar[step])
-        return self.u
-
-
 class scp(TemplateController):
     def __init__(self, dyn_sys, cost, dt, N_replan=None, delay=2, u0=None, wait=True, **kwargs):
-        super().__init__(dyn_sys, None, dt=dt, delay=delay, u0=u0)
+        super().__init__(dyn_sys, None, dt=dt, delay=delay, u0=u0, **kwargs)
         
         if N_replan is not None:
             self.N_replan = N_replan
@@ -210,15 +144,19 @@ class scp(TemplateController):
         self.u_bar = None
         self.x_bar = None
 
+        self.z_opt_horizon = []
+
         self.wait = wait
-        
-        self.t_next_solve = 0
+
         self.initialized = False
 
         self.solve_times = []
+        self.t_opt_horizon = []
+        self.cost = cost
 
         # Set up the ROS client node
         self.GuSTO = GuSTOClientNode()
+        self.feedback = kwargs.pop('feedback', False)
 
     def compute_policy(self, t_step, x_belief):
         """
@@ -233,29 +171,17 @@ class scp(TemplateController):
             self.update_policy(init=True)
             self.initialized = True
         else:
+            self.run_GuSTO(t_step, x_belief, wait=self.wait)
             self.update_policy()
-
-        # We solve for the next iteration at the start of the new policy (to enable real-time usage)
-        # So for policy starting at t=t0, we start computing at t=t0-dt*N (N = rollout / replan horizon)
-        self.t_next_solve = round(self.t_opt[-1], 6)
-
-        # Solve for the trajectory on the next interval
-        # # In theory, for a finite horizon case (trajectory following) full policy can be computed offline
-        x0 = self.x_opt[-1, :]
-
-        self.run_GuSTO(self.t_opt[-1], x0, wait=self.wait)
 
     def run_GuSTO(self, t0, x0, wait):
         # Instantiate the GuSTO problem over the horizon
         self.GuSTO.send_request(t0, x0, wait=wait)
 
     def recompute_policy(self, t_step):
-        """
-        """
-        if round(t_step, 4) >= round(self.t_next_solve, 4):
-            return True
-        else:
-            return False
+        step = round(round(t_step, 4) / self.dt)
+        i = int(step % self.N_replan)
+        return True if i == 0 else False  # Recompute if rollout horizon reached (more explicit than: not i)
 
     def update_policy(self, init=False):
         # Query whether the solution is ready
@@ -280,22 +206,42 @@ class scp(TemplateController):
             self.x_opt = x_opt_new
         else:
             t_opt_new = self.t_opt[-1] + self.dt * np.arange(self.N_replan + 1)
-            u_opt_new = u_opt_intp(t_opt_new)
-            x_opt_new = x_opt_intp(t_opt_new)
+            u_opt_new = u_opt_intp(np.round(t_opt_new, 4))
+            x_opt_new = x_opt_intp(np.round(t_opt_new, 4))
             self.t_opt = np.concatenate((self.t_opt, t_opt_new[1:]))
             self.u_opt = np.concatenate((self.u_opt[:-1,:], u_opt_new))
             self.x_opt = np.concatenate((self.x_opt, x_opt_new[1:,:]))
+
+        # Define short time optimal horizon solutions
+        self.z_opt_horizon.append(self.dyn_sys.x_to_zfyf(x_opt_p))
+        self.t_opt_horizon.append(t_opt_p)
 
         # Define interpolation functions for new optimal trajectory, note
         # that these include traj from time t = 0 onward
         self.u_bar = interp1d(self.t_opt, self.u_opt, axis=0)
         self.x_bar = interp1d(self.t_opt, self.x_opt, axis=0)
 
+        # Define optimal points to linearize about
+        self.x_opt_current = x_opt_p
+        self.u_opt_current = u_opt_p
+
     def compute_input(self, t_step, x_belief):
         self.GuSTO.force_spin()  # Periodic querying of client node
 
-        i_near = self.dyn_sys.calc_nearest_point(self.x_bar(t_step))
-        u = self.u_bar(t_step)
+        # TODO: This is somewhat wrong and doesn't improve performance
+        if self.feedback:
+            # Compute LQR
+            x_dist = np.linalg.norm(self.x_opt_current - x_belief, axis=1)
+            i_near = np.argmin(x_dist)
+
+            x_near = self.x_opt_current[i_near]
+            A_d, B_d, _ = self.dyn_sys.get_jacobians(x_near, u=self.u_opt_current[i_near],
+                                                 dt=self.dt)
+            Hk, _ = self.dyn_sys.get_observer_jacobians(x_near)
+            K, _ = dare(A_d, B_d, Hk.T @ self.cost.Q @ Hk, self.cost.R)
+            u = self.u_bar(t_step) + K @ (x_belief - x_near)
+        else:
+            u = self.u_bar(t_step)
 
         return u
 
@@ -308,6 +254,8 @@ class scp(TemplateController):
         info['z_opt'] = self.dyn_sys.x_to_zfyf(self.x_opt, zf=True)
         info['solve_times'] = self.solve_times
         info['rollout_time'] = self.N_replan * self.dt
+        info['z_rollout'] = self.z_opt_horizon
+        info['t_rollout'] = self.t_opt_horizon
         return info
 
 class OpenLoop(open_loop_controller.OpenLoop):
@@ -359,11 +307,8 @@ class SSMObserver:
     def __init__(self, dyn_sys):
         self.z = None
         self.x = None
-        self.W = dyn_sys.W_map
-        self.z_ref = dyn_sys.z_ref
+        self.dyn_sys = dyn_sys
 
     def update(self, u, y, dt, x=None):
-        #TODO: Need to make format of z consistent here and reflect in other code
-        # Currently, z is on the (v,q) form but W expects (q, v) and shifted to origin
         self.z = vq2qv(y)
-        self.x = self.W(self.z - self.z_ref)
+        self.x = self.dyn_sys.W_map(self.dyn_sys.zfyf_to_zy(zf=self.z))

@@ -42,8 +42,9 @@ class SSM:
         self.B_d = None
         self.d_d = None
 
-        # Set performance to identity because observation and performance states the same
-        self.H = np.eye(n)
+        # Set performance to zero matrix with appropriate dimension (n_z, n_x)
+        self.H = np.zeros((self.output_dim, self.state_dim))
+        self.nonlinear_observer = True
 
     def update_state(self, x, u, dt):
         raise NotImplementedError("update_state must be overriden by a child class")
@@ -113,6 +114,7 @@ class SSM:
         """
         N = u.shape[0]
         x = np.zeros((N + 1, self.state_dim))
+        z_lin = np.zeros((N + 1, self.output_dim))
 
         # Set initial condition
         x[0,:] = x0
@@ -120,8 +122,10 @@ class SSM:
         # Simulate
         for i in range(N):
             x[i+1,:] = self.update_state(x[i,:], u[i,:], dt)
+            z_lin[i,:] = self.update_observer_state(x[i, :])
 
         z = self.x_to_zfyf(x)
+        z_lin = self.zy_to_zfyf(z_lin)
 
         return x, z
 
@@ -146,7 +150,6 @@ class SSMDynamics(SSM):
         """
         Extract the Jacobians A, B, d (or A_d, B_d, d_d) at the state x
         :x: reduced state
-        :discrete (optional): Specify whether to extract continuous or discrete dynamics
         """
         assert u is not None, 'Need to supply current input'
         x = x.reshape(self.state_dim, 1)
@@ -157,15 +160,29 @@ class SSMDynamics(SSM):
             f_nl = self.maps['f_nl_d'](x, u)
             d = f_nl - A@x - B@u
         else:
-            assert dt is not None, "Need to specify dt since dynamics are continuous time"
-
-            A_c = self.maps['A'](x)
-            B_c = self.maps['B'](x)
-            f_nl_c = self.maps['f_nl'](x, u)
-            d_c = f_nl_c - A_c @ x - B_c @ u
-            A, B, d = self.discretize_dynamics(A_c, B_c, d_c, dt)
+            A = self.maps['A'](x)
+            B = self.maps['B'](x)
+            f_nl = self.maps['f_nl'](x, u)
+            d = f_nl - A @ x - B @ u
+            if dt is not None:
+                A, B, d = self.discretize_dynamics(A, B, d, dt)
 
         return A, B, np.squeeze(d)
+
+    def get_observer_jacobians(self, x, dt=None, u=None):
+        """
+        Extract the Jacobians H, c at the state x
+        :x: reduced state
+        """
+        x = x.reshape(self.state_dim, 1)
+        H = self.maps['H'](x)
+        c_nl = self.C_map(x)
+        c_res = c_nl - H @ x
+        return H, c_res
+
+    def update_observer_state(self, x, dt=None, u=None):
+        H, c = self.get_observer_jacobians(x, dt=dt, u=u)
+        return np.squeeze(H @ x) + np.squeeze(c)
 
     def discretize_dynamics(self, A_c, B_c, d_c, dt):
         if self.discr_method == 'fe':

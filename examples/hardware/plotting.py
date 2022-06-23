@@ -19,8 +19,11 @@ N = 500
 t_target = np.linspace(0, M*T, M*N)
 th = np.linspace(0, M * 2 * np.pi, M*N)
 zf_target = np.zeros((M*N, 6))
-zf_target[:, 3] = -15. * np.sin(th) - 7.1
-zf_target[:, 4] = 15. * np.sin(2 * th)
+# zf_target[:, 3] = -15. * np.sin(th)
+# zf_target[:, 4] = 15. * np.sin(2 * th)
+
+zf_target[:, 3] = -25. * np.sin(th) + 13
+zf_target[:, 4] = 25. * np.sin(2 * th) + 20
 y_ub = 5
 name = 'figure8'
 
@@ -30,12 +33,12 @@ name = 'figure8'
 # M = 3
 # T = 5
 # N = 1000
-# r = 10
+# r = 20
 # t_target = np.linspace(0, M*T, M*N)
 # th = np.linspace(0, M*2*np.pi, M*N)
 # x_target = np.zeros(M*N)
-# y_target = r * np.sin(th)
-# z_target = r - r * np.cos(th) + 107
+# y_target = r * np.sin(17 * th)
+# z_target = r - r * np.cos(17 * th) + 107
 # zf_target = np.zeros((M*N, 6))
 # zf_target[:, 3] = x_target
 # zf_target[:, 4] = y_target
@@ -44,25 +47,30 @@ name = 'figure8'
 
 
 # Load SCP data
-scp_simdata_file = join(path, 'scp_sim.pkl')
+scp_simdata_file = join(path, 'scp_CL_sim.pkl')
 scp_data = load_data(scp_simdata_file)
 idx = np.argwhere(scp_data['t'] >= 3)[0][0]
 u_scp = scp_data['u'][idx:, :]
-x_scp = scp_data['x']
+#x_scp = scp_data['x']
 #q_scp = scp_data['q']
 t_scp = scp_data['t'][idx:] - scp_data['t'][idx]
 z_scp = scp_data['z'][idx:, :]
-zhat = scp_data['z_hat'][idx:, :]
-solve_times_scp = scp_data['info']['solve_times']
-real_time_limit_scp = scp_data['info']['rollout_time']
+#zhat = scp_data['z_hat'][idx:, :]
+solve_times_ssm = scp_data['info']['solve_times']
+real_time_limit_ssm = scp_data['info']['rollout_time']
+
+z_opt_rollout = scp_data['info']['z_rollout']
+t_opt_rollout = scp_data['info']['t_rollout']
 
 # Load iLQR data
-ilqr_simdata_file = join(path, 'ilqr_sim.pkl')
+ilqr_simdata_file = join(path, 'scp_sim.pkl')
 ilqr_data = load_data(ilqr_simdata_file)
 idx = np.argwhere(ilqr_data['t'] >= 3)[0][0]
 t_ilqr = ilqr_data['t'][idx:] - ilqr_data['t'][idx]
 z_ilqr = ilqr_data['z'][idx:, :]
 u_ilqr = ilqr_data['u'][idx:, :]
+solve_times_tpwl = ilqr_data['info']['solve_times']
+real_time_limit_tpwl = ilqr_data['info']['rollout_time']
 
 # Load Koopman data
 koop_simdata_file = join(path, 'koopman_sim.pkl')
@@ -72,24 +80,65 @@ t_koop = koop_data['t'][idx:] - koop_data['t'][idx]
 z_koop = koop_data['z'][idx:, :]
 solve_times_koop = koop_data['info']['solve_times']
 real_time_limit_koop = koop_data['info']['rollout_time']
+t_opt = koop_data['info']['t_opt']
+# z_opt_rollout = koop_data['info']['z_rollout']
+# t_opt_rollout = koop_data['info']['t_rollout']
 
+plot_rollouts = False
 m_w = 30
+
+##################################################
+# Plot infinity sign via x vs. y
+##################################################
+z_lb = np.array([-40 + 13., -40 + 20])
+z_ub = np.array([40 + 13., 40 + 20])
+fig1 = plt.figure(figsize=(10, 8), facecolor='w', edgecolor='k')
+ax1 = fig1.add_subplot(111)
+ax1.add_patch(
+    patches.Rectangle(
+        xy=(z_lb[0], z_lb[1]),  # point of origin.
+        width=z_ub[0] - z_lb[0],
+        height=z_ub[1] - z_lb[1],
+        linewidth=2,
+        color='tab:red',
+        fill=False,
+    )
+)
+
+ax1.plot(z_ilqr[:, 3], z_ilqr[:, 4], 'tab:green', marker='x', markevery=20, label='TPWL CL', linewidth=1)
+ax1.plot(z_koop[:, 3], z_koop[:, 4], 'tab:orange', marker='^', markevery=20, label='Koopman CL', linewidth=1)
+ax1.plot(z_scp[:, 3], z_scp[:, 4], 'tab:blue', label='SSM CL', linewidth=3)
+ax1.plot(zf_target[:, 3], zf_target[:, 4], '--k', alpha=1, linewidth=1)
+
+plt.axis('off')
+plt.legend(loc='upper center', prop={'size': 14})
+
+figure_file = join(path, 'diamond_x_vs_y.png')
+plt.savefig(figure_file, dpi=300, bbox_inches='tight')
+
 ##################################################
 # Plot trajectory as function of time
 ##################################################
 fig2 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
 ax2 = fig2.add_subplot(211)
 
-if name == 'figure8':
-    #ax2.plot(t_ilqr, z_ilqr[:, 3], 'tab:green', marker='x', markevery=m_w, label='iLQR (Open Loop)', linewidth=1)
-    #ax2.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman MPC', linewidth=1)
-    ax2.plot(t_scp, z_scp[:, 3], 'tab:blue', label='Nonlinear ROMPC', linewidth=3)
+if name ==  'figure8':
+    ax2.plot(t_ilqr, z_ilqr[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+    ax2.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+    ax2.plot(t_scp, z_scp[:, 3], 'tab:blue', label='SSM CL', linewidth=3)
     ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
+    idx = 0
+    if plot_rollouts:
+        for idx in range(np.shape(z_opt_rollout)[0]):
+            if idx % 5 == 0:
+                z_horizon = z_opt_rollout[idx]
+                t_horizon = t_opt_rollout[idx]
+                ax2.plot(t_horizon, z_horizon[:, 0], 'tab:red', marker='o', markevery=2)
     plt.ylabel(r'$x_{ee}$ [mm]', fontsize=14)
 else:
-    # ax2.plot(t_rompc, z_rompc[:, 4], 'tab:green', marker='x', markevery=m_w, label='Linear ROMPC', linewidth=1)
-    # ax2.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman MPC', linewidth=1)
-    # ax2.plot(t_scp, z_scp[:, 4], 'tab:blue', label='Nonlinear ROMPC', linewidth=3)
+    ax2.plot(t_ilqr, z_ilqr[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+    ax2.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+    ax2.plot(t_scp, z_scp[:, 4], 'tab:blue', label='SSM CL', linewidth=3)
     ax2.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
 ax2.set_xlim([0, 10])
@@ -98,20 +147,27 @@ plt.legend(loc='best', prop={'size': 14})
 
 ax3 = fig2.add_subplot(212)
 if name == 'figure8':
-    #ax3.plot(t_ilqr, z_ilqr[:, 4], 'tab:green', marker='x', markevery=m_w, label='iLQR (Open Loop)', linewidth=1)
-    #ax3.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman MPC', linewidth=1)
-    ax3.plot(t_scp, z_scp[:, 4], 'tab:blue', label='Nonlinear ROMPC', linewidth=3)
+    ax3.plot(t_ilqr, z_ilqr[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+    ax3.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+    ax3.plot(t_scp, z_scp[:, 4], 'tab:blue', label='SSM CL', linewidth=3)
     ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
+    # ax3.plot(t_target, y_ub * np.ones_like(t_target), 'r', label='Constraint')
+    if plot_rollouts:
+        for idx in range(np.shape(z_opt_rollout)[0]):
+            if idx % 5 == 0:
+                z_horizon = z_opt_rollout[idx]
+                t_horizon = t_opt_rollout[idx]
+                ax3.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
 else:
-    # ax3.plot(t_rompc, z_rompc[:, 5], 'tab:green', marker='x', markevery=m_w, label='Linear ROMPC', linewidth=1)
-    # ax3.plot(t_koop, z_koop[:, 5], 'tab:orange', marker='^', markevery=m_w, label='Koopman MPC', linewidth=1)
-    # ax3.plot(t_scp, z_scp[:, 5], 'tab:blue', label='Nonlinear ROMPC', linewidth=3)
+    ax3.plot(t_ilqr, z_ilqr[:, 5], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+    ax3.plot(t_koop, z_koop[:, 5], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+    ax3.plot(t_scp, z_scp[:, 5], 'tab:blue', label='SSM CL', linewidth=3)
     ax3.plot(t_target, zf_target[:, 5], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$z_{ee}$ [mm]', fontsize=14)
 ax3.set_xlim([0, 10])
 plt.xlabel(r'$t$ [s]', fontsize=14)
-plt.legend(loc='best', prop={'size': 14})
+# plt.legend(loc='best', prop={'size': 14})
 
 figure_file = join(path, name + '.png')
 plt.savefig(figure_file, dpi=300, bbox_inches='tight')
@@ -121,7 +177,7 @@ plt.savefig(figure_file, dpi=300, bbox_inches='tight')
 # Calculation of desired trajectory
 if name == 'figure8':
     zf_desired = zf_target.copy()
-    zf_desired[:, 4] = np.minimum(y_ub, zf_target[:,4])
+    # zf_desired[:, 4] = np.minimum(y_ub, zf_target[:,4])
 else:
     zf_desired = zf_target.copy()
 
@@ -140,20 +196,27 @@ else:
     err_ilqr = (z_ilqr - zd_rompc)[:,4:6]
 
 # inner norm gives euclidean distance, outer norm squared / nbr_samples gives MSE
+koop_norm = np.linalg.norm(np.linalg.norm(zd_koop, axis=1))**2
+rompc_norm = np.linalg.norm(np.linalg.norm(zd_rompc, axis=1))**2
+scp_norm = np.linalg.norm(np.linalg.norm(zd_scp, axis=1))**2
+
 mse_koop = np.linalg.norm(np.linalg.norm(err_koop, axis=1))**2 / err_koop.shape[0]
 mse_rompc = np.linalg.norm(np.linalg.norm(err_ilqr, axis=1))**2 / err_ilqr.shape[0]
 mse_scp = np.linalg.norm(np.linalg.norm(err_scp, axis=1))**2 / err_scp.shape[0]
 
 print('------ Mean Squared Errors (MSEs)----------')
-print('Ours (SCP): {}'.format(mse_scp))
-print('Koopman: {}'.format(mse_koop))
-print('ROMPC: {}'.format(mse_rompc))
+print('Ours (SSM CL): {}'.format(mse_scp))
+print('Koopman CL: {}'.format(mse_koop))
+print('TPWL CL: {}'.format(mse_rompc))
 
 print('-------------Solve times ---------------')
-print('Ours: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_scp), np.mean(solve_times_scp),
-                                                     np.max(solve_times_scp)))
+print('TPWL: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_tpwl), np.mean(solve_times_tpwl),
+                                                     np.max(solve_times_tpwl)))
 
 print('Koopman: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_koop), np.mean(solve_times_koop),
                                                         np.max(solve_times_koop)))
+
+print('Ours (SSM): Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_ssm), np.mean(solve_times_ssm),
+                                                     np.max(solve_times_ssm)))
 
 plt.show()

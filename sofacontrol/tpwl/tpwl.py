@@ -17,7 +17,7 @@ class TPWL:
     forward simulate the dynamics (i.e. perform rollout)
     """
 
-    def __init__(self, data, params=None, Cf=None, Hf=None):
+    def __init__(self, data, params=None, Cf=None, Hf=None, **kwargs):
         # Define dictionary of data that includes the TPWL points
         if isinstance(data, dict):
             self.tpwl_dict = data
@@ -25,6 +25,7 @@ class TPWL:
             # In case a file location is passed in
             self.tpwl_dict = scutils.load_data(data)
         self.num_points = len(self.tpwl_dict['q'])
+        self.discr_method = kwargs.get('discr_method', 'fe')
 
         # Build ROM object in case it is needed
         if self.tpwl_dict['rom_info']['type'] == 'POD':
@@ -45,7 +46,7 @@ class TPWL:
             params = dict()
         # Get configuration parameters for the model
         self.tpwl_method = params.get('tpwl_method', TPWL_METHOD)
-        self.discr_method = params.get('discr_method', DISCR_METHOD)
+        #self.discr_method = params.get('discr_method', DISCR_METHOD)
         self.beta_weighting = params.get('beta_weighting', None)
         self.dist_weights = params.get('dist_weights')
 
@@ -64,6 +65,7 @@ class TPWL:
             self.z_ref = None
             self.output_dim = None
 
+        self.nonlinear_observer = False
         # Variables for precomputing discrete time matrices if desired
         self.pre_discretized_dt = None
         self.A_d = None
@@ -217,8 +219,8 @@ class TPWL:
 class TPWLATV(TPWL):
     """
     """
-    def __init__(self, data, params=None, Cf=None, Hf=None):
-        super(TPWLATV, self).__init__(data, params, Cf=Cf, Hf=Hf)
+    def __init__(self, data, params=None, Cf=None, Hf=None, **kwargs):
+        super(TPWLATV, self).__init__(data, params, Cf=Cf, Hf=Hf, **kwargs)
         self.ref_point = None
 
     def update_state(self, x, u, dt):

@@ -61,6 +61,9 @@ class KoopmanMPC(TemplateController):
 
         self.MPC = MPCClientNode()
 
+        self.z_opt_horizon = []
+        self.t_opt_horizon = []
+
         self.t_delay = delay
 
     def set_sim_timestep(self, dt):
@@ -105,6 +108,10 @@ class KoopmanMPC(TemplateController):
             self.u_opt = np.concatenate((self.u_opt[:-1, :], u_opt_new))
             self.x_opt = np.concatenate((self.x_opt, x_opt_new[1:, :]))
             self.x_opt_full = np.concatenate((self.x_opt_full, np.expand_dims(x_opt_p, axis=0)))
+
+        # Define short time optimal horizon solutions
+        self.z_opt_horizon.append(self.data.scaling.scale_up(y=(self.dyn_sys.H @ x_opt_p.T).T))
+        self.t_opt_horizon.append(t_opt_p)
 
         # Define interpolation functions for new optimal trajectory, note
         # that these include traj from time t = 0 onward
@@ -168,6 +175,10 @@ class KoopmanMPC(TemplateController):
         info['z_opt'] = self.data.scaling.scale_up(y=(self.dyn_sys.H @ self.x_opt.T).T)
         info['zopt_full'] = self.data.scaling.scale_up(
             y=np.einsum("ij, klj -> ikl", self.dyn_sys.H, self.x_opt_full).T).transpose((1, 0, 2))
+
+        info['z_rollout'] = self.z_opt_horizon
+        info['t_rollout'] = self.t_opt_horizon
+
         info['solve_times'] = self.solve_times
         info['rollout_time'] = self.rollout_horizon * self.dt
         return info

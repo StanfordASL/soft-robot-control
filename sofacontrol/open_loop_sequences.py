@@ -60,6 +60,16 @@ class BaseRobotSequences(object):
         t_sequence = self.dt * np.arange(u_sequence.shape[1])
         return u_sequence, save_sequence, t_sequence
 
+    def augment_input_with_base(self, u_seq, save_data=True):
+        num_steps = u_seq.shape[1]
+        save_sequence = np.array([save_data] * num_steps)
+
+        u_sequence, save_sequence = self.combined_sequence([self.u_base, u_seq],
+                                                               [self.save_base, save_sequence])
+
+        t_sequence = self.dt * np.arange(u_sequence.shape[1])
+        return u_sequence, save_sequence, t_sequence
+
     def sine_input(self, u_max, t, add_base=True):
         """
         Simple sine wave sequence, by default saves no snapshots
