@@ -105,6 +105,20 @@ class OpenLoopController(Sofa.Core.Controller):
 
         #TODO: Hardcoded - Let me extract and save rest position of robot
         # if self.t >= 2.0:
+        #     K_stiff = -self.robot.forcefield.assembleKMatrix().toarray()
+        #     num_q = np.shape(K_stiff)[0]
+        #     constrain_node = np.zeros((3, num_q))
+        #     for DOF in self.robot.constraints.points.toList():
+        #         # Set columns and rows of constrained nodes to zero
+        #         DOF = DOF[0]
+        #         K_stiff[3*DOF:3*DOF + 3, :] = constrain_node
+        #         K_stiff[:, 3 * DOF:3 * DOF + 3] = constrain_node.T
+        #
+        #         # Set diagonals of constrained nodes to 1
+        #         for i in range(3):
+        #             K_stiff[3*DOF + i, 3*DOF + i] = 1
+        #
+        #     print('Stiffness matrix extracted')
         #      self.sim_data["rest"] = (self.robot.tetras.position.value.flatten().copy(),
         #                               self.robot.tetras.velocity.value.flatten().copy())
         #      filename = os.path.join(self.snapshots_dir, 'rest_qv.pkl')
@@ -121,6 +135,8 @@ class OpenLoopController(Sofa.Core.Controller):
         # TODO: checking if directory is empty here prevents POD_collection
         # TODO: but putting in the second if breaks stuff. Need to check that
         # TODO: there exists LDL files in the directory before trying to extract the system matrices
+
+
         if self.save_point:
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
@@ -179,10 +195,15 @@ class OpenLoopController(Sofa.Core.Controller):
                     save = True
 
             # TODO: Make sure this doesn't give bad behavior
+            # When controller dt is given, save snapshots only at divisible times (during OL sims)
             # Scaling by 100 due to floating point accuracy of modulus operation
-            scaled_controller_period = 100.*self.controller.dt
-            scaled_time = 100.*self.t
-            self.next_save_idx += 1 if round(scaled_time % scaled_controller_period, 6) == 0 else 0
+            # Otherwise, move to next snapshot
+            if self.controller.dt is not None:
+                scaled_controller_period = 100.*self.controller.dt
+                scaled_time = 100.*self.t
+                self.next_save_idx += 1 if round(scaled_time % scaled_controller_period, 6) == 0 else 0
+            else:
+                self.next_save_idx += 1
         return save
 
     def apply_command(self, u):

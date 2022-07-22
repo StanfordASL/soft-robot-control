@@ -73,7 +73,8 @@ class KoopmanMPC(TemplateController):
         self.sim_dt = dt
 
     def compute_policy(self, t_step, zeta_belief):
-        xlift_curr = np.asarray(self.dyn_sys.lift_data(*zeta_belief))  # x_belief is directly y_belief in this case
+        # Projects to "dominant" Koopman modes if 'W' is defined. Else 'W' is identity
+        xlift_curr = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*zeta_belief)))  # x_belief is directly y_belief in this case
         self.MPC.send_request(round(t_step, 4), xlift_curr, wait=True)
 
         if not self.MPC.check_if_done():  # If running with wait=True, this is always False
@@ -151,7 +152,6 @@ class KoopmanMPC(TemplateController):
         self.data.add_measurement(y, u_prev)
         if round(sim_time, 4) < round(self.t_delay, 4):
             self.u = self.u0
-
         # Optimal controller is active
         else:
             # Updating controller (self.u) and/or policy (if first step or receding horizon)

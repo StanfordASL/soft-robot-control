@@ -151,7 +151,7 @@ class iLQR:
                 cost += self.step_cost(x[t], u[t], step=t)
 
             # Compute Jacobians for current trajectory
-            # TODO: Including u[t] here may no longer be breaking for TPWL.
+            # Including u[t] here may no longer be breaking for TPWL.
             A[t], B[t], d[t] = self.model.get_jacobians(x[t], u=u[t], dt=self.dt)
 
             # Simulate new trajectory
@@ -181,7 +181,7 @@ class iLQR:
         c = self.terminal_cost(x)
         return c, c_x, c_xx
 
-    # TODO: Note: This only works if z = Hx. For SSM: z = C_map(x) + z_ref. Thus, this implementation
+    # This only works if z = Hx. For SSM: z = C_map(x) + z_ref. Thus, this implementation
     # of iLQR does not work for general mappings from x to z
     def step_cost_vectors(self, x, u, step, u_prev_step=None):
         z = self.model.x_to_zfyf(x, zf=True)

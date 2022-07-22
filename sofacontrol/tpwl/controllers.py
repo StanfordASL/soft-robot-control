@@ -235,6 +235,7 @@ class scp(TemplateController):
 
         self.z_opt_horizon = []
         self.t_opt_horizon = []
+        self.mpc = kwargs.pop('mpc', False)
 
         # LQR
         from sofacontrol.lqr.lqr import dare
@@ -267,7 +268,11 @@ class scp(TemplateController):
 
         # Solve for the trajectory on the next interval
         # # In theory, for a finite horizon case (trajectory following) full policy can be computed offline
-        x0 = self.x_opt[-1, :]
+        # TODO: Add capability to do pure MPC
+        if self.mpc:
+            x0 = x_belief
+        else:
+            x0 = self.x_opt[-1, :]
 
         self.run_GuSTO(self.t_opt[-1], x0, wait=self.wait)
 

@@ -19,11 +19,12 @@ class linearModel:
 
     """
 
-    def __init__(self, nodes, num_nodes, pos=True, vel=True):
+    def __init__(self, nodes, num_nodes, pos=True, vel=True, qv=False):
         self.pos = pos
         self.vel = vel
         self.build_C_matrix(nodes, num_nodes)
         self.num_nodes = num_nodes
+        self.qv = qv
 
     def build_C_matrix(self, nodes, num_nodes):
         if self.vel and not self.pos:
@@ -37,14 +38,15 @@ class linearModel:
 
     def evaluate(self, x, qv=False):
         z = self.C @ x
-        if qv:
+        # TODO: Make this a single dependency on the class param self.qv
+        if self.qv or qv:
             return np.concatenate(x2qv(z))
         else:
             return z
 
 
 class MeasurementModel(linearModel):
-    def __init__(self, nodes, num_nodes, pos=True, vel=True, mu_q=None, S_q=None, mu_v=None, S_v=None):
+    def __init__(self, nodes, num_nodes, pos=True, vel=True, mu_q=None, S_q=None, mu_v=None, S_v=None, qv=False):
         super().__init__(nodes, num_nodes, pos=pos, vel=vel)
 
         if pos and vel:
@@ -69,11 +71,18 @@ class MeasurementModel(linearModel):
         self.mean = np.concatenate((mu_v, mu_q))
         self.covariance = block_diag(S_v, S_q)
 
+        # Set format of output
+        self.qv = qv
+
         assert self.mean.shape[0] == self.C.shape[0]
         assert self.covariance.shape[0] == self.C.shape[0] and self.covariance.shape[1] == self.C.shape[0]
 
     def evaluate(self, x):
-        return self.C @ x + np.random.multivariate_normal(mean=self.mean, cov=self.covariance)
+        z = self.C @ x + np.random.multivariate_normal(mean=self.mean, cov=self.covariance)
+        if self.qv:
+            return np.concatenate(x2qv(z))
+        else:
+            return z
 
 
 def buildCq(nodes, num_nodes):

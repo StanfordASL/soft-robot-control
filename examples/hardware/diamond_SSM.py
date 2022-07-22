@@ -41,9 +41,7 @@ def module_test_continuous():
     prob.Robot = diamondRobot(dt=dt)
     prob.ControllerClass = ClosedLoopController
 
-    # 1) Setup model
-    # TODO: 1) Grab equilibrium point and 2) extract maps into dictionary (store as d for now)
-    # TODO: Need to extract rest.pkl with velocity
+    # 1) Setup model: Grab equilibrium point (x then z)
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
@@ -52,8 +50,8 @@ def module_test_continuous():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    # Setup the (discrete) maps: TODO: Automate generation of this via symbolic and differentiation
-    # TODO: Setup continuous maps as well
+    # Setup the (continuous) maps:
+    # TODO: Automate generation of this via symbolic and differentiation
     maps = dict()
     maps['A'] = diamond_softrobot_Amat_O3_cont
     maps['B'] = diamond_softrobot_Bmat_O3_cont
@@ -115,7 +113,6 @@ def module_test_continuous():
     print('Ours (SSM): {}'.format(SSM_RMSE))
     plt.show()
 
-    # TODO: Add function here that plots the individual trajectories
     print('Testing rollout functions')
 
 def module_test():
@@ -129,19 +126,17 @@ def module_test():
 
     # Load SSM Models
     # Discrete time models (dt = 0.001)
-    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3 import diamond_softrobot_Amat_O3
-    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3 import diamond_softrobot_Bmat_O3
-    from examples.hardware.SSMmodels.diamond_softrobot_C_O3 import diamond_softrobot_C_O3
-    from examples.hardware.SSMmodels.diamond_softrobot_W_O3 import diamond_softrobot_W_O3
-    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3 import diamond_softrobot_f_reduced_O3
+    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
+    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3_cont import diamond_softrobot_Bmat_O3_cont
+    from examples.hardware.SSMmodels.diamond_softrobot_C_O3_cont import diamond_softrobot_C_O3_cont
+    from examples.hardware.SSMmodels.diamond_softrobot_W_O3_cont import diamond_softrobot_W_O3_cont
+    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3_cont import diamond_softrobot_f_reduced_O3_cont
 
     prob = Problem()
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
     # 1) Setup model
-    # TODO: 1) Grab equilibrium point and 2) extract maps into dictionary (store as d for now)
-    # TODO: Need to extract rest.pkl with velocity
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
@@ -150,14 +145,14 @@ def module_test():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    # Setup the (discrete) maps: TODO: Automate generation of this via symbolic and differentiation
-    # TODO: Setup continuous maps as well
+    # Setup the (continuous) maps:
+    # TODO: Automate generation of this via symbolic and differentiation
     maps = dict()
-    maps['A_d'] = diamond_softrobot_Amat_O3
-    maps['B_d'] = diamond_softrobot_Bmat_O3
-    maps['C'] = diamond_softrobot_C_O3
-    maps['W'] = diamond_softrobot_W_O3
-    maps['f_nl_d'] = diamond_softrobot_f_reduced_O3
+    maps['A_d'] = diamond_softrobot_Amat_O3_cont
+    maps['B_d'] = diamond_softrobot_Bmat_O3_cont
+    maps['C'] = diamond_softrobot_C_O3_cont
+    maps['W'] = diamond_softrobot_W_O3_cont
+    maps['f_nl_d'] = diamond_softrobot_f_reduced_O3_cont
 
     n, m, o = 6, 4, 6
     model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=True)
@@ -211,7 +206,6 @@ def module_test():
     print('Ours (SSM): {}'.format(SSM_RMSE))
     plt.show()
 
-    # TODO: Add function here that plots the individual trajectories
     print('Testing rollout functions')
 
 
@@ -272,30 +266,30 @@ def run_scp():
     prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
-    # This dt is time step of simulation
-    dt = 0.02
+    # This dt for when to recalculate control
+    dt = 0.01
 
     ##############################################
     # Problem 1, Figure 8 with constraints
     ##############################################
-    cost = QuadraticCost()
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100  # corresponding to x position of end effector
-    Qz[1, 1] = 100  # corresponding to y position of end effector
-    Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    cost.Q = Qz
-    cost.R = .003 * np.eye(model.input_dim)
+    # cost = QuadraticCost()
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100  # corresponding to x position of end effector
+    # Qz[1, 1] = 100  # corresponding to y position of end effector
+    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    # cost.Q = Qz
+    # cost.R = .003 * np.eye(model.input_dim)
 
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    # cost = QuadraticCost()
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 0.0  # corresponding to x position of end effector
-    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
-    # cost.Q = model.H.T @ Qz @ model.H
-    # cost.R = .003 * np.eye(model.input_dim)
+    cost = QuadraticCost()
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 50.0  # corresponding to x position of end effector
+    Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    cost.Q = model.H.T @ Qz @ model.H
+    cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
     prob.controller = scp(model, cost, dt, N_replan=1, delay=3, feedback=False)
@@ -368,11 +362,23 @@ def run_gusto_solver():
     # t = np.linspace(0, M * T, M * N)
     # th = np.linspace(0, M * 2 * np.pi, M * N)
     # zf_target = np.zeros((M * N, model.output_dim))
-    # zf_target[:, 0] = -25. * np.sin(th) + 13.
-    # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
+    # # zf_target[:, 0] = -25. * np.sin(th) + 13.
+    # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
 
+    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(2 * th)
+    #
+    # # zf_target[:, 0] = -40. * np.sin(th) - 7.1
+    # # zf_target[:, 1] = 40. * np.sin(2 * th)
+    #
+    # # zf_target[:, 0] = -5. * np.sin(th) - 7.1
+    # # zf_target[:, 1] = 5. * np.sin(2 * th)
+    #
     # zf_target[:, 0] = -15. * np.sin(th)
     # zf_target[:, 1] = 15. * np.sin(2 * th)
+    #
+    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(16 * th)
 
     ##############################################
     # Problem 2, Circle on side
@@ -380,12 +386,18 @@ def run_gusto_solver():
     M = 3
     T = 5
     N = 1000
-    r = 15
     t = np.linspace(0, M * T, M * N)
     th = np.linspace(0, M * 2 * np.pi, M * N)
     x_target = np.zeros(M * N)
+
+    # r = 15
+    # y_target = r * np.sin(2 * th)
+    # z_target = r - r * np.cos(2 * th) + 107.0
+
+    r = 20
     y_target = r * np.sin(17 * th)
     z_target = r - r * np.cos(17 * th) + 107.0
+
     zf_target = np.zeros((M * N, 6))
     zf_target[:, 0] = x_target
     zf_target[:, 1] = y_target
@@ -394,16 +406,16 @@ def run_gusto_solver():
     # Cost
     R = .00001 * np.eye(4)
     Qz = np.zeros((6, 6))
-    Qz[0, 0] = 0.0  # corresponding to x position of end effector
+    Qz[0, 0] = 50.0  # corresponding to x position of end effector
     Qz[1, 1] = 100.0  # corresponding to y position of end effector
     Qz[2, 2] = 100.0  # corresponding to z position of end effector
 
     # z = zf_target
     z = model.zfyf_to_zy(zf=zf_target)
-
-    # Control constraints
+    #
+    # # Control constraints
     low = 200.0
-    high = 4000.0
+    high = 5000.0
     # high = 1500.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
@@ -420,12 +432,12 @@ def run_gusto_solver():
     x0 = model.compute_RO_state(model.z_ref)
 
     # Define GuSTO model (dt here is discretization of model)
-    dt = 0.02
+    dt = 0.01
     N = 3
     gusto_model = SSMGuSTO(model)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None)
+                       max_gusto_iters=5, input_nullspace=None)
 
 def run_scp_OL():
     """
@@ -454,7 +466,7 @@ def run_scp_OL():
     from examples.hardware.SSMmodels.diamond_softrobot_Hmat_O3_cont import diamond_softrobot_Hmat_O3_cont
 
     t0 = 3.0
-    dt = 0.01
+    dt = 0.05
     n, m, o = 6, 4, 6
     prob = Problem()
     prob.Robot = diamondRobot(dt=0.01)
@@ -510,8 +522,11 @@ def run_scp_OL():
     t = np.linspace(0, M * T, M * N)
     th = np.linspace(0, M * 2 * np.pi, M * N)
     zf_target = np.zeros((M * N, model.output_dim))
-    zf_target[:, 0] = -15. * np.sin(8 * th)
-    zf_target[:, 1] = 15. * np.sin(16 * th)
+    zf_target[:, 0] = -15. * np.sin(2 * th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(4 * th)
+
+    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(16 * th)
 
     #z = zf_target
     z = model.zfyf_to_zy(zf=zf_target)
@@ -531,13 +546,13 @@ def run_scp_OL():
     x0 = model.compute_RO_state(model.z_ref)
 
     # Define GuSTO model
-    N = 1000
+    N = 200
     gusto_model = SSMGuSTO(model)
     # xopt, uopt, zopt, topt = runGuSTOSolverStandAlone(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
     #                    verbose=1, warm_start=False, convg_thresh=0.001, solver='GUROBI')
 
     xopt, uopt, zopt, topt = runGuSTOSolverStandAlone(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                                                      verbose=1, warm_start=False, convg_thresh=0.001, solver='GUROBI',
+                                                      verbose=1, warm_start=False, convg_thresh=1e-6, solver='GUROBI',
                                                       input_nullspace=None)
 
     ###### Plot results. Make sure comment this or robot will not animate ########

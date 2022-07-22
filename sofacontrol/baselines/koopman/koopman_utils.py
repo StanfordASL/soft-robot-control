@@ -112,13 +112,24 @@ class KoopmanModel:
     Builds a Koopman model, and has lift_f, which defines how data is lifted from zeta --> z (lifted state)
     """
 
-    def __init__(self, model_in, params_in):
+    def __init__(self, model_in, params_in, DMD=False):
+        # If truncation used, system matrices are truncated in soft-robot-koopman matlat code
         self.A_d = model_in['A'][0, 0]
         self.B_d = model_in['B'][0, 0]
         self.C = model_in['C'][0, 0]
         self.H = self.C.copy()
         self.M = model_in['M'][0, 0]
         self.K = model_in['K'][0, 0]
+        # V is right matrix, W is inverse of V
+        if 'V' in model_in.dtype.names:
+            self.V = model_in['V'][0, 0]
+        else:
+            self.V = np.eye(self.A_d.shape[0])
+
+        if 'W' in model_in.dtype.names:
+            self.W = model_in['W'][0, 0]
+        else:
+            self.W = np.eye(self.A_d.shape[0])
 
         self.n = int(params_in['n'])
         self.m = int(params_in['m'])
@@ -129,6 +140,7 @@ class KoopmanModel:
         self.obs_type = str(params_in['obs_type'][0, 0][0, 0][0])
         self.Ts = float(params_in['Ts'])
         self.scale = params_in['scale'][0, 0]
+        self.DMD = DMD
 
         self.assert_dimensions()
         self.lift_data = self.get_lifting_function()
@@ -150,9 +162,14 @@ class KoopmanModel:
             zeta = sp.Matrix(sp.symbols('zeta1:{}'.format(self.state_dim + 1)))
             polynoms = sorted(itermonomials(list(zeta), self.obs_degree),
                               key=monomial_key('grlex', list(reversed(zeta))))
-            polynoms.append(polynoms[0])
-            polynoms = polynoms[1:]
-            assert len(polynoms) == self.N
+            if self.DMD:
+                polynoms = polynoms[1:]
+            else:
+                polynoms.append(polynoms[0])
+                polynoms = polynoms[1:]
+
+            # TODO: Only assert if not truncated
+            # assert len(polynoms) == self.N
             return sp.lambdify(zeta, polynoms, 'numpy')
         else:
             print('{} is not implemented / not a valid selection. Please select a different obs type'

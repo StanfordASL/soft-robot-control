@@ -296,8 +296,8 @@ def run_gusto_solver():
     t = np.linspace(0, M * T, M * N)
     th = np.linspace(0, M * 2 * np.pi, M * N)
     zf_target = np.zeros((M * N, model.output_dim))
-    zf_target[:, 3] = -20. * np.sin(th)
-    zf_target[:, 4] = 20. * np.sin(2 * th)
+    zf_target[:, 3] = -10. * np.sin(th)
+    zf_target[:, 4] = 10. * np.sin(2 * th)
 
     z = model.zfyf_to_zy(zf=zf_target)
 
@@ -338,7 +338,7 @@ def run_ilqr():
     from robots import environments
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.measurement_models import MeasurementModel
-    from sofacontrol.tpwl.controllers import ilqr, rh_ilqr, TrajTracking
+    from sofacontrol.tpwl.controllers import ilqr, TrajTracking
     from sofacontrol.tpwl.observer import DiscreteEKFObserver
     from sofacontrol.tpwl import tpwl_config, tpwl
     from sofacontrol.utils import QuadraticCost

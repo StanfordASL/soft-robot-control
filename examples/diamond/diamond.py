@@ -42,7 +42,7 @@ def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0, fi
     prob.Robot = diamondRobot(q0=q0, scale_mode=scale_mode)
     prob.ControllerClass = OpenLoopController
 
-    # TODO: Setting this to zero for now (t0 is when force is actually applied and when data is saved)
+    # t0 is when force is actually applied and when data is saved
     Sequences = DiamondRobotSequences(t0=t0, dt=0.001)
 
     # 1) Wind up the robot
@@ -215,7 +215,6 @@ def run_scp():
     from sofacontrol.utils import QuadraticCost
 
     prob = Problem()
-    #prob.Robot = environments.Diamond()
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
@@ -291,8 +290,6 @@ def run_gusto_solver():
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
     Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    dt = 0.05
-    N = 5
 
     # Control constraints
     U = HyperRectangle([6000., 6000., 6000., 6000.], [0., 0., 0., 0.])
@@ -311,6 +308,9 @@ def run_gusto_solver():
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
+
+    dt = 0.05
+    N = 5
 
     # Define GuSTO model
     gusto_model = TPWLGuSTO(model)

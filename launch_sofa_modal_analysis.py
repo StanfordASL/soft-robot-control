@@ -101,8 +101,9 @@ def createScene(rootNode):
     modeName2 = 'mode2'
     datafile2 = path + '/robots/data/' + modeName2 + '.mat'
 
+    # TODO: Setting directions modal displacements
     # Set corresponding direction to zero if desiring just one mode (Takes int values 0, 1, or -1)
-    direction1 = 0
+    direction1 = 1
     direction2 = 0
 
     amplitude = 2000
@@ -165,6 +166,9 @@ def main():
     #  Requires adjusting to own path
     #sofa_lib_path = "/home/jjalora/sofa/build/lib"
     sofa_lib_path = "/home/jalora/sofa/build/lib"
+
+    runSingleSimulation = True
+
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'
                            'in main() in launch_sofa.py')
@@ -182,7 +186,6 @@ def main():
     #amplitudeList = [1000]
     directionList = list(filter(lambda elem: elem != (0, 0, 0), [p for p in product([1, 0, -1], repeat=3)]))
 
-    runSingleSimulation = True
 
     if runSingleSimulation:
         root = Sofa.Core.Node()

@@ -93,16 +93,29 @@ def collect_POD_data():
     from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
     from sofacontrol.utils import SnapshotData
 
+    # Adjust dt here as necessary (esp for Koopman)
     prob = Problem()
     prob.Robot = diamondRobot()
     prob.ControllerClass = OpenLoopController
+    u_max = 2000. * np.ones(4)
 
+    # Training snapshots
     u1, save1, t1 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=1234,
                                                        add_base=True)  # ramp inputs between lhs samples
-    u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1, seed=4321)  # step inputs of 1.5 seconds
-    u, save, t = prob.Robot.sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+    u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1., seed=4321)  # step inputs of 1.5 seconds
+    # Additional training data to improve models with more features
+    u3, save3, t3 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=6969,
+                                                       add_base=True)  # ramp inputs between lhs samples
 
+    # Validation snapshots
+    # u1, save1, t1 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=69,
+    #                                                   add_base=True)  # ramp inputs between lhs samples
+    # u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1., seed=420)  # step inputs of 1.5 seconds
 
+    # u, save, t = prob.Robot.sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+
+    # Training sequence to get larger variety in training data
+    u, save, t = prob.Robot.sequences.combined_sequence([u1, u2, u3], [save1, save2, save3], [t1, t2, t3])
     prob.controller = OpenLoop(u.shape[0], t, u, save)
 
     prob.snapshots = SnapshotData(save_dynamics=False)
@@ -233,28 +246,28 @@ def run_scp():
     ##############################################
     # Problem 1, Figure 8 with constraints
     ##############################################
-    cost = QuadraticCost()
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100  # corresponding to x position of end effector
-    Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    cost.Q = model.H.T @ Qz @ model.H
-    cost.R = .003 * np.eye(model.input_dim)
+    # cost = QuadraticCost()
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100  # corresponding to x position of end effector
+    # Qz[4, 4] = 100  # corresponding to y position of end effector
+    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    # cost.Q = model.H.T @ Qz @ model.H
+    # cost.R = .003 * np.eye(model.input_dim)
 
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    # cost = QuadraticCost()
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 50.0  # corresponding to x position of end effector
-    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
-    # cost.Q = model.H.T @ Qz @ model.H
-    # cost.R = .003 * np.eye(model.input_dim)
+    cost = QuadraticCost()
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 50.0  # corresponding to x position of end effector
+    Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    cost.Q = model.H.T @ Qz @ model.H
+    cost.R = .003 * np.eye(model.input_dim)
 
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=1, observer=EKF, delay=3)
 
     # Saving paths
     prob.opt['sim_duration'] = 13.
@@ -267,9 +280,9 @@ def run_gusto_solver():
     """
     python3 diamond.py run_gusto_solver
     """
-    from sofacontrol.scp.models.tpwl import TPWLGuSTO
+    from sofacontrol.scp_test.models.tpwl import TPWLGuSTO
     from sofacontrol.measurement_models import linearModel
-    from sofacontrol.scp.ros import runGuSTOSolverNode
+    from sofacontrol.scp_test.ros import runGuSTOSolverNode
     from sofacontrol.tpwl import tpwl_config, tpwl
     from sofacontrol.utils import HyperRectangle, Polyhedron
 
@@ -284,33 +297,48 @@ def run_gusto_solver():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    M = 3
-    T = 10
-    N = 500
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M * 2 * np.pi, M*N)
-    zf_target = np.zeros((M*N, model.output_dim))
+    # M = 3
+    # T = 10
+    # N = 500
+    # t = np.linspace(0, M*T, M*N)
+    # th = np.linspace(0, M * 2 * np.pi, M*N)
+    # zf_target = np.zeros((M*N, model.output_dim))
+
+    # zf_target[:, 3] = -15. * np.sin(th) - 7.1
+    # zf_target[:, 4] = 15. * np.sin(2 * th)
+
+    # zf_target[:, 3] = -25. * np.sin(th) + 13.
+    # zf_target[:, 4] = 25. * np.sin(2 * th) + 20.
+
+    # zf_target[:, 3] = -40. * np.sin(th) - 7.1
+    # zf_target[:, 4] = 40. * np.sin(2 * th)
+
+    # zf_target[:, 3] = -5. * np.sin(th) - 7.1
+    # zf_target[:, 4] = 5. * np.sin(2 * th)
+
+    # Offset with constraints
     # zf_target[:, 3] = -15. * np.sin(th)
     # zf_target[:, 4] = 15. * np.sin(2 * th)
 
-    zf_target[:, 3] = -25. * np.sin(th) + 13.
-    zf_target[:, 4] = 25. * np.sin(2 * th) + 20.
-    z = model.zfyf_to_zy(zf=zf_target)
+    # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
+    # zf_target[:, 4] = 15. * np.sin(16 * th)
 
-    # Cost
-    R = .00001 * np.eye(model.input_dim)
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100  # corresponding to x position of end effector
-    Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0.0  # corresponding to z position of end effector
-
-    
-    # Control constraints
-    low = 200.0
-    high = 4000.0
-    U = HyperRectangle([high, high, high, high], [low, low, low, low])
-
-    # State constraints
+    # z = model.zfyf_to_zy(zf=zf_target)
+    #
+    # # Cost
+    # R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100  # corresponding to x position of end effector
+    # Qz[4, 4] = 100  # corresponding to y position of end effector
+    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    #
+    #
+    # # Control constraints
+    # low = 200.0
+    # high = 4000.0
+    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
+    #
+    # # State constraints
     # Hz = np.zeros((1, 6))
     # Hz[0, 4] = 1
     # H = Hz @ model.H
@@ -318,44 +346,50 @@ def run_gusto_solver():
     # X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
 
     # No constraints for now
-    X = None
+    # X = None
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    # M = 3
-    # T = 5
-    # N = 1000
-    # r = 20
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M*2*np.pi, M*N)
-    # x_target = np.zeros(M*N)
-    # y_target = r * np.sin(17 * th)
-    # z_target = r - r * np.cos(17 * th) + 107.0
-    # zf_target = np.zeros((M*N, 6))
-    # zf_target[:, 3] = x_target
-    # zf_target[:, 4] = y_target
-    # zf_target[:, 5] = z_target
-    # z = model.zfyf_to_zy(zf=zf_target)
-    #
-    # # Cost
-    # R = .00001 * np.eye(4)
-    # Qz = np.zeros((6, 6))
-    # Qz[3, 3] = 50.0  # corresponding to x position of end effector
-    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    M = 3
+    T = 5
+    N = 1000
+    t = np.linspace(0, M*T, M*N)
+    th = np.linspace(0, M*2*np.pi, M*N)
+    x_target = np.zeros(M*N)
 
-    # # Constraints
-    # low = 200.0
-    # high = 1500.0
-    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
-    # X = None
+    # r = 15
+    # y_target = r * np.sin(2 * th)
+    # z_target = r - r * np.cos(2 * th) + 107.0
+
+    r = 20
+    y_target = r * np.sin(17 * th)
+    z_target = r - r * np.cos(17 * th) + 107.0
+
+    zf_target = np.zeros((M*N, 6))
+    zf_target[:, 3] = x_target
+    zf_target[:, 4] = y_target
+    zf_target[:, 5] = z_target
+    z = model.zfyf_to_zy(zf=zf_target)
+
+    # Cost
+    R = .00001 * np.eye(4)
+    Qz = np.zeros((6, 6))
+    Qz[3, 3] = 50.0  # corresponding to x position of end effector
+    Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    Qz[5, 5] = 100.0  # corresponding to z position of end effector
+
+    # Constraints
+    low = 200.0
+    high = 5000.0
+    U = HyperRectangle([high, high, high, high], [low, low, low, low])
+    X = None
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
 
     # Define GuSTO model
-    dt = 0.1
-    N = 5
+    dt = 0.02
+    N = 3
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
@@ -367,7 +401,7 @@ def run_scp_OL():
      In problem_specification add:
 
      from examples.hardware import diamond
-     problem = diamond.run_scp
+     problem = diamond.run_scp_OL
 
      then run:
 
@@ -381,7 +415,7 @@ def run_scp_OL():
     from sofacontrol.utils import HyperRectangle, vq2qv, x2qv, SnapshotData
 
     t0 = 3.0
-    dt = 0.1
+    dt = 0.05
     prob = Problem()
     prob.Robot = diamondRobot()
     prob.ControllerClass = OpenLoopController
@@ -408,8 +442,11 @@ def run_scp_OL():
     t = np.linspace(0, M * T, M * N)
     th = np.linspace(0, M * 2 * np.pi, M * N)
     zf_target = np.zeros((M * N, model.output_dim))
-    zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
-    zf_target[:, 4] = 15. * np.sin(16 * th)
+    zf_target[:, 3] = -15. * np.sin(2 * th) - 7.1
+    zf_target[:, 4] = 15. * np.sin(4 * th)
+
+    # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
+    # zf_target[:, 4] = 15. * np.sin(16 * th)
     z = model.zfyf_to_zy(zf=zf_target)
 
     # Cost
@@ -430,7 +467,7 @@ def run_scp_OL():
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
 
     # Define GuSTO model
-    N = 100
+    N = 200
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
     xopt, uopt, zopt, topt = runGuSTOSolverStandAlone(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,

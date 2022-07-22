@@ -68,7 +68,6 @@ class SSMGuSTO(TemplateModel):
         """
         return self.dyn_sys.get_observer_jacobians(x)
 
-    # TODO: Figure out what this is and why it is good to have. Seems related to scaling
     def get_characteristic_vals(self):
         """
         An optional function to define a procedure for computing characteristic values

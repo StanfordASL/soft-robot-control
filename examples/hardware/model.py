@@ -18,7 +18,11 @@ BETA = 0.01 # Rayleigh stiffness
 # ALPHA = 1e-12 # Rayleigh mass
 # BETA = 1e-12 # Rayleigh stiffness
 
-U_MAX = 1500 # mN
+# Larger amplitudes
+#U_MAX = 4000 # mN
+
+# Smaller amplitudes
+U_MAX = 1500 #mN
 DT = 0.01
 
 def diamondRobot(q0=None, scale_mode=1000, dt=DT):
@@ -35,7 +39,7 @@ def diamondRobot(q0=None, scale_mode=1000, dt=DT):
     # Add open loop input sequences
     from sofacontrol.open_loop_sequences import DiamondRobotSequences
     import numpy as np
-    robot.sequences = DiamondRobotSequences(dt=DT, t0=1.)
+    robot.sequences = DiamondRobotSequences(dt=dt, t0=1.)
     robot.sequences.umax = np.array([U_MAX, U_MAX, U_MAX, U_MAX])
 
     return robot

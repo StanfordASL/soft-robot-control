@@ -29,11 +29,11 @@ class TemplateEnvironment:
         self.gravity = [0., -9810., 0.]  # default
         self.dt = dt
 
-    def get_measurement_model(self, nodes=None, pos=True, vel=True):
+    def get_measurement_model(self, nodes=None, pos=True, vel=True, qv=False):
         if nodes is None:
-            return measurement_models.linearModel(range(self.nb_nodes), self.nb_nodes, pos=pos, vel=vel)
+            return measurement_models.linearModel(range(self.nb_nodes), self.nb_nodes, pos=pos, vel=vel, qv=qv)
         else:
-            return measurement_models.linearModel(nodes, self.nb_nodes, pos=pos, vel=vel)
+            return measurement_models.linearModel(nodes, self.nb_nodes, pos=pos, vel=vel, qv=qv)
 
 
 class Trunk(TemplateEnvironment):
@@ -184,7 +184,7 @@ class Diamond(TemplateEnvironment):
                              precision='10', name='matrixExporter')
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)
         self.robot.addObject('BoxROI', name='boxROI', box=[-15, -15, -40, 15, 15, 10], drawBoxes=True)
-        self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12')
+        self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12', name='constraints')
 
         ##########################################
         # Cable                                 #
