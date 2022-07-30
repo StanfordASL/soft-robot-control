@@ -114,8 +114,8 @@ Execute `source ~/.bashrc` in terminal to make the appropriate changes.
 Download the libraries SoftRobots, STLIB, and SofaPython3
 ```
 mkdir $HOME/sofa-plugins
-git clone https://github.com/SofaDefrost/SoftRobots $HOME/sofa-plugins/SoftRobots $HOME/sofa-plugins/SoftRobots
-git clone https://github.com/SofaDefrost/STLIB.git $HOME/sofa-plugins/STLIB $HOME/sofa-plugins/STLIB
+git clone https://github.com/SofaDefrost/SoftRobots $HOME/sofa-plugins/SoftRobots
+git clone https://github.com/SofaDefrost/STLIB.git $HOME/sofa-plugins/STLIB
 git clone https://github.com/sofa-framework/SofaPython3.git $HOME/sofa-plugins/SofaPython3
 ```
 
@@ -127,7 +127,7 @@ find_package(SofaFramework)
 
 sofa_add_plugin(STLIB/  STLIB VERSION 1.0)
 sofa_add_plugin(SoftRobots/  SoftRobots VERSION 1.0)
-sofa add_plugin(SofaPython3/ SofaPython3 Version 1.0)
+sofa_add_plugin(SofaPython3/ SofaPython3 Version 1.0)
 ```
 
 ---
