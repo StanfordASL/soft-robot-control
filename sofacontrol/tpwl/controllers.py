@@ -7,8 +7,6 @@ from sofacontrol import open_loop_controller
 from sofacontrol.lqr.ilqr import iLQR
 from sofacontrol.lqr.traj_tracking_lqr import TrajTrackingLQR
 from sofacontrol.lqr.lqr import CLQR, DLQR
-
-#TODO: Modify this
 from sofacontrol.scp.ros import GuSTOClientNode
 """
 Functions provide different control techniques for optimal control tasks such as Trajectory Optimization, Trajectory 
@@ -268,7 +266,6 @@ class scp(TemplateController):
 
         # Solve for the trajectory on the next interval
         # # In theory, for a finite horizon case (trajectory following) full policy can be computed offline
-        # TODO: Add capability to do pure MPC
         if self.mpc:
             x0 = x_belief
         else:

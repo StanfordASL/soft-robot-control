@@ -165,6 +165,7 @@ def sparse_list_to_np_array(matrix_list):
 
 def turn_on_LDL_saver(matrixExporter, filepath):
     matrixExporter.findData('enable').value = True
+    # Export every 10th step e.g., if dt = 0.01, save every 0.1 sec
     matrixExporter.findData('exportEveryNumberOfSteps').value = 10
     matrixExporter.findData('filename').value = filepath
     matrixExporter.findData('format').value = 'txt'
@@ -181,7 +182,7 @@ def extract_KDMb(robot, filesInDir, step, dt, dv, point):
     beta = robot.odesolver.rayleighStiffness.value
     node_mass = robot.mass.vertexMass.value
     num_nodes = robot.tetras.size.value
-    # Load and parse the LDL matrix into the M, K, and D matrices
+    # Load and parse the LDL "global" matrix
     LDL_file = filesInDir[0]
     LDL = np.zeros((3 * num_nodes, 3 * num_nodes))
     with open(LDL_file, 'r') as file:
@@ -191,10 +192,12 @@ def extract_KDMb(robot, filesInDir, step, dt, dv, point):
 
     # Delete the LDL matrix text file to save storage space
     os.remove(LDL_file)
-    # Extract K, D, M matices using M = diag(m), LDL = M + hD + h^2K,
 
+    # Extract K matrix
+    K = extract_K_matrix(robot)
+
+    # Get M and D matrix (D matrix is simply proportional damping)
     M = node_mass * np.eye(3 * num_nodes)
-    K = (LDL - (1 + dt * alpha) * M) / (dt ** 2 + dt * beta)
     D = alpha * M + beta * K
 
     b = LDL @ dv - dt * point.H @ np.atleast_1d(point.u)
@@ -202,6 +205,21 @@ def extract_KDMb(robot, filesInDir, step, dt, dv, point):
 
     return coo_matrix(K), coo_matrix(D), coo_matrix(M), b, f, coo_matrix(LDL)
 
+def extract_K_matrix(robot):
+    K = -robot.forcefield.assembleKMatrix().toarray()
+    num_q = np.shape(K)[0]
+    constrain_node = np.zeros((3, num_q))
+    for DOF in robot.constraints.points.toList():
+        # Set columns and rows of constrained nodes to zero
+        DOF = DOF[0]
+        K[3*DOF:3*DOF + 3, :] = constrain_node
+        K[:, 3 * DOF:3 * DOF + 3] = constrain_node.T
+
+        # Set diagonals of constrained nodes to 1
+        for i in range(3):
+            K[3*DOF + i, 3*DOF + i] = 1
+
+    return K
 
 def extract_H_matrix(robot):
     """

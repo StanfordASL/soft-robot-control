@@ -24,7 +24,7 @@ class linearModel:
         self.vel = vel
         self.build_C_matrix(nodes, num_nodes)
         self.num_nodes = num_nodes
-        self.qv = qv
+        # self.qv = qv
 
     def build_C_matrix(self, nodes, num_nodes):
         if self.vel and not self.pos:
@@ -38,8 +38,7 @@ class linearModel:
 
     def evaluate(self, x, qv=False):
         z = self.C @ x
-        # TODO: Make this a single dependency on the class param self.qv
-        if self.qv or qv:
+        if qv:
             return np.concatenate(x2qv(z))
         else:
             return z

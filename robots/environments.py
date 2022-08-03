@@ -52,6 +52,8 @@ class Trunk(TemplateEnvironment):
         self.robot.addObject('UniformMass', totalMass=totalMass)
         self.robot.addObject('TetrahedronFEMForceField', template='Vec3', name='FEM', method='large',
                              poissonRatio=poissonRatio, youngModulus=youngModulus)
+
+        # Export every 10th step e.g., if dt = 0.01, save every 0.1 sec (defaults saving to disabled)
         self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
                              precision='10', name='matrixExporter')
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)

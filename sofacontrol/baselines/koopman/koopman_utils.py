@@ -113,7 +113,7 @@ class KoopmanModel:
     """
 
     def __init__(self, model_in, params_in, DMD=False):
-        # If truncation used, system matrices are truncated in soft-robot-koopman matlat code
+        # If truncation used, system matrices are truncated in soft-robot-koopman matlab code
         self.A_d = model_in['A'][0, 0]
         self.B_d = model_in['B'][0, 0]
         self.C = model_in['C'][0, 0]

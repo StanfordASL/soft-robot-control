@@ -3,7 +3,7 @@ from scipy.interpolate import interp1d
 
 from sofacontrol import closed_loop_controller
 from sofacontrol import open_loop_controller
-from sofacontrol.scp_test.ros import GuSTOClientNode
+from sofacontrol.scp.ros import GuSTOClientNode
 from sofacontrol.utils import vq2qv
 from sofacontrol.lqr.lqr import dare
 
@@ -156,7 +156,6 @@ class scp(TemplateController):
 
         # Set up the ROS client node
         self.GuSTO = GuSTOClientNode()
-        self.feedback = kwargs.pop('feedback', False)
 
     def compute_policy(self, t_step, x_belief):
         """
@@ -227,21 +226,7 @@ class scp(TemplateController):
 
     def compute_input(self, t_step, x_belief):
         self.GuSTO.force_spin()  # Periodic querying of client node
-
-        # TODO: This is somewhat wrong and doesn't improve performance
-        if self.feedback:
-            # Compute LQR
-            x_dist = np.linalg.norm(self.x_opt_current - x_belief, axis=1)
-            i_near = np.argmin(x_dist)
-
-            x_near = self.x_opt_current[i_near]
-            A_d, B_d, _ = self.dyn_sys.get_jacobians(x_near, u=self.u_opt_current[i_near],
-                                                 dt=self.dt)
-            Hk, _ = self.dyn_sys.get_observer_jacobians(x_near)
-            K, _ = dare(A_d, B_d, Hk.T @ self.cost.Q @ Hk, self.cost.R)
-            u = self.u_bar(t_step) + K @ (x_belief - x_near)
-        else:
-            u = self.u_bar(t_step)
+        u = self.u_bar(t_step)
 
         return u
 

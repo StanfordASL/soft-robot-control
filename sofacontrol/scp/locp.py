@@ -1,7 +1,10 @@
 import cvxpy as cp
 import numpy as np
 from scipy.linalg import block_diag
-
+from cvxpy.atoms.affine.wraps import psd_wrap
+from cvxpy.atoms.affine.reshape import reshape
+import time
+import scipy.sparse as sp
 
 class LOCP:
     """
@@ -33,7 +36,9 @@ class LOCP:
         self.dU = dU
         self.verbose = verbose
         self.warm_start = warm_start
+        self.nonlinear_observer = kwargs.pop('nonlinear_observer', False)
 
+        # Ensure we have a self.H in SSM class such that 2nd dim is dim of RO state
         self.n_x = H.shape[1]
         self.n_z = Qz.shape[0]
         self.n_u = R.shape[0]
@@ -54,11 +59,16 @@ class LOCP:
         self.solver_args = kwargs
         if not 'solver' in self.solver_args:
             self.solver_args['solver'] = 'OSQP'
+        else:
+            self.solver_args = {'solver': self.solver_args['solver']}
 
         if self.tr_active:
             self.st = cp.Variable(self.N + 1)
         else:
             self.st = None
+
+        # Input nullspace
+        self.input_nullspace = kwargs.pop('input_nullspace', None)
 
         # Parameters
         if self.warm_start:
@@ -69,6 +79,14 @@ class LOCP:
             self.Ad = [cp.Parameter((self.n_x, self.n_x)) for i in range(self.N)]
             self.Bd = [cp.Parameter((self.n_x, self.n_u)) for i in range(self.N)]
             self.dd = cp.Parameter(self.N * self.n_x)
+
+            # Adding observer linearization parameters here. Expect parameters to be None
+            # If dynamics class has nonlinear_observer = False. In this case this class should
+            # use self.H as shown above. This seems to be different from when not warm_starting
+            if self.nonlinear_observer:
+                self.Hd = [cp.Parameter((self.n_z, self.n_x)) for i in range(self.N + 1)]
+                self.cd = cp.Parameter((self.N + 1) * self.n_z)
+
             self.x0 = cp.Parameter(self.n_x)
             self.xk = cp.Parameter((self.N + 1, self.n_x))
             if self.Qzf is not None:
@@ -77,9 +95,9 @@ class LOCP:
             self.problem_setup()
             print('First solve may take a while due to factorization and caching.')
 
-    def update(self, Ad, Bd, dd, x0, xk, delta, omega, z=None, zf=None, u=None, full=True):
+    def update(self, Ad, Bd, dd, x0, xk, delta, omega, z=None, zf=None, u=None, full=True, **kwargs):
         """
-        Update the potentially changing LOCP data
+        Update the potentially changing LOCP data. xk is updated solution trajectory
         """
 
         # If using warm start, set the parameters to their current values
@@ -101,13 +119,22 @@ class LOCP:
                 elif self.Qzf is not None and zf is None:
                     self.zf.value = np.zeros(self.n_z)  # default set to 0
 
+                # Added observer linearizations here. Make sure to propogate Hd and cd as parameters in kwargs
                 for j in range(self.N):
-                    self.Ad[j].value = Ad[j]
-                    self.Bd[j].value = Bd[j]
+                    self.Ad[j].value = np.asarray(Ad[j])
+                    self.Bd[j].value = np.asarray(Bd[j])
+
+                for j in range(self.N + 1):
+                    if self.nonlinear_observer:
+                        self.Hd[j].value = np.asarray(kwargs.get('Hd')[j])
 
                 self.dd.value = np.ravel(np.asarray(dd))
+                if self.nonlinear_observer:
+                    cd = kwargs.get('cd')
+                    self.cd.value = np.ravel(np.asarray(cd))
+
                 self.xk.value = xk
-                self.x0.value = x0
+                self.x0.value = np.asarray(x0)
 
             # Always update delta and omega
             self.omega.value = omega
@@ -132,11 +159,16 @@ class LOCP:
             elif self.Qzf is not None and zf is None:
                 self.zf = np.zeros(self.n_z)
 
-            self.Ad = Ad
-            self.Bd = Bd
+            self.Ad = np.asarray(Ad)
+            self.Bd = np.asarray(Bd)
             self.dd = np.ravel(np.asarray(dd))
-            self.x0 = x0
-            self.xk = xk
+            self.x0 = np.asarray(x0)
+            self.xk = np.asarray(xk)
+
+            # Observer params here
+            if self.nonlinear_observer:
+                self.Hd = np.asarray(kwargs.get('Hd'))
+                self.cd = np.asarray(kwargs.get('cd'))
 
             self.problem_setup()
 
@@ -144,7 +176,13 @@ class LOCP:
         """
         Solve the LOCP quadratic program
         """
+        t0 = time.time()
+
         Jstar = self.prob.solve(warm_start=self.warm_start, verbose=self.verbose, **self.solver_args)
+
+        # TODO: Timing computations
+        t1 = time.time()
+        print('DEBUG: Solve routing in LOCP computed in {:.3f} seconds'.format(t1 - t0))
 
         if self.prob.status == 'optimal':
             return Jstar, True, self.prob.solver_stats
@@ -184,16 +222,30 @@ class LOCP:
         J = 0
 
         # Control cost
-        Rfull = block_diag(*[self.R for j in range(self.N)])
+        Rfull = sp.csc_matrix(block_diag(*[self.R for j in range(self.N)]))
         J += cp.quad_form(self.u - self.u_des, Rfull)
 
-        # TODO: Need to modify this to allow for nonlinear observer. Note H_full
-        # TODO: is now dependent on reduced state. Make H a vector of matrices and add
-        # TODO: affine term c_k
-        # Performance cost
-        Qzfull = block_diag(*[self.Qz for j in range(self.N + 1)])
-        Hfull = block_diag(*[self.H for j in range(self.N + 1)])
-        J += cp.quad_form(Hfull @ self.x - self.z, Qzfull)
+        # Performance cost (we expect all trajectories to be non-shifted i.e., about origin)
+        # Assuming a map from reduced-ordered state to performance variable (which we linearize)
+        Qzfull = sp.csc_matrix(block_diag(*[self.Qz for j in range(self.N + 1)]))
+        if self.nonlinear_observer:
+            cdfull = np.reshape(self.cd, ((self.N+1)*self.n_x,)) if isinstance(self.cd, list) else \
+                reshape(self.cd, ((self.N+1)*self.n_x,))
+
+            if self.warm_start:
+                Hfull = []
+                for j in range(self.N + 1):
+                    cur = [np.zeros((self.n_x, self.n_x))] * (self.N + 1)
+                    cur[j] = self.Hd[j]
+                    Hfull.append(cur)
+                Hfull = cp.bmat(Hfull)
+            else:
+                Hfull = block_diag(*[self.Hd[j] for j in range(self.N + 1)])
+
+            J += cp.quad_form(Hfull @ self.x + cdfull - self.z, Qzfull)
+        else:
+            Hfull = block_diag(*[self.H for j in range(self.N + 1)])
+            J += cp.quad_form(Hfull @ self.x - self.z, Qzfull)
 
         # Add optional terminal cost
         if self.Qzf is not None:
@@ -202,6 +254,11 @@ class LOCP:
         # Slack variables
         if self.tr_active:
             J += self.omega * cp.sum(self.st)
+
+        # Nullspace contribution
+        if self.input_nullspace is not None:
+            nullSpace = np.tile(self.input_nullspace, self.N)
+            J += cp.norm2(nullSpace @ self.u)
 
         return J
 
@@ -229,9 +286,6 @@ class LOCP:
 
         constr += [self.x[self.n_x:] == Adfull @ self.x[:-self.n_x] + Bdfull @ self.u + self.dd]
 
-        # TODO: Add nonlinear observer constraints here. Similar to format of
-        # TODO: dynamical constraints above.
-
         # Trust region constraints
         if self.tr_active:
             X_scale = self.x_scale.reshape(-1, 1).repeat(self.N + 1, axis=1)
@@ -255,9 +309,28 @@ class LOCP:
 
         # State constraints
         if self.X is not None:
-            XAfull = block_diag(*[self.X.A for j in range(self.N)])
-            Xbfull = np.tile(self.X.b, self.N)
-            constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+            if self.nonlinear_observer:
+                cdfull = np.reshape(self.cd, ((self.N + 1) * self.n_x,)) if isinstance(self.cd, list) else \
+                    reshape(self.cd, ((self.N + 1) * self.n_x,))
+                if self.warm_start:
+                    Hfull = []
+                    for j in range(self.N):
+                        cur = [np.zeros((self.n_x, self.n_x))] * self.N
+                        cur[j] = self.Hd[j + 1]
+                        Hfull.append(cur)
+                    Hfull = cp.bmat(Hfull)
+                else:
+                    Hfull = block_diag(*[self.Hd[j + 1] for j in range(self.N)])
+
+                # Take only last N of cdfull
+                cdfull = cdfull[self.n_x:]
+                XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
+                Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
+                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+            else:
+                XAfull = block_diag(*[self.X.A for j in range(self.N)])
+                Xbfull = np.tile(self.X.b, self.N)
+                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
 
         # Terminal constraints
         if self.Xf is not None:

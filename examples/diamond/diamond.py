@@ -94,7 +94,6 @@ def collect_POD_data():
     from sofacontrol.utils import SnapshotData
 
     prob = Problem()
-    #prob.Robot = environments.Diamond()
     prob.Robot = diamondRobot()
     prob.ControllerClass = OpenLoopController
 
@@ -155,7 +154,6 @@ def collect_TPWL_data():
 
     This function is used to collect snapshots for building the TPWL model.
     """
-    from robots import environments
     from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
     from sofacontrol.mor import pod
     from sofacontrol.tpwl import tpwl_config
@@ -163,7 +161,6 @@ def collect_TPWL_data():
     from examples.hardware.model import diamondRobot
 
     prob = Problem()
-    #prob.Robot = environments.Diamond()
     prob.Robot = diamondRobot()
 
     prob.ControllerClass = OpenLoopController
@@ -292,7 +289,7 @@ def run_gusto_solver():
     Qz[5, 5] = 0.0  # corresponding to z position of end effector
 
     # Control constraints
-    U = HyperRectangle([6000., 6000., 6000., 6000.], [0., 0., 0., 0.])
+    U = HyperRectangle([1500., 1500., 1500., 1500.], [0., 0., 0., 0.])
 
     # State constraints
     Hz = np.zeros((2, 6))

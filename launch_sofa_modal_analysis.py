@@ -103,7 +103,7 @@ def createScene(rootNode):
 
     # TODO: Setting directions modal displacements
     # Set corresponding direction to zero if desiring just one mode (Takes int values 0, 1, or -1)
-    direction1 = 1
+    direction1 = 0
     direction2 = 0
 
     amplitude = 2000
@@ -129,8 +129,9 @@ def createScene(rootNode):
 
     # Rotation in degrees
     # TODO: To save data, need to specify file
-    #prob = problem_specification.problem(q0=q0, input=input_const, save_data=True, filename=save_filename)
-    prob = problem_specification.problem(q0=q0, save_data=False, scale_mode=amplitude, filename=save_filename)
+    input_const = np.array([amplitude, 0, 0, 0])
+    prob = problem_specification.problem(q0=q0, input=input_const, save_data=True, filename=save_filename)
+    # prob = problem_specification.problem(q0=q0, save_data=False, scale_mode=amplitude, filename=save_filename)
     #prob = problem_specification.problem()
     prob.checkDefinition()
 

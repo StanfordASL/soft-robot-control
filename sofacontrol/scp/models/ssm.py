@@ -48,9 +48,11 @@ class SSMGuSTO(TemplateModel):
             df/du = B(x)
 
         """
-        A, B, d = self.dyn_sys.get_jacobians(x, u=u)
+        # TODO: Checking jax capes
+        A, B, d = self.dyn_sys.get_continuous_jacobians(x, u=u)
+        # A, B, d = self.dyn_sys.get_jacobians(x, u=u, dt=None)
         f = A @ x + B @ u + d
-        return f, A, B
+        return np.asarray(f), np.asarray(A), np.asarray(B)
 
     def get_discrete_dynamics(self, x, u, dt):
         """

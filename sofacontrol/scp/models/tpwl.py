@@ -27,8 +27,7 @@ class TPWLGuSTO(TemplateModel):
         self.n_x = self.dyn_sys.get_state_dim()
         self.n_u = self.dyn_sys.get_input_dim()
         self.n_z = self.H.shape[0]
-
-        self.nonlinear_observer = self.dyn_sys.nonlinear_observer
+        self.nonlinear_observer = False
 
     def get_continuous_dynamics(self, x, u):
         """

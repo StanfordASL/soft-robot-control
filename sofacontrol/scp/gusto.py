@@ -125,9 +125,14 @@ class GuSTO:
             locp_verbose = True
         else:
             locp_verbose = False
+
+        # Get observer type
+        self.nonlinear_observer = model.nonlinear_observer
+
         self.locp = LOCP(self.N, self.model.H, self.Qz, self.R, Qzf=self.Qzf,
                          U=self.U, X=self.X, Xf=self.Xf, dU=self.dU,
-                         verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char, **kwargs)
+                         verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char,
+                         nonlinear_observer=self.nonlinear_observer, **kwargs)
 
         # Solve SCP
         self.max_gusto_iters = MAX_ITERS # let first solve take more time
@@ -228,7 +233,18 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
-    # TODO: Function for getting linearization for observer: get_observer_linearizations
+    def get_observer_linearizations(self, x, u):
+        """
+        Return the affine observer mappings at each point along trajectory in a list
+        """
+        H_d = []
+        c_d = []
+        for i in range(x.shape[0]):
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt)
+            H_d.append(H_d_i)
+            c_d.append(c_d_i)
+
+        return H_d, c_d
 
     def solve(self, x0, u_init, x_init, z=None, zf=None, u=None):
         """
@@ -247,6 +263,17 @@ class GuSTO:
         self.u_k = u_init
         self.x_k = x_init
         A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
+
+        if self.nonlinear_observer:
+            H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+        else:
+            H_d, c_d = None, None
+
+        t_jac = time.time()
+        # TODO: Timing computations
+        print('DEBUG: Jacobians computed in {:.3f} seconds'.format(t_jac - t0))
+
+
         new_solution = True
         Jstar_prev = np.inf
         delta_prev = np.inf
@@ -269,21 +296,27 @@ class GuSTO:
             omega_cur = omega  # just for printing
 
             # Update the LOCP with new parameters and solve
-            # TODO: Need to modify locp.update to ensure linearization points for observer
             if new_solution:
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u)
+                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d)
                 new_solution = False
             else:
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, full=False)
+                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d, full=False)
 
             # Solve the LOCP
             Jstar, success, stats = self.locp.solve()
-            # TODO: Modify self.zopt here to handle nonlinear measurements
+
+            # TODO: Timing computations
+            # t1 = time.time()
+            # print('DEBUG: After solve computed in {:.3f} seconds'.format(t1 - t0))
+
             if not success:
                 print('Iteration {} of problem cannot be solved, see solver status for more information'.format(itr))
                 self.xopt = np.copy(self.x_k)
                 self.uopt = np.copy(self.u_k)
-                self.zopt = np.transpose(self.model.H @ self.xopt.T)
+                if self.nonlinear_observer:
+                    self.zopt = self.model.dyn_sys.C_map(self.xopt.T)
+                else:
+                    self.zopt = np.transpose(self.model.H @ self.xopt.T)
                 return
 
             t_locp += stats.solve_time
@@ -291,10 +324,12 @@ class GuSTO:
 
             # Check if trust region is satisfied
             e_tr, tr_satisfied = self.is_in_trust_region(x_next, delta)
+
             if tr_satisfied:
                 rho_k = self.compute_accuracy(x_next, u_next, Jstar)
 
-                if rho_k > self.rho:
+                # Nudge Gusto out of first iteration since it gets stuck
+                if rho_k > self.rho and itr != 1:
                     delta = self.beta_fail * delta
                 else:
                     """
@@ -356,19 +391,26 @@ class GuSTO:
 
             # Plot solution
             if self.visual:
-                z_k = self.model.H @ self.x_k.T
-                z_new = self.model.H @ x_next.T
+                z_k = self.model.dyn_sys.x_to_zfyf(self.x_k).T
+                z_new = self.model.dyn_sys.x_to_zfyf(x_next).T
                 for i in self.visual:
                     plt.plot(z_k[i], 'b--')
                     plt.plot(z_new[i], 'b')
+                    #plt.plot(z[i], 'r--')
                 plt.title('--: old, -: new, accepted: {}'.format(new_solution))
                 plt.show()
 
             # If valid solution, update and recompute dynamics
+            # TODO: Did not update observer jacobians in previous code :(
             if new_solution:
                 self.x_k = x_next.copy()
                 self.u_k = u_next.copy()
                 A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
+
+                if self.nonlinear_observer:
+                    H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+                else:
+                    H_d, c_d = None, None
 
         t_gusto = time.time() - t0
         if omega > self.omega_max:

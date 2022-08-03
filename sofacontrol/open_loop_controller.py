@@ -39,6 +39,7 @@ class OpenLoopController(Sofa.Core.Controller):
 
         self.simdata_dir = kwargs.get('simdata_dir')
         self.snapshots_dir = kwargs.get('snapshots_dir')
+        self.save_equilibrium = kwargs.pop('save_equilibrium', False)
 
         # For old code so you can also just pass in the u and save tuple
         if isinstance(self.controller, tuple):
@@ -103,53 +104,37 @@ class OpenLoopController(Sofa.Core.Controller):
     def onAnimateEndEvent(self, params):
         #scutils.turn_off_LDL_saver(self.robot.matrixExporter)
 
-        #TODO: Hardcoded - Let me extract and save rest position of robot
+        # Debugging: Inspect K quickly
         # if self.t >= 2.0:
-        #     K_stiff = -self.robot.forcefield.assembleKMatrix().toarray()
-        #     num_q = np.shape(K_stiff)[0]
-        #     constrain_node = np.zeros((3, num_q))
-        #     for DOF in self.robot.constraints.points.toList():
-        #         # Set columns and rows of constrained nodes to zero
-        #         DOF = DOF[0]
-        #         K_stiff[3*DOF:3*DOF + 3, :] = constrain_node
-        #         K_stiff[:, 3 * DOF:3 * DOF + 3] = constrain_node.T
-        #
-        #         # Set diagonals of constrained nodes to 1
-        #         for i in range(3):
-        #             K_stiff[3*DOF + i, 3*DOF + i] = 1
-        #
+        #     K = scutils.extract_K_matrix(self.robot)
         #     print('Stiffness matrix extracted')
-        #      self.sim_data["rest"] = (self.robot.tetras.position.value.flatten().copy(),
-        #                               self.robot.tetras.velocity.value.flatten().copy())
-        #      filename = os.path.join(self.snapshots_dir, 'rest_qv.pkl')
-        #      scutils.save_data(filename, self.sim_data)
+        if self.save_equilibrium:
+            self.sim_data["rest"] = (self.robot.tetras.position.value.flatten().copy(),
+                                     self.robot.tetras.velocity.value.flatten().copy())
+            filename = os.path.join(self.snapshots_dir, 'rest_qv.pkl')
+            scutils.save_data(filename, self.sim_data)
 
-        # Gather remaining information for saving the current point
-        # TODO: This only works if I want to use snapshots. Otherwise it is breaking
-        # TODO: if I collect simulation data
-        #self.save_point = False #TODO: debugging
-        #LDL_path = os.path.join(self.LDL_dir, 'temp/')
-        #currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
-        #             os.path.isfile(os.path.join(LDL_path, f))]
+        # self.save_point = False # debugging
+        LDL_path = os.path.join(self.LDL_dir, 'temp/')
+        currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
+                    os.path.isfile(os.path.join(LDL_path, f))]
 
-        # TODO: checking if directory is empty here prevents POD_collection
-        # TODO: but putting in the second if breaks stuff. Need to check that
-        # TODO: there exists LDL files in the directory before trying to extract the system matrices
-
-
-        if self.save_point:
+        if self.save_point and self.snapshots.save_dynamics and currFiles:
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
-            if self.snapshots.save_dynamics and currFiles:
-                dv = self.point.v_next - self.point.v
-                K, D, M, b, f, S = scutils.extract_KDMb(self.robot, currFiles, self.step, params['dt'], dv,
-                                                        self.point)
-                self.point.K = K
-                self.point.D = D
-                self.point.M = M
-                self.point.b = b
-                self.point.f = f
-                self.point.S = S
+            dv = self.point.v_next - self.point.v
+            K, D, M, b, f, S = scutils.extract_KDMb(self.robot, currFiles, self.step, params['dt'], dv,
+                                                    self.point)
+            self.point.K = K
+            self.point.D = D
+            self.point.M = M
+            self.point.b = b
+            self.point.f = f
+            self.point.S = S
+            self.snapshots.add_point(self.point)
+        elif self.save_point and not self.snapshots.save_dynamics:
+            self.point.q_next = self.robot.tetras.position.value.flatten().copy()
+            self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
             self.snapshots.add_point(self.point)
 
         # Turn off animation at the end of the defined sequence
@@ -194,7 +179,6 @@ class OpenLoopController(Sofa.Core.Controller):
                 if self.controller.save_seq[self.next_save_idx]:
                     save = True
 
-            # TODO: Make sure this doesn't give bad behavior
             # When controller dt is given, save snapshots only at divisible times (during OL sims)
             # Scaling by 100 due to floating point accuracy of modulus operation
             # Otherwise, move to next snapshot

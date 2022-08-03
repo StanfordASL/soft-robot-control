@@ -11,7 +11,7 @@ sys.path.append(root)
 from examples import Problem
 from sofacontrol.open_loop_sequences import TrunkRobotSequences
 
-# TODO: Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
+# Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
 
 
@@ -41,7 +41,7 @@ def apply_constant_input(input=np.zeros(8), q0=None, save_data=False, t0=0.0, fi
     prob.Robot = environments.Trunk()
     prob.ControllerClass = OpenLoopController
 
-    # TODO: Setting this to zero for now (t0 is when force is actually applied and when data is saved)
+    # Setting this to zero for now (t0 is when force is actually applied and when data is saved)
     Sequences = TrunkRobotSequences(t0=t0, dt=0.01)
 
     # 1) Wind up the robot

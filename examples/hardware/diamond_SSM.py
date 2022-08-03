@@ -226,6 +226,7 @@ def run_scp():
     from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron
     from sofacontrol.SSM import ssm
     from sofacontrol.SSM.controllers import scp
+    from scipy.io import loadmat
 
     # Load SSM Models
     from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
@@ -258,7 +259,14 @@ def run_scp():
     maps['W'] = diamond_softrobot_W_O3_cont
     maps['f_nl'] = diamond_softrobot_f_reduced_O3_cont
 
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be')
+    # TODO: Loading SSM model from Matlab
+    pathToModel = path + '/SSMmodels/'
+    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
+
+    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params)
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3)
@@ -267,32 +275,32 @@ def run_scp():
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
     # This dt for when to recalculate control
-    dt = 0.01
+    dt = 0.05
 
     ##############################################
     # Problem 1, Figure 8 with constraints
     ##############################################
-    # cost = QuadraticCost()
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # cost.Q = Qz
-    # cost.R = .003 * np.eye(model.input_dim)
+    cost = QuadraticCost()
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    cost.Q = Qz
+    cost.R = .003 * np.eye(model.input_dim)
 
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    cost = QuadraticCost()
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 50.0  # corresponding to x position of end effector
-    Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    Qz[2, 2] = 100.0  # corresponding to z position of end effector
-    cost.Q = model.H.T @ Qz @ model.H
-    cost.R = .003 * np.eye(model.input_dim)
+    # cost = QuadraticCost()
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 50.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    # cost.Q = model.H.T @ Qz @ model.H
+    # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=1, delay=3, feedback=False)
+    prob.controller = scp(model, cost, dt, N_replan=1, delay=3)
 
     # Saving paths
     prob.opt['sim_duration'] = 13.
@@ -308,10 +316,10 @@ def run_gusto_solver():
     """
     from sofacontrol.scp.models.ssm import SSMGuSTO
     from sofacontrol.measurement_models import linearModel
-    from sofacontrol.scp_test.ros import runGuSTOSolverNode
+    from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.utils import HyperRectangle, load_data, qv2x
     from sofacontrol.SSM import ssm
-    from sofacontrol.utils import Polyhedron
+    from scipy.io import loadmat
 
     # Load SSM Models
     from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
@@ -340,34 +348,41 @@ def run_gusto_solver():
     maps['W'] = diamond_softrobot_W_O3_cont
     maps['f_nl'] = diamond_softrobot_f_reduced_O3_cont
 
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be')
+    #TODO: Loading SSM model from Matlab
+    pathToModel = path + '/SSMmodels/'
+    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
 
-    # TODO: Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
+    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params)
+
+    # Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
     # V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])
 
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
     # Define cost functions and trajectory
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
 
     #### Define Target Trajectory ####
-    # M = 3
-    # T = 10
-    # N = 1000
-    # t = np.linspace(0, M * T, M * N)
-    # th = np.linspace(0, M * 2 * np.pi, M * N)
-    # zf_target = np.zeros((M * N, model.output_dim))
+    M = 3
+    T = 10
+    N = 1000
+    t = np.linspace(0, M * T, M * N)
+    th = np.linspace(0, M * 2 * np.pi, M * N)
+    zf_target = np.zeros((M * N, model.output_dim))
     # # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
 
-    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
-    #
+    zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(2 * th)
+
     # # zf_target[:, 0] = -40. * np.sin(th) - 7.1
     # # zf_target[:, 1] = 40. * np.sin(2 * th)
     #
@@ -383,32 +398,32 @@ def run_gusto_solver():
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    M = 3
-    T = 5
-    N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    x_target = np.zeros(M * N)
-
+    # M = 3
+    # T = 5
+    # N = 1000
+    # t = np.linspace(0, M * T, M * N)
+    # th = np.linspace(0, M * 2 * np.pi, M * N)
+    # x_target = np.zeros(M * N)
+    #
     # r = 15
     # y_target = r * np.sin(2 * th)
     # z_target = r - r * np.cos(2 * th) + 107.0
-
-    r = 20
-    y_target = r * np.sin(17 * th)
-    z_target = r - r * np.cos(17 * th) + 107.0
-
-    zf_target = np.zeros((M * N, 6))
-    zf_target[:, 0] = x_target
-    zf_target[:, 1] = y_target
-    zf_target[:, 2] = z_target
-
-    # Cost
-    R = .00001 * np.eye(4)
-    Qz = np.zeros((6, 6))
-    Qz[0, 0] = 50.0  # corresponding to x position of end effector
-    Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    #
+    # # r = 20
+    # # y_target = r * np.sin(17 * th)
+    # # z_target = r - r * np.cos(17 * th) + 107.0
+    #
+    # zf_target = np.zeros((M * N, 6))
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+    # zf_target[:, 2] = z_target
+    #
+    # # Cost
+    # R = .00001 * np.eye(4)
+    # Qz = np.zeros((6, 6))
+    # Qz[0, 0] = 50.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
 
     # z = zf_target
     z = model.zfyf_to_zy(zf=zf_target)
@@ -432,12 +447,14 @@ def run_gusto_solver():
     x0 = model.compute_RO_state(model.z_ref)
 
     # Define GuSTO model (dt here is discretization of model)
-    dt = 0.01
+    dt = 0.05
     N = 3
     gusto_model = SSMGuSTO(model)
+
+    # TODO: For some odd reason, GUROBI is slower than OSQP
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=5, input_nullspace=None)
+                       verbose=1, warm_start=True, convg_thresh=0.001, solver='OSQP',
+                       max_gusto_iters=0, input_nullspace=None)
 
 def run_scp_OL():
     """
@@ -512,8 +529,8 @@ def run_scp_OL():
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
     R = .00001 * np.eye(model.input_dim)
 
-    #TODO: Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
-    V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])
+    # Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
+    # V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])
 
     #### Define Target Trajectory ####
     M = 3

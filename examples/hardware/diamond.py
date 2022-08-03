@@ -280,9 +280,9 @@ def run_gusto_solver():
     """
     python3 diamond.py run_gusto_solver
     """
-    from sofacontrol.scp_test.models.tpwl import TPWLGuSTO
+    from sofacontrol.scp.models.tpwl import TPWLGuSTO
     from sofacontrol.measurement_models import linearModel
-    from sofacontrol.scp_test.ros import runGuSTOSolverNode
+    from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.tpwl import tpwl_config, tpwl
     from sofacontrol.utils import HyperRectangle, Polyhedron
 

@@ -70,17 +70,16 @@ class ClosedLoopController(Sofa.Core.Controller):
         u = self.controller.evaluate(self.t, y, x, u_prev)
         self.apply_command(u)
 
-        # TODO: Confirm that I'm doing this correctly here
         if self.simdata_dir is not None:
             self.sim_data["t"].append(self.t)
             self.sim_data["u"].append(self.get_command())
             self.sim_data["z"].append(self.output.evaluate(x))
 
-            # TODO: Only store configuration of robot
+            # Stores q and x data
             if self.store_q:
                 q = utils.get_q(self.robot)
                 self.sim_data["q"].append(q)
-            elif self.store_x:
+            if self.store_x:
                 self.sim_data["x"].append(x)
 
             # Evaluate belief state of observer

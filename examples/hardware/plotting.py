@@ -13,14 +13,14 @@ path = dirname(abspath(__file__))
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
-# M = 3
-# T = 10
-# N = 500
-# t_target = np.linspace(0, M*T, M*N)
-# th = np.linspace(0, M * 2 * np.pi, M*N)
-# zf_target = np.zeros((M*N, 6))
-# zf_target[:, 3] = -15. * np.sin(th) - 7.1
-# zf_target[:, 4] = 15. * np.sin(2 * th)
+M = 3
+T = 10
+N = 500
+t_target = np.linspace(0, M*T, M*N)
+th = np.linspace(0, M * 2 * np.pi, M*N)
+zf_target = np.zeros((M*N, 6))
+zf_target[:, 3] = -15. * np.sin(th) - 7.1
+zf_target[:, 4] = 15. * np.sin(2 * th)
 
 # zf_target[:, 3] = -25. * np.sin(th) + 13
 # zf_target[:, 4] = 25. * np.sin(2 * th) + 20
@@ -37,33 +37,33 @@ path = dirname(abspath(__file__))
 # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
 # zf_target[:, 4] = 15. * np.sin(16 * th)
 
-y_ub = 5
+# y_ub = 5
 name = 'figure8'
 
 ##############################################
 # Problem 2, Circle on side
 ##############################################
-M = 3
-T = 5
-N = 1000
-t_target = np.linspace(0, M*T, M*N)
-th = np.linspace(0, M*2*np.pi, M*N)
-
+# M = 3
+# T = 5
+# N = 1000
+# t_target = np.linspace(0, M*T, M*N)
+# th = np.linspace(0, M*2*np.pi, M*N)
+#
 # r = 15
 # x_target = np.zeros(M*N)
 # y_target = r * np.sin(2 * th)
 # z_target = r - r * np.cos(2 * th) + 107
 
-r = 20
-x_target = np.zeros(M*N)
-y_target = r * np.sin(17 * th)
-z_target = r - r * np.cos(17 * th) + 107
+# r = 20
+# x_target = np.zeros(M*N)
+# y_target = r * np.sin(17 * th)
+# z_target = r - r * np.cos(17 * th) + 107
 
-zf_target = np.zeros((M*N, 6))
-zf_target[:, 3] = x_target
-zf_target[:, 4] = y_target
-zf_target[:, 5] = z_target
-name = 'circle'
+# zf_target = np.zeros((M*N, 6))
+# zf_target[:, 3] = x_target
+# zf_target[:, 4] = y_target
+# zf_target[:, 5] = z_target
+# name = 'circle'
 
 
 # Load SCP data
@@ -222,7 +222,7 @@ plt.show()
 # Calculation of desired trajectory
 if name == 'figure8':
     zf_desired = zf_target.copy()
-    zf_desired[:, 4] = np.minimum(y_ub, zf_target[:,4])
+    # zf_desired[:, 4] = np.minimum(y_ub, zf_target[:,4])
 else:
     zf_desired = zf_target.copy()
 
