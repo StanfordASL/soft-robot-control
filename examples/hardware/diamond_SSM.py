@@ -275,7 +275,7 @@ def run_scp():
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
     # This dt for when to recalculate control
-    dt = 0.05
+    dt = 0.04
 
     ##############################################
     # Problem 1, Figure 8 with constraints
@@ -447,8 +447,8 @@ def run_gusto_solver():
     x0 = model.compute_RO_state(model.z_ref)
 
     # Define GuSTO model (dt here is discretization of model)
-    dt = 0.05
-    N = 3
+    dt = 0.04
+    N = 2
     gusto_model = SSMGuSTO(model)
 
     # TODO: For some odd reason, GUROBI is slower than OSQP

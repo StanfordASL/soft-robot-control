@@ -199,6 +199,7 @@ class SSMDynamics(SSM):
         return A, B, d
 
     # TODO: Testing jax components
+    @partial(jax.jit, static_argnums=(0,))
     def get_jacobians(self, x, u, dt):
         # x = x.reshape(self.state_dim, 1)
         # u = u.reshape(self.input_dim, 1)
@@ -255,27 +256,29 @@ class SSMDynamics(SSM):
     def update_observer_state(self, x, dt=None, u=None):
         # TODO: Testing jax capes
         # H, c = self.get_observer_jacobians(x, dt=dt, u=u)
+        # return np.squeeze(H @ x) + np.squeeze(c)
+
         H, c = self.get_observer_jacobians(x)
-        return np.squeeze(H @ x) + np.squeeze(c)
+        return np.squeeze(jnp.dot(H, x)) + np.squeeze(c)
 
     def discretize_dynamics(self, A_c, B_c, d_c, dt):
         if self.discr_method == 'fe':
-            A_d = np.eye(A_c.shape[0]) + dt * A_c
+            A_d = jnp.eye(A_c.shape[0]) + dt * A_c
             B_d = dt * B_c
             d_d = dt * d_c
 
         elif self.discr_method == 'be':
-            A_d = np.linalg.inv(np.eye(A_c.shape[0]) - dt * A_c)
-            sep_term = np.linalg.inv(A_c) @ (A_d - np.eye(A_c.shape[0]))
-            B_d = sep_term @ B_c
-            d_d = sep_term @ d_c
+            A_d = jnp.linalg.inv(np.eye(A_c.shape[0]) - dt * A_c)
+            sep_term = jnp.dot(jnp.linalg.inv(A_c), (A_d - jnp.eye(A_c.shape[0])))
+            B_d = jnp.dot(sep_term, B_c)
+            d_d = jnp.dot(sep_term, d_c)
 
         elif self.discr_method == 'bil':
-            A_d = (np.eye(A_c.shape[0]) + 0.5 * dt * A_c) @ np.linalg.inv(np.eye(A_c.shape[0])
-                                                                               - 0.5 * dt * A_c)
-            sep_term = np.linalg.inv(A_c) @ (A_d - np.eye(A_c.shape[0]))
-            B_d = sep_term @ B_c
-            d_d = sep_term @ d_c
+            A_d = jnp.dot((jnp.eye(A_c.shape[0]) + 0.5 * dt * A_c), jnp.linalg.inv(jnp.eye(A_c.shape[0])
+                                                                               - 0.5 * dt * A_c))
+            sep_term = jnp.dot(jnp.linalg.inv(A_c), (A_d - jnp.eye(A_c.shape[0])))
+            B_d = jnp.dot(sep_term, B_c)
+            d_d = jnp.dot(sep_term, d_c)
 
         elif self.discr_method == 'zoh':
             A_d, B_d, d_d = scutils.zoh_affine(A_c, B_c, d_c, dt)
@@ -284,6 +287,33 @@ class SSMDynamics(SSM):
             raise RuntimeError('self.discr_method must be in [fe, be, bil, zoh]')
 
         return A_d, B_d, d_d
+
+    # def discretize_dynamics(self, A_c, B_c, d_c, dt):
+    #     if self.discr_method == 'fe':
+    #         A_d = np.eye(A_c.shape[0]) + dt * A_c
+    #         B_d = dt * B_c
+    #         d_d = dt * d_c
+    #
+    #     elif self.discr_method == 'be':
+    #         A_d = np.linalg.inv(np.eye(A_c.shape[0]) - dt * A_c)
+    #         sep_term = np.linalg.inv(A_c) @ (A_d - np.eye(A_c.shape[0]))
+    #         B_d = sep_term @ B_c
+    #         d_d = sep_term @ d_c
+    #
+    #     elif self.discr_method == 'bil':
+    #         A_d = (np.eye(A_c.shape[0]) + 0.5 * dt * A_c) @ np.linalg.inv(np.eye(A_c.shape[0])
+    #                                                                            - 0.5 * dt * A_c)
+    #         sep_term = np.linalg.inv(A_c) @ (A_d - np.eye(A_c.shape[0]))
+    #         B_d = sep_term @ B_c
+    #         d_d = sep_term @ d_c
+    #
+    #     elif self.discr_method == 'zoh':
+    #         A_d, B_d, d_d = scutils.zoh_affine(A_c, B_c, d_c, dt)
+    #
+    #     else:
+    #         raise RuntimeError('self.discr_method must be in [fe, be, bil, zoh]')
+    #
+    #     return A_d, B_d, d_d
 
     @staticmethod
     def update_dynamics(x, u, A_d, B_d, d_d):

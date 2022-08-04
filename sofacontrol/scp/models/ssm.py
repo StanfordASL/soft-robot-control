@@ -52,7 +52,7 @@ class SSMGuSTO(TemplateModel):
         A, B, d = self.dyn_sys.get_continuous_jacobians(x, u=u)
         # A, B, d = self.dyn_sys.get_jacobians(x, u=u, dt=None)
         f = A @ x + B @ u + d
-        return np.asarray(f), np.asarray(A), np.asarray(B)
+        return f, A, B
 
     def get_discrete_dynamics(self, x, u, dt):
         """

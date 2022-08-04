@@ -1,9 +1,12 @@
 import time
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from matplotlib import pyplot as plt
 
 from sofacontrol.scp.locp import LOCP
+from functools import partial
 
 #### Default variables for GuSTO ####
 DELTA0 = 1e4  # trust region
@@ -196,6 +199,29 @@ class GuSTO:
         else:
             return max_violation, True
 
+    # @partial(jax.jit, static_argnums=(0,))
+    # def compute_accuracy(self, x, u, x_curr, u_curr, J):
+    #     """
+    #     Assumes cost function is quadratic and cost function approximation is hence exact --> 0 error
+    #     Computes model accuracy of dynamics
+    #     """
+    #     error = 0
+    #     approx = 0
+    #     for i in range(x.shape[0] - 1):
+    #         # Get true dynamics at the current points
+    #         fk, Ak, Bk = self.model.get_continuous_dynamics(x_curr[i, :], u_curr[i, :])
+    #
+    #         # Get dynamics at the potential new solution
+    #         f, _, _ = self.model.get_continuous_dynamics(x[i, :], u[i, :])
+    #
+    #         # Compute approximation of f(x,u) via Taylor expansion about (xk, uk)
+    #         f_approx = fk + Ak @ (x[i, :] - x_curr[i, :]) + Bk @ (u[i, :] - u_curr[i, :])
+    #         error += self.dt * jnp.linalg.norm(jnp.multiply(self.f_scale, f - f_approx), 2)
+    #         approx += self.dt * jnp.linalg.norm(jnp.multiply(self.f_scale, f_approx), 2)
+    #
+    #     rho_k = error / (J + approx)
+    #     return rho_k
+
     def compute_accuracy(self, x, u, J):
         """
         Assumes cost function is quadratic and cost function approximation is hence exact --> 0 error
@@ -218,6 +244,7 @@ class GuSTO:
         rho_k = error / (J + approx)
         return rho_k
 
+    @partial(jax.jit, static_argnums=(0,))
     def get_traj_dynamics(self, x, u):
         """
         Return the affine dynamics of each point along trajectory in a list
@@ -233,6 +260,7 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
+    @partial(jax.jit, static_argnums=(0,))
     def get_observer_linearizations(self, x, u):
         """
         Return the affine observer mappings at each point along trajectory in a list
@@ -271,7 +299,7 @@ class GuSTO:
 
         t_jac = time.time()
         # TODO: Timing computations
-        print('DEBUG: Jacobians computed in {:.3f} seconds'.format(t_jac - t0))
+        print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
 
 
         new_solution = True
@@ -302,6 +330,9 @@ class GuSTO:
             else:
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d, full=False)
 
+            # TODO: Timing computations
+            print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
+
             # Solve the LOCP
             Jstar, success, stats = self.locp.solve()
 
@@ -326,7 +357,13 @@ class GuSTO:
             e_tr, tr_satisfied = self.is_in_trust_region(x_next, delta)
 
             if tr_satisfied:
+                t_tr = time.time()
                 rho_k = self.compute_accuracy(x_next, u_next, Jstar)
+
+                # TODO: Adding jax capes. Seems to not really help
+                # x_curr = np.copy(self.x_k)
+                # u_curr = np.copy(self.u_k)
+                # rho_k = self.compute_accuracy(x_next, u_next, x_curr, u_curr, Jstar)
 
                 # Nudge Gusto out of first iteration since it gets stuck
                 if rho_k > self.rho and itr != 1:
@@ -376,6 +413,9 @@ class GuSTO:
             else:
                 omega = self.gamma_fail * omega
 
+            # TODO: Timing computations
+            print('DEBUG: Trust region + LOCP computed in {:.4f} seconds'.format(time.time() - t0))
+
             itr += 1
 
             if self.verbose >= 1:
@@ -405,12 +445,13 @@ class GuSTO:
             if new_solution:
                 self.x_k = x_next.copy()
                 self.u_k = u_next.copy()
-                A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
+                if self.max_gusto_iters >= 1:
+                    A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
 
-                if self.nonlinear_observer:
-                    H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
-                else:
-                    H_d, c_d = None, None
+                    if self.nonlinear_observer:
+                        H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+                    else:
+                        H_d, c_d = None, None
 
         t_gusto = time.time() - t0
         if omega > self.omega_max:

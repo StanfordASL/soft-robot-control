@@ -124,8 +124,8 @@ class LOCP:
                     self.Ad[j].value = np.asarray(Ad[j])
                     self.Bd[j].value = np.asarray(Bd[j])
 
-                for j in range(self.N + 1):
-                    if self.nonlinear_observer:
+                if self.nonlinear_observer:
+                    for j in range(self.N + 1):
                         self.Hd[j].value = np.asarray(kwargs.get('Hd')[j])
 
                 self.dd.value = np.ravel(np.asarray(dd))

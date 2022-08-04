@@ -3,6 +3,8 @@ import pickle
 import numpy as np
 from scipy.sparse import linalg, coo_matrix
 import osqp
+import jax.numpy as jnp
+import jax.scipy.sparse as jsps
 
 
 class QuadraticCost:
@@ -307,10 +309,10 @@ def zoh_linear(A, B, dt):
     :param dt: Discretization timestep
     :return: A_d (n x n), B_d (n x m): Discretized system
     """
-    em_upper = np.hstack((A, B))
-    em_lower = np.hstack((np.zeros((B.shape[1], A.shape[0])),
-                          np.zeros((B.shape[1], B.shape[1]))))
-    ZOH = linalg.expm(np.vstack((em_upper, em_lower)) * dt)
+    em_upper = jnp.hstack((A, B))
+    em_lower = jnp.hstack((jnp.zeros((B.shape[1], A.shape[0])),
+                          jnp.zeros((B.shape[1], B.shape[1]))))
+    ZOH = jsps.linalg.expm(np.vstack((em_upper, em_lower)) * dt)
 
     # Dispose of the lower rows
     ZOH = ZOH[:A.shape[0], :]
@@ -328,7 +330,7 @@ def zoh_affine(A, B, d, dt):
     :param dt: timestep duration, fixed
     :return: Discretized matrices with same input size
     """
-    B_ext = np.hstack((B, np.expand_dims(d, axis=-1)))
+    B_ext = jnp.hstack((B, jnp.expand_dims(d, axis=-1)))
     A_d, B_d_ext = zoh_linear(A, B_ext, dt)
     B_d = B_d_ext[:, :-1]
     d_d = B_d_ext[:, -1]  # last column
