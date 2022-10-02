@@ -22,6 +22,7 @@ class TemplateController(closed_loop_controller.TemplateController):
     :param delay: Delay before control is considered active. Comprises settling time of simulation + hypothetical
                   observer convergence
     """
+
     def __init__(self, dyn_sys, cost_params, dt=0.01, delay=2, u0=None, **kwargs):
         super(TemplateController, self).__init__()
         self.dyn_sys = dyn_sys
@@ -129,10 +130,11 @@ class TemplateController(closed_loop_controller.TemplateController):
             info['input_dim'] = self.dyn_sys.get_input_dim()
         return info
 
+
 class scp(TemplateController):
     def __init__(self, dyn_sys, cost, dt, N_replan=None, delay=2, u0=None, wait=True, **kwargs):
         super().__init__(dyn_sys, None, dt=dt, delay=delay, u0=u0, **kwargs)
-        
+
         if N_replan is not None:
             self.N_replan = N_replan
         else:
@@ -193,7 +195,7 @@ class scp(TemplateController):
         self.solve_times.append(t_solve)
 
         # Downsample and only take the first N_replan dt steps
-        u_opt_intp = interp1d(t_opt_p, np.vstack((u_opt_p, u_opt_p[-1,:])), axis=0)
+        u_opt_intp = interp1d(t_opt_p, np.vstack((u_opt_p, u_opt_p[-1, :])), axis=0)
         x_opt_intp = interp1d(t_opt_p, x_opt_p, axis=0)
 
         if init:
@@ -208,8 +210,8 @@ class scp(TemplateController):
             u_opt_new = u_opt_intp(np.round(t_opt_new, 4))
             x_opt_new = x_opt_intp(np.round(t_opt_new, 4))
             self.t_opt = np.concatenate((self.t_opt, t_opt_new[1:]))
-            self.u_opt = np.concatenate((self.u_opt[:-1,:], u_opt_new))
-            self.x_opt = np.concatenate((self.x_opt, x_opt_new[1:,:]))
+            self.u_opt = np.concatenate((self.u_opt[:-1, :], u_opt_new))
+            self.x_opt = np.concatenate((self.x_opt, x_opt_new[1:, :]))
 
         # Define short time optimal horizon solutions
         self.z_opt_horizon.append(self.dyn_sys.x_to_zfyf(x_opt_p))
@@ -243,10 +245,12 @@ class scp(TemplateController):
         info['t_rollout'] = self.t_opt_horizon
         return info
 
+
 class OpenLoop(open_loop_controller.OpenLoop):
     """
     Run an open loop control but include an observer for evaluation
     """
+
     def __init__(self, m, t_sequence, u_sequence, save_sequence, delay=1):
         super(OpenLoop, self).__init__(m, t_sequence, u_sequence, save_sequence)
         self.observer = None
@@ -287,6 +291,7 @@ class OpenLoop(open_loop_controller.OpenLoop):
                 self.u = np.zeros(self.m)
 
         return self.u.copy()
+
 
 class SSMObserver:
     def __init__(self, dyn_sys):

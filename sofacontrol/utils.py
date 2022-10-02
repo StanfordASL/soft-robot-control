@@ -3,8 +3,6 @@ import pickle
 import numpy as np
 from scipy.sparse import linalg, coo_matrix
 import osqp
-import jax.numpy as jnp
-import jax.scipy.sparse as jsps
 
 
 class QuadraticCost:
@@ -309,10 +307,10 @@ def zoh_linear(A, B, dt):
     :param dt: Discretization timestep
     :return: A_d (n x n), B_d (n x m): Discretized system
     """
-    em_upper = jnp.hstack((A, B))
-    em_lower = jnp.hstack((jnp.zeros((B.shape[1], A.shape[0])),
-                          jnp.zeros((B.shape[1], B.shape[1]))))
-    ZOH = jsps.linalg.expm(np.vstack((em_upper, em_lower)) * dt)
+    em_upper = np.hstack((A, B))
+    em_lower = np.hstack((np.zeros((B.shape[1], A.shape[0])),
+                          np.zeros((B.shape[1], B.shape[1]))))
+    ZOH = linalg.expm(np.vstack((em_upper, em_lower)) * dt)
 
     # Dispose of the lower rows
     ZOH = ZOH[:A.shape[0], :]
@@ -330,7 +328,7 @@ def zoh_affine(A, B, d, dt):
     :param dt: timestep duration, fixed
     :return: Discretized matrices with same input size
     """
-    B_ext = jnp.hstack((B, jnp.expand_dims(d, axis=-1)))
+    B_ext = np.hstack((B, np.expand_dims(d, axis=-1)))
     A_d, B_d_ext = zoh_linear(A, B_ext, dt)
     B_d = B_d_ext[:, :-1]
     d_d = B_d_ext[:, -1]  # last column
@@ -431,3 +429,31 @@ def np2arr(x):
     Converts from numpy array to python list
     """
     return x.flatten().tolist()
+
+def set_axes_equal(ax):
+    '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc..  This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+
+    Input
+      ax: a matplotlib axis, e.g., as output from plt.gca().
+    '''
+
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+
+    # The plot bounding box is a sphere in the sense of the infinity
+    # norm, hence I call half the max range the plot radius.
+    plot_radius = 0.5*max([x_range, y_range, z_range])
+
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])

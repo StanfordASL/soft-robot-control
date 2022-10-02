@@ -229,13 +229,13 @@ class LOCP:
         # Assuming a map from reduced-ordered state to performance variable (which we linearize)
         Qzfull = sp.csc_matrix(block_diag(*[self.Qz for j in range(self.N + 1)]))
         if self.nonlinear_observer:
-            cdfull = np.reshape(self.cd, ((self.N+1)*self.n_x,)) if isinstance(self.cd, list) else \
-                reshape(self.cd, ((self.N+1)*self.n_x,))
+            cdfull = np.reshape(self.cd, ((self.N+1)*self.n_z,)) if isinstance(self.cd, list) else \
+                reshape(self.cd, ((self.N+1)*self.n_z,))
 
             if self.warm_start:
                 Hfull = []
                 for j in range(self.N + 1):
-                    cur = [np.zeros((self.n_x, self.n_x))] * (self.N + 1)
+                    cur = [np.zeros((self.n_z, self.n_x))] * (self.N + 1)
                     cur[j] = self.Hd[j]
                     Hfull.append(cur)
                 Hfull = cp.bmat(Hfull)
@@ -249,7 +249,7 @@ class LOCP:
 
         # Add optional terminal cost
         if self.Qzf is not None:
-            J += cp.quad_form(self.H @ self.x[self.N * self.n_x:] - self.zf, self.Qzf)
+            J += cp.quad_form(self.H @ self.x[self.N * self.n_z:] - self.zf, self.Qzf)
 
         # Slack variables
         if self.tr_active:
@@ -310,12 +310,12 @@ class LOCP:
         # State constraints
         if self.X is not None:
             if self.nonlinear_observer:
-                cdfull = np.reshape(self.cd, ((self.N + 1) * self.n_x,)) if isinstance(self.cd, list) else \
-                    reshape(self.cd, ((self.N + 1) * self.n_x,))
+                cdfull = np.reshape(self.cd, ((self.N + 1) * self.n_z,)) if isinstance(self.cd, list) else \
+                    reshape(self.cd, ((self.N + 1) * self.n_z,))
                 if self.warm_start:
                     Hfull = []
                     for j in range(self.N):
-                        cur = [np.zeros((self.n_x, self.n_x))] * self.N
+                        cur = [np.zeros((self.n_z, self.n_x))] * self.N
                         cur[j] = self.Hd[j + 1]
                         Hfull.append(cur)
                     Hfull = cp.bmat(Hfull)
@@ -323,10 +323,10 @@ class LOCP:
                     Hfull = block_diag(*[self.Hd[j + 1] for j in range(self.N)])
 
                 # Take only last N of cdfull
-                cdfull = cdfull[self.n_x:]
+                cdfull = cdfull[self.n_z:]
                 XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
                 Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
-                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+                constr += [XAfull @ self.x[self.n_z:] <= Xbfull]
             else:
                 XAfull = block_diag(*[self.X.A for j in range(self.N)])
                 Xbfull = np.tile(self.X.b, self.N)

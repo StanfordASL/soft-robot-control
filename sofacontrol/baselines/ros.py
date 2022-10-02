@@ -2,7 +2,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from scipy.interpolate import interp1d
-from soft_robot_control_ros.srv import GuSTOsrv  # Uses same service as GuSTO
+from soft_robot_control_ros.srv import GuSTOsrv
 
 from sofacontrol.scp.locp import LOCP
 from sofacontrol.utils import arr2np, np2arr

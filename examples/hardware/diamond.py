@@ -222,8 +222,8 @@ def run_scp():
     prob.ControllerClass = ClosedLoopController
 
     # Specify a measurement and output model
-    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
@@ -239,7 +239,7 @@ def run_scp():
     # Set up an EKF observer
     dt_char = model.get_characteristic_dx(dt)
     W = np.diag(dt_char)
-    V = 0.0 * np.eye(model.get_meas_dim())
+    V = 0.1 * np.eye(model.get_meas_dim())
     EKF = DiscreteEKFObserver(model, W=W, V=V)
 
 
@@ -267,7 +267,7 @@ def run_scp():
 
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=1, observer=EKF, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=3)
 
     # Saving paths
     prob.opt['sim_duration'] = 13.
@@ -303,7 +303,7 @@ def run_gusto_solver():
     # t = np.linspace(0, M*T, M*N)
     # th = np.linspace(0, M * 2 * np.pi, M*N)
     # zf_target = np.zeros((M*N, model.output_dim))
-
+    #
     # zf_target[:, 3] = -15. * np.sin(th) - 7.1
     # zf_target[:, 4] = 15. * np.sin(2 * th)
 
@@ -358,12 +358,13 @@ def run_gusto_solver():
     x_target = np.zeros(M*N)
 
     # r = 15
-    # y_target = r * np.sin(2 * th)
-    # z_target = r - r * np.cos(2 * th) + 107.0
+    # y_target = r * np.sin(th)
+    # z_target = r - r * np.cos(th) + 107.0
 
-    r = 20
-    y_target = r * np.sin(17 * th)
-    z_target = r - r * np.cos(17 * th) + 107.0
+    r = 15
+    phi = 17
+    y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+    z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
 
     zf_target = np.zeros((M*N, 6))
     zf_target[:, 3] = x_target
@@ -374,13 +375,13 @@ def run_gusto_solver():
     # Cost
     R = .00001 * np.eye(4)
     Qz = np.zeros((6, 6))
-    Qz[3, 3] = 50.0  # corresponding to x position of end effector
+    Qz[3, 3] = 0.0  # corresponding to x position of end effector
     Qz[4, 4] = 100.0  # corresponding to y position of end effector
     Qz[5, 5] = 100.0  # corresponding to z position of end effector
 
     # Constraints
     low = 200.0
-    high = 5000.0
+    high = 2500.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
     X = None
 
@@ -388,13 +389,13 @@ def run_gusto_solver():
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
 
     # Define GuSTO model
-    dt = 0.02
+    dt = 0.1
     N = 3
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=5)
+                       max_gusto_iters=5, jit=False)
 
 def run_scp_OL():
     """

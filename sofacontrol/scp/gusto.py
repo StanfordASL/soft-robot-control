@@ -4,9 +4,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from matplotlib import pyplot as plt
+from functools import partial
 
 from sofacontrol.scp.locp import LOCP
-from functools import partial
 
 #### Default variables for GuSTO ####
 DELTA0 = 1e4  # trust region
@@ -138,6 +138,7 @@ class GuSTO:
                          nonlinear_observer=self.nonlinear_observer, **kwargs)
 
         # Solve SCP
+        self.jit = kwargs.pop('jit', True)
         self.max_gusto_iters = MAX_ITERS # let first solve take more time
         self.solve(x0, u_init, x_init, z, zf, u)
 
@@ -199,29 +200,6 @@ class GuSTO:
         else:
             return max_violation, True
 
-    # @partial(jax.jit, static_argnums=(0,))
-    # def compute_accuracy(self, x, u, x_curr, u_curr, J):
-    #     """
-    #     Assumes cost function is quadratic and cost function approximation is hence exact --> 0 error
-    #     Computes model accuracy of dynamics
-    #     """
-    #     error = 0
-    #     approx = 0
-    #     for i in range(x.shape[0] - 1):
-    #         # Get true dynamics at the current points
-    #         fk, Ak, Bk = self.model.get_continuous_dynamics(x_curr[i, :], u_curr[i, :])
-    #
-    #         # Get dynamics at the potential new solution
-    #         f, _, _ = self.model.get_continuous_dynamics(x[i, :], u[i, :])
-    #
-    #         # Compute approximation of f(x,u) via Taylor expansion about (xk, uk)
-    #         f_approx = fk + Ak @ (x[i, :] - x_curr[i, :]) + Bk @ (u[i, :] - u_curr[i, :])
-    #         error += self.dt * jnp.linalg.norm(jnp.multiply(self.f_scale, f - f_approx), 2)
-    #         approx += self.dt * jnp.linalg.norm(jnp.multiply(self.f_scale, f_approx), 2)
-    #
-    #     rho_k = error / (J + approx)
-    #     return rho_k
-
     def compute_accuracy(self, x, u, J):
         """
         Assumes cost function is quadratic and cost function approximation is hence exact --> 0 error
@@ -244,7 +222,6 @@ class GuSTO:
         rho_k = error / (J + approx)
         return rho_k
 
-    @partial(jax.jit, static_argnums=(0,))
     def get_traj_dynamics(self, x, u):
         """
         Return the affine dynamics of each point along trajectory in a list
@@ -260,8 +237,37 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
-    @partial(jax.jit, static_argnums=(0,))
     def get_observer_linearizations(self, x, u):
+        """
+        Return the affine observer mappings at each point along trajectory in a list
+        """
+        H_d = []
+        c_d = []
+        for i in range(x.shape[0]):
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt)
+            H_d.append(H_d_i)
+            c_d.append(c_d_i)
+
+        return H_d, c_d
+
+    @partial(jax.jit, static_argnums=(0,))
+    def get_traj_dynamics_jit(self, x, u):
+        """
+        Return the affine dynamics of each point along trajectory in a list
+        """
+        A_d = []
+        B_d = []
+        d_d = []
+        for i in range(x.shape[0] - 1):
+            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt)
+            A_d.append(A_d_i)
+            B_d.append(B_d_i)
+            d_d.append(d_d_i)
+
+        return A_d, B_d, d_d
+
+    @partial(jax.jit, static_argnums=(0,))
+    def get_observer_linearizations_jit(self, x, u):
         """
         Return the affine observer mappings at each point along trajectory in a list
         """
@@ -290,10 +296,18 @@ class GuSTO:
         itr = 0
         self.u_k = u_init
         self.x_k = x_init
-        A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
+
+        # Grab Jacobians for first solve
+        if self.jit:
+            A_d, B_d, d_d = self.get_traj_dynamics_jit(self.x_k, self.u_k)
+        else:
+            A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
 
         if self.nonlinear_observer:
-            H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+            if self.jit:
+                H_d, c_d = self.get_observer_linearizations_jit(self.x_k, self.u_k)
+            else:
+                H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
         else:
             H_d, c_d = None, None
 
@@ -441,15 +455,20 @@ class GuSTO:
                 plt.show()
 
             # If valid solution, update and recompute dynamics
-            # TODO: Did not update observer jacobians in previous code :(
             if new_solution:
                 self.x_k = x_next.copy()
                 self.u_k = u_next.copy()
                 if self.max_gusto_iters >= 1:
-                    A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
+                    if self.jit:
+                        A_d, B_d, d_d = self.get_traj_dynamics_jit(self.x_k, self.u_k)
+                    else:
+                        A_d, B_d, d_d = self.get_traj_dynamics(self.x_k, self.u_k)
 
                     if self.nonlinear_observer:
-                        H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+                        if self.jit:
+                            H_d, c_d = self.get_observer_linearizations_jit(self.x_k, self.u_k)
+                        else:
+                            H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
                     else:
                         H_d, c_d = None, None
 

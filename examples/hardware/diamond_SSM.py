@@ -21,25 +21,11 @@ TIP_NODE = 1354
 def module_test_continuous():
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.SSM import ssm
-    from sofacontrol.measurement_models import MeasurementModel
-    from sofacontrol.SSM.controllers import scp
-    from sofacontrol.utils import QuadraticCost
     from sofacontrol.utils import load_data, qv2x, x2qv
     from sofacontrol.measurement_models import linearModel
-
-    # Load SSM Models
-    # Continuous time models
-    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3_cont import diamond_softrobot_Bmat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_C_O3_cont import diamond_softrobot_C_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_W_O3_cont import diamond_softrobot_W_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3_cont import diamond_softrobot_f_reduced_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Hmat_O3_cont import diamond_softrobot_Hmat_O3_cont
+    from scipy.io import loadmat
 
     dt = 0.01
-    prob = Problem()
-    prob.Robot = diamondRobot(dt=dt)
-    prob.ControllerClass = ClosedLoopController
 
     # 1) Setup model: Grab equilibrium point (x then z)
     rest_file = join(path, 'rest_qv.pkl')
@@ -50,37 +36,16 @@ def module_test_continuous():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    # Setup the (continuous) maps:
-    # TODO: Automate generation of this via symbolic and differentiation
-    maps = dict()
-    maps['A'] = diamond_softrobot_Amat_O3_cont
-    maps['B'] = diamond_softrobot_Bmat_O3_cont
-    maps['C'] = diamond_softrobot_C_O3_cont
-    maps['W'] = diamond_softrobot_W_O3_cont
-    maps['H'] = diamond_softrobot_Hmat_O3_cont
-    maps['f_nl'] = diamond_softrobot_f_reduced_O3_cont
+    pathToModel = path + '/SSMmodels/'
+    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
 
-    n, m, o = 6, 4, 6
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be')
+    model = ssm.SSMDynamics(z_eq_point, discrete=True, discr_method='be',
+                            model=raw_model, params=raw_params)
+    n = raw_model['state_dim'][0, 0][0, 0]
 
-    # 2) Test various functions here (compute_RO_state, get_ref_point, get_jacobians (check assertion and subfunctions)
-    # update_state, update_dynamics). Test functions by perturbing z_ref slightly
-    p0 = np.ones((n, 1))
-    z0 = np.ones((o, 1))
-    u0 = np.ones((m, 1))
-    p_test = model.compute_RO_state(z0)
-    z_ref = model.get_ref_point()
-    A_d, B_d, d_d = model.get_jacobians(p0, u=u0, dt=dt)
-    H, c = model.get_observer_jacobians(p0)
-    assert(p_test == maps['W'](z0 - z_eq_point)).all(), 'Something wrong with observed to reduced state map'
-    assert(H == maps['H'](p0)).all(), 'Something wrong with observer jacobian'
-
-    x_next = model.update_state(p0, u0, dt)
-    x_next_true = p0 + dt*maps['f_nl'](p0, u0)
-    # assert (np.round(x_next,4) == np.round(np.squeeze(x_next_true),4)).all(), 'Update state result does not match discrete transition map'
-
-
-    # 3) Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
+    # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
     # with true response of system (need to extract z from simulation and load here). Plot comparison
 
     # Load files to run tests
@@ -118,23 +83,9 @@ def module_test_continuous():
 def module_test():
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.SSM import ssm
-    from sofacontrol.measurement_models import MeasurementModel
-    from sofacontrol.SSM.controllers import scp
-    from sofacontrol.utils import QuadraticCost
     from sofacontrol.utils import load_data, qv2x, x2qv
     from sofacontrol.measurement_models import linearModel
-
-    # Load SSM Models
-    # Discrete time models (dt = 0.001)
-    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3_cont import diamond_softrobot_Bmat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_C_O3_cont import diamond_softrobot_C_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_W_O3_cont import diamond_softrobot_W_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3_cont import diamond_softrobot_f_reduced_O3_cont
-
-    prob = Problem()
-    prob.Robot = diamondRobot()
-    prob.ControllerClass = ClosedLoopController
+    from scipy.io import loadmat
 
     # 1) Setup model
     rest_file = join(path, 'rest_qv.pkl')
@@ -145,36 +96,18 @@ def module_test():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    # Setup the (continuous) maps:
-    # TODO: Automate generation of this via symbolic and differentiation
-    maps = dict()
-    maps['A_d'] = diamond_softrobot_Amat_O3_cont
-    maps['B_d'] = diamond_softrobot_Bmat_O3_cont
-    maps['C'] = diamond_softrobot_C_O3_cont
-    maps['W'] = diamond_softrobot_W_O3_cont
-    maps['f_nl_d'] = diamond_softrobot_f_reduced_O3_cont
+    pathToModel = path + '/SSMmodels/'
+    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
 
-    n, m, o = 6, 4, 6
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=True)
-
-    # 2) Test various functions here (compute_RO_state, get_ref_point, get_jacobians (check assertion and subfunctions)
-    # update_state, update_dynamics). Test functions by perturbing z_ref slightly
-    p0 = np.ones((n, 1))
-    z0 = np.ones((o, 1))
-    u0 = np.ones((m, 1))
-    p_test = model.compute_RO_state(z0)
-    z_ref = model.get_ref_point()
-    A_d, B_d, d_d = model.get_jacobians(p0, u=u0)
-    assert (A_d == maps['A_d'](p0)).all() and (B_d == maps['B_d'](u0)).all(), 'Maps do not agree. Something wrong with Jacobian function'
-    assert(p_test == maps['W'](z0 - z_eq_point)).all(), 'Something wrong with observed to reduced state map'
-
-    dt = 0.001
-    x_next = model.update_state(p0, u0, dt)
-    x_next_true = maps['f_nl_d'](p0, u0)
-    assert (x_next == np.squeeze(x_next_true)).all(), 'Update state result does not match discrete transition map'
+    n = raw_params['state_dim'][0, 0][0, 0]
+    model = ssm.SSMDynamics(z_eq_point, discrete=True, discr_method='be',
+                            model=raw_model, params=raw_params)
+    dt = 0.01
 
 
-    # 3) Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
+    # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
     # with true response of system (need to extract z from simulation and load here). Plot comparison
 
     # Load files to run tests
@@ -191,7 +124,7 @@ def module_test():
     t_interp = np.linspace(0, T, N+1)
     u_interp = interp1d(t_original, u_true, axis=0)(t_interp)
     p0 = np.zeros((n,))
-    p_traj, z_traj, _ = model.rollout(p0, u_interp, dt)
+    p_traj, z_traj = model.rollout(p0, u_interp, dt)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -206,7 +139,6 @@ def module_test():
     print('Ours (SSM): {}'.format(SSM_RMSE))
     plt.show()
 
-    print('Testing rollout functions')
 
 
 def run_scp():
@@ -228,15 +160,6 @@ def run_scp():
     from sofacontrol.SSM.controllers import scp
     from scipy.io import loadmat
 
-    # Load SSM Models
-    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3_cont import diamond_softrobot_Bmat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_C_O3_cont import diamond_softrobot_C_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_W_O3_cont import diamond_softrobot_W_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3_cont import diamond_softrobot_f_reduced_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Hmat_O3_cont import diamond_softrobot_Hmat_O3_cont
-
-    n, m, o = 6, 4, 6
     prob = Problem()
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
@@ -251,31 +174,23 @@ def run_scp():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    maps = dict()
-    maps['A'] = diamond_softrobot_Amat_O3_cont
-    maps['B'] = diamond_softrobot_Bmat_O3_cont
-    maps['C'] = diamond_softrobot_C_O3_cont
-    maps['H'] = diamond_softrobot_Hmat_O3_cont
-    maps['W'] = diamond_softrobot_W_O3_cont
-    maps['f_nl'] = diamond_softrobot_f_reduced_O3_cont
-
     # TODO: Loading SSM model from Matlab
     pathToModel = path + '/SSMmodels/'
     SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be',
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
                             model=raw_model, params=raw_params)
 
     # Specify a measurement and output model
-    cov_q = 0.0 * np.eye(3)
-    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.1 * np.eye(3)
+    cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
     # This dt for when to recalculate control
-    dt = 0.04
+    dt = 0.02
 
     ##############################################
     # Problem 1, Figure 8 with constraints
@@ -293,14 +208,14 @@ def run_scp():
     ##############################################
     # cost = QuadraticCost()
     # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 50.0  # corresponding to x position of end effector
+    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
     # Qz[1, 1] = 100.0  # corresponding to y position of end effector
     # Qz[2, 2] = 100.0  # corresponding to z position of end effector
     # cost.Q = model.H.T @ Qz @ model.H
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=1, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=2, delay=3)
 
     # Saving paths
     prob.opt['sim_duration'] = 13.
@@ -317,20 +232,11 @@ def run_gusto_solver():
     from sofacontrol.scp.models.ssm import SSMGuSTO
     from sofacontrol.measurement_models import linearModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
-    from sofacontrol.utils import HyperRectangle, load_data, qv2x
+    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron
     from sofacontrol.SSM import ssm
     from scipy.io import loadmat
 
-    # Load SSM Models
-    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3_cont import diamond_softrobot_Bmat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_C_O3_cont import diamond_softrobot_C_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_W_O3_cont import diamond_softrobot_W_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3_cont import diamond_softrobot_f_reduced_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Hmat_O3_cont import diamond_softrobot_Hmat_O3_cont
-
-    # Load and configure the SSM model from data saved
-    n, m, o = 6, 4, 6
+    # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
@@ -340,21 +246,13 @@ def run_gusto_solver():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    maps = dict()
-    maps['A'] = diamond_softrobot_Amat_O3_cont
-    maps['B'] = diamond_softrobot_Bmat_O3_cont
-    maps['C'] = diamond_softrobot_C_O3_cont
-    maps['H'] = diamond_softrobot_Hmat_O3_cont
-    maps['W'] = diamond_softrobot_W_O3_cont
-    maps['f_nl'] = diamond_softrobot_f_reduced_O3_cont
-
-    #TODO: Loading SSM model from Matlab
+    # Loading SSM model from Matlab
     pathToModel = path + '/SSMmodels/'
     SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be',
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
                             model=raw_model, params=raw_params)
 
     # Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
@@ -364,28 +262,29 @@ def run_gusto_solver():
     # Problem 1, Figure 8 with constraints
     #############################################
     # Define cost functions and trajectory
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100  # corresponding to x position of end effector
-    Qz[1, 1] = 100  # corresponding to y position of end effector
-    Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100  # corresponding to x position of end effector
+    # Qz[1, 1] = 100  # corresponding to y position of end effector
+    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
 
     #### Define Target Trajectory ####
-    M = 3
-    T = 10
-    N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    zf_target = np.zeros((M * N, model.output_dim))
+    # M = 3
+    # T = 10
+    # N = 1000
+    # t = np.linspace(0, M * T, M * N)
+    # th = np.linspace(0, M * 2 * np.pi, M * N)
+    # zf_target = np.zeros((M * N, model.output_dim))
+    #
+    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(2 * th)
+
     # # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
 
-    zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    zf_target[:, 1] = 15. * np.sin(2 * th)
+    # zf_target[:, 0] = -35. * np.sin(th) - 7.1
+    # zf_target[:, 1] = 35. * np.sin(2 * th)
 
-    # # zf_target[:, 0] = -40. * np.sin(th) - 7.1
-    # # zf_target[:, 1] = 40. * np.sin(2 * th)
-    #
     # # zf_target[:, 0] = -5. * np.sin(th) - 7.1
     # # zf_target[:, 1] = 5. * np.sin(2 * th)
     #
@@ -395,44 +294,49 @@ def run_gusto_solver():
     # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
     # zf_target[:, 1] = 15. * np.sin(16 * th)
 
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
-    # M = 3
-    # T = 5
-    # N = 1000
-    # t = np.linspace(0, M * T, M * N)
-    # th = np.linspace(0, M * 2 * np.pi, M * N)
-    # x_target = np.zeros(M * N)
-    #
-    # r = 15
-    # y_target = r * np.sin(2 * th)
-    # z_target = r - r * np.cos(2 * th) + 107.0
-    #
-    # # r = 20
-    # # y_target = r * np.sin(17 * th)
-    # # z_target = r - r * np.cos(17 * th) + 107.0
-    #
-    # zf_target = np.zeros((M * N, 6))
-    # zf_target[:, 0] = x_target
-    # zf_target[:, 1] = y_target
-    # zf_target[:, 2] = z_target
-    #
-    # # Cost
-    # R = .00001 * np.eye(4)
-    # Qz = np.zeros((6, 6))
-    # Qz[0, 0] = 50.0  # corresponding to x position of end effector
-    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    #####################################################
+    # Problem 2, Circle on side (2pi/T = frequency rad/s)
+    #####################################################
+    # Multiply 'th' in sine terms to factor rad/s frequency
+    M = 3
+    T = 5.
+    N = 1000
+    t = np.linspace(0, M * T, M * N)
+    th = np.linspace(0, M * 2 * np.pi, M * N)
+    x_target = np.zeros(M * N)
 
-    # z = zf_target
+    # r = 15
+    # y_target = r * np.sin(th)
+    # z_target = r - r * np.cos(th) + 107.0
+
+    r = 15
+    phi = 17
+    y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+    z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+
+    zf_target = np.zeros((M * N, 6))
+    zf_target[:, 0] = x_target
+    zf_target[:, 1] = y_target
+    zf_target[:, 2] = z_target
+
+    # Cost
+    R = .00001 * np.eye(4)
+    Qz = np.zeros((6, 6))
+    Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+
     z = model.zfyf_to_zy(zf=zf_target)
-    #
-    # # Control constraints
+
+    # Control constraints
     low = 200.0
-    high = 5000.0
+    high = 2500.0
     # high = 1500.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
+
+    # Control change constraints
+    # dU_max = 100
+    # dU = HyperRectangle([dU_max, dU_max, dU_max, dU_max], [-dU_max, -dU_max, -dU_max, -dU_max])
 
     # State constraints (q,v format)
     # Hz = np.zeros((1, 6))
@@ -447,14 +351,15 @@ def run_gusto_solver():
     x0 = model.compute_RO_state(model.z_ref)
 
     # Define GuSTO model (dt here is discretization of model)
-    dt = 0.04
-    N = 2
+    dt = 0.02
+    N = 3
     gusto_model = SSMGuSTO(model)
 
     # TODO: For some odd reason, GUROBI is slower than OSQP
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                       verbose=1, warm_start=True, convg_thresh=0.001, solver='OSQP',
-                       max_gusto_iters=0, input_nullspace=None)
+                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
+                       max_gusto_iters=0, input_nullspace=None, dU=None)
+
 
 def run_scp_OL():
     """
@@ -474,17 +379,8 @@ def run_scp_OL():
     from sofacontrol.utils import HyperRectangle, vq2qv, x2qv, load_data, qv2x
     from sofacontrol.SSM import ssm
 
-    # Load SSM Models
-    from examples.hardware.SSMmodels.diamond_softrobot_Amat_O3_cont import diamond_softrobot_Amat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Bmat_O3_cont import diamond_softrobot_Bmat_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_C_O3_cont import diamond_softrobot_C_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_W_O3_cont import diamond_softrobot_W_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_f_reduced_O3_cont import diamond_softrobot_f_reduced_O3_cont
-    from examples.hardware.SSMmodels.diamond_softrobot_Hmat_O3_cont import diamond_softrobot_Hmat_O3_cont
-
     t0 = 3.0
     dt = 0.05
-    n, m, o = 6, 4, 6
     prob = Problem()
     prob.Robot = diamondRobot(dt=0.01)
     prob.ControllerClass = OpenLoopController
@@ -512,15 +408,7 @@ def run_scp_OL():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    maps = dict()
-    maps['A'] = diamond_softrobot_Amat_O3_cont
-    maps['B'] = diamond_softrobot_Bmat_O3_cont
-    maps['C'] = diamond_softrobot_C_O3_cont
-    maps['H'] = diamond_softrobot_Hmat_O3_cont
-    maps['W'] = diamond_softrobot_W_O3_cont
-    maps['f_nl'] = diamond_softrobot_f_reduced_O3_cont
-
-    model = ssm.SSMDynamics(z_eq_point, maps, n, m, o, discrete=False, discr_method='be')
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be')
 
     # Define cost functions and trajectory
     Qz = np.zeros((model.output_dim, model.output_dim))

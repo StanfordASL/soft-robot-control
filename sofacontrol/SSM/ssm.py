@@ -21,42 +21,45 @@ class SSM:
     forward simulate the dynamics (i.e. perform rollout)
     """
 
-    def __init__(self, eq_point, maps, n, m, o, discrete=False, discr_method='fe', **kwargs):
-
-        # TODO: Using code gen from matlab for manifold maps, temporarily
-        self.maps = maps
-        # Map from reduced to observable space
-        self.C_map = self.maps['C']
-        # Map from observable to reduced coordinates
-        self.W_map = self.maps['W']
+    def __init__(self, eq_point, discrete=False, discr_method='fe', **kwargs):
+        self.maps = {}
 
         self.discrete = discrete
         self.discr_method = discr_method
 
-        # Get state and input dimensions
-        self.state_dim = n
-        self.input_dim = m
-        self.output_dim = o
-
-        # TODO: Testing functionality
-        self.poly_order = 3 #TODO: Hardcoded
-        self.phi = self.get_poly_basis()
         self.model = kwargs.pop('model', None)
         self.params = kwargs.pop('params', None)
+
+        self.state_dim = self.params['state_dim'][0, 0][0, 0]
+        self.input_dim = self.params['input_dim'][0, 0][0, 0]
+        self.output_dim = self.params['output_dim'][0, 0][0, 0]
+        self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
+        self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
+        self.Ts = self.model['Ts'][0, 0][0, 0]
+        self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
+        self.ssm_phi = self.get_poly_basis(self.output_dim, self.SSM_order)
+
+        # Continuous-time model
         self.w_coeff = self.model['w_coeff'][0, 0] #reduced to observed
         self.v_coeff = self.model['v_coeff'][0, 0] #observed to reduced
         self.r_coeff = self.model['r_coeff'][0, 0] #reduced coefficients
         self.B_r = self.model['B'][0, 0] #reduced control matrix
 
-        self.state_dim = self.params['state_dim'][0, 0][0, 0]
-        self.input_dim = self.params['input_dim'][0, 0][0, 0]
-        self.output_dim = self.params['output_dim'][0, 0][0, 0]
+        # Discrete-time model
+        # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
+        self.rd_coeff = self.model['rd_coeff'][0, 0]  # reduced coefficients
+        self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
 
-        # These are jitted functions
+        # Manifold parametrization
         self.C_map = self.reduced_to_observed
         self.W_map = self.observed_to_reduced
+
+        # Continuous reduced dynamics
         self.maps['f_nl'] = self.reduced_dynamics
 
+        # Discrete reduced dynamics
+        if self.discrete:
+            self.maps['f_nl_d'] = self.reduced_dynamics_discrete
 
         # Set reference equilibrium point
         self.z_ref = eq_point
@@ -73,10 +76,6 @@ class SSM:
     def update_state(self, x, u, dt):
         raise NotImplementedError("update_state must be overriden by a child class")
 
-    # def get_jacobians(self, x, dt=None):
-    #     raise NotImplementedError("get_jacobians must be overriden by a child class")
-
-    # TODO: Testing Jax capes
     def get_jacobians(self, x, u, dt):
         raise NotImplementedError("get_jacobians must be overriden by a child class")
 
@@ -156,28 +155,34 @@ class SSM:
 
         return x, z
 
-    def get_poly_basis(self):
-        zeta = sp.Matrix(sp.symbols('x1:{}'.format(self.state_dim + 1)))
-        polynoms = sorted(itermonomials(list(zeta), self.poly_order),
+    def get_poly_basis(self, dim, order):
+        zeta = sp.Matrix(sp.symbols('x1:{}'.format(dim + 1)))
+        polynoms = sorted(itermonomials(list(zeta), order),
                           key=monomial_key('grevlex', list(reversed(zeta))))
 
         polynoms = polynoms[1:]
         return sp.lambdify(zeta, polynoms, modules=[jnp, jsp.special])
 
+    # Continuous maps
     def reduced_dynamics(self, x, u):
-        return jnp.dot(self.r_coeff, jnp.asarray(self.phi(*x))) + jnp.dot(self.B_r, u)
+        return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u)
 
     def reduced_to_observed(self, x):
-        return jnp.dot(self.w_coeff, jnp.asarray(self.phi(*x)))
+        return jnp.dot(self.w_coeff, jnp.asarray(self.ssm_phi(*x)))
 
     def observed_to_reduced(self, z):
-        return jnp.dot(self.v_coeff, jnp.asarray(self.phi(*z)))
+        return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*z)))
+
+    # Discrete Map
+    def reduced_dynamics_discrete(self, x, u):
+        return jnp.dot(self.rd_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.Bd_r, u)
+
 
 class SSMDynamics(SSM):
     """
     """
-    def __init__(self, eq_point, maps, n, m, o, discrete=False, discr_method='fe', **kwargs):
-        super(SSMDynamics, self).__init__(eq_point, maps, n, m, o, discrete=discrete, discr_method=discr_method, **kwargs)
+    def __init__(self, eq_point, discrete=False, discr_method='fe', **kwargs):
+        super(SSMDynamics, self).__init__(eq_point, discrete=discrete, discr_method=discr_method, **kwargs)
 
     def update_state(self, x, u, dt):
         """
@@ -198,14 +203,24 @@ class SSMDynamics(SSM):
         d = self.maps['f_nl'](x, u) - jnp.dot(A, x) - jnp.dot(B, u)
         return A, B, d
 
+    @partial(jax.jit, static_argnums=(0,))
+    def get_discrete_jacobians(self,
+                               x: jnp.ndarray,
+                               u: jnp.ndarray):
+        A, B = jax.jacobian(self.maps['f_nl_d'], (0, 1))(x, u)
+        d = self.maps['f_nl_d'](x, u) - jnp.dot(A, x) - jnp.dot(B, u)
+        return A, B, d
+
     # TODO: Testing jax components
     @partial(jax.jit, static_argnums=(0,))
     def get_jacobians(self, x, u, dt):
         # x = x.reshape(self.state_dim, 1)
         # u = u.reshape(self.input_dim, 1)
-
-        Ac, Bc, dc = self.get_continuous_jacobians(jnp.asarray(x), jnp.asarray(u))
-        A, B, d = self.discretize_dynamics(Ac, Bc, dc, dt)
+        if not self.discrete:
+            Ac, Bc, dc = self.get_continuous_jacobians(jnp.asarray(x), jnp.asarray(u))
+            A, B, d = self.discretize_dynamics(Ac, Bc, dc, dt)
+        else:
+            A, B, d = self.get_discrete_jacobians(jnp.asarray(x), jnp.asarray(u))
 
         return A, B, d
 
@@ -279,9 +294,6 @@ class SSMDynamics(SSM):
             sep_term = jnp.dot(jnp.linalg.inv(A_c), (A_d - jnp.eye(A_c.shape[0])))
             B_d = jnp.dot(sep_term, B_c)
             d_d = jnp.dot(sep_term, d_c)
-
-        elif self.discr_method == 'zoh':
-            A_d, B_d, d_d = scutils.zoh_affine(A_c, B_c, d_c, dt)
 
         else:
             raise RuntimeError('self.discr_method must be in [fe, be, bil, zoh]')
