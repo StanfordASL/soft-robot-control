@@ -156,6 +156,7 @@ class KoopmanMPC(TemplateController):
         else:
             # Updating controller (self.u) and/or policy (if first step or receding horizon)
             if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to
+                # Gets lifted Koopman state based on current/past measurements
                 zeta_belief = self.data.get_zeta()
 
                 if self.recompute_policy(self.t_compute):

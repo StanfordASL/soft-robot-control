@@ -96,6 +96,10 @@ class TemplateController(closed_loop_controller.TemplateController):
         if self.Y is not None and not self.Y.contains(y):
             y = self.Y.project_to_polyhedron(y)
 
+        # TODO: Add cape to keep track of measurement data in utils
+        # self.data.add_measurement(y, u_prev)
+
+        # Update observer with current measurement
         self.observer.update(None, y, None)
 
         # Startup portion of controller, before OCP controller is activated
@@ -106,6 +110,8 @@ class TemplateController(closed_loop_controller.TemplateController):
         else:
             # Updating controller (self.u) and/or policy (if first step or receding horizon)
             if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to 0
+                # TODO: Add lifting function to get delay embeddings (i.e., coordinatesEmbeddingControl)
+
                 if self.recompute_policy(self.t_compute):
                     self.compute_policy(self.t_compute, self.observer.x)
 
