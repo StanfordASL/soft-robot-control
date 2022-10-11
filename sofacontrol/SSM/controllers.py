@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
+from sofacontrol.SSM.SSM_utils import SSMData
 from sofacontrol import closed_loop_controller
 from sofacontrol import open_loop_controller
 from sofacontrol.scp.ros import GuSTOClientNode
@@ -34,6 +35,8 @@ class TemplateController(closed_loop_controller.TemplateController):
 
         # Define observer
         self.observer = SSMObserver(dyn_sys)
+
+        self.data = SSMData(self.dyn_sys.delays, self.dyn_sys.y_ref)
 
         self.t_delay = delay
         if u0 is not None:
@@ -85,7 +88,7 @@ class TemplateController(closed_loop_controller.TemplateController):
         """
         Update observer at each step of simulation (each function call). Updates controller at controller frequency
         :param time: Time in the simulation [s]
-        :param z: Measurement at time
+        :param y: Measurement at current time - passed in (v,q) format (raw and uncentered)
         :param x: Full order state at time. Only used at start of control if using an observer, for initialization
         """
 
@@ -93,14 +96,15 @@ class TemplateController(closed_loop_controller.TemplateController):
         # step self.u is set to self.u0 automatically in __init__
         sim_time = round(sim_time, 4)
 
+        # TODO: Hardcoded for now, but basically, if y doesn't include velocities, then don't flip
+        # Also assumes that we're only measuring the tip. Definitely modify this later
+        if y.size > 3:
+            y = vq2qv(y)
         if self.Y is not None and not self.Y.contains(y):
             y = self.Y.project_to_polyhedron(y)
 
-        # TODO: Add cape to keep track of measurement data in utils
-        # self.data.add_measurement(y, u_prev)
-
-        # Update observer with current measurement
-        self.observer.update(None, y, None)
+        # Store current observations for delay embedding ()
+        self.data.add_measurement(y, u_prev)
 
         # Startup portion of controller, before OCP controller is activated
         if round(sim_time, 4) < round(self.t_delay, 4):
@@ -109,8 +113,13 @@ class TemplateController(closed_loop_controller.TemplateController):
         # Optimal controller is active
         else:
             # Updating controller (self.u) and/or policy (if first step or receding horizon)
+            # Note: waiting to start simulation allows us to also populate the history to satisfy time-delay reqs
             if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to 0
                 # TODO: Add lifting function to get delay embeddings (i.e., coordinatesEmbeddingControl)
+                y_belief = self.data.get_y_delay()
+
+                # TODO: Update observer value based on past measurements (set to current measurements for now)
+                self.observer.update(None, y_belief, None)
 
                 if self.recompute_policy(self.t_compute):
                     self.compute_policy(self.t_compute, self.observer.x)
@@ -306,5 +315,8 @@ class SSMObserver:
         self.dyn_sys = dyn_sys
 
     def update(self, u, y, dt, x=None):
-        self.z = vq2qv(y)
-        self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
+        #self.z = vq2qv(y)
+        #self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
+
+        # Assumes y has been centered
+        self.x = self.dyn_sys.V_map(y)

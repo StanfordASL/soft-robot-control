@@ -358,4 +358,7 @@ class SSMDynamics(SSM):
         :param zf: position and velocity of observed state
         :return: Reduced order vector
         """
-        return self.V_map(y - self.y_ref)
+        if self.delays == 0:
+            return self.V_map(y - self.y_ref)
+        else:
+            return np.transpose(self.V) @ (y - self.y_ref)
