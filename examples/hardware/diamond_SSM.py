@@ -22,7 +22,7 @@ def module_test_continuous():
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.SSM import ssm
     from sofacontrol.utils import load_data, qv2x, x2qv
-    from sofacontrol.measurement_models import linearModel
+    from sofacontrol.measurement_models import linearModel, OutputModel
     from scipy.io import loadmat
 
     dt = 0.01
@@ -33,17 +33,22 @@ def module_test_continuous():
     qv_equilibrium = np.array(rest_data['rest'])
 
     x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-    outputModel = linearModel([TIP_NODE], 1628)
-    z_eq_point = outputModel.evaluate(x_eq, qv=True)
+    #outputModel = linearModel([TIP_NODE], 1628)
+    outputModel = linearModel([TIP_NODE], 1628, vel=False)
+
+    # TODO: This evaluation is a mess - qv option fails terribly if observation is only position (i.e., 3 dim)
+    z_eq_point = outputModel.evaluate(x_eq, qv=False)
 
     pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    #SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
-    model = ssm.SSMDynamics(z_eq_point, discrete=True, discr_method='be',
-                            model=raw_model, params=raw_params)
-    n = raw_model['state_dim'][0, 0][0, 0]
+    outputSSMModel = OutputModel(15, 3)
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params, C=outputSSMModel.C)
+    n = raw_params['state_dim'][0, 0][0, 0]
 
     # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
     # with true response of system (need to extract z from simulation and load here). Plot comparison
@@ -72,7 +77,8 @@ def module_test_continuous():
     plt.title('SSM Open Loop Trajectory')
 
     z_true_qv = interp1d(t_original, np.hstack((zq_true, zv_true)), axis=0)(t_interp)
-    err_SSM = z_true_qv - z_traj[:-1]
+    #err_SSM = z_true_qv - z_traj[:-1]
+    err_SSM = z_true_qv[:, 0:3] - z_traj[:-1]
     SSM_RMSE = np.linalg.norm(np.linalg.norm(err_SSM, axis=1))**2 / err_SSM.shape[0]
     print('------ Mean Squared Errors (MSEs)----------')
     print('Ours (SSM): {}'.format(SSM_RMSE))
@@ -154,7 +160,7 @@ def run_scp():
      """
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.measurement_models import MeasurementModel
-    from sofacontrol.measurement_models import linearModel
+    from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron
     from sofacontrol.SSM import ssm
     from sofacontrol.SSM.controllers import scp
@@ -164,30 +170,45 @@ def run_scp():
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
-    # Load and configure the SSM model from data saved
+    useTimeDelay = False
+
+    # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
 
-    # Setup equilibrium point
-    x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-    outputModel = linearModel([TIP_NODE], 1628)
-    z_eq_point = outputModel.evaluate(x_eq, qv=True)
-
-    # TODO: Loading SSM model from Matlab
+    # Set directory for SSM Models
     pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params)
 
     # Specify a measurement and output model
     cov_q = 0.1 * np.eye(3)
     cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
+
+    # Setup equilibrium point (no time delay and observed position and velocity of tip)
+    x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
+    if useTimeDelay:
+        outputModel = linearModel([TIP_NODE], 1628, vel=False)
+        z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q,
+                                                  S_v=cov_v)
+        outputSSMModel = OutputModel(15, 3)
+        Cout = outputSSMModel.C
+    else:
+        outputModel = linearModel([TIP_NODE], 1628)
+        z_eq_point = outputModel.evaluate(x_eq, qv=True)
+        SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
+                                                  S_v=cov_v)
+        Cout = None
+
+    # Loading SSM model from Matlab
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
+
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params, C=Cout)
 
     # This dt for when to recalculate control
     dt = 0.02
@@ -230,30 +251,42 @@ def run_gusto_solver():
     python3 diamond.py run_gusto_solver
     """
     from sofacontrol.scp.models.ssm import SSMGuSTO
-    from sofacontrol.measurement_models import linearModel
+    from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron
     from sofacontrol.SSM import ssm
     from scipy.io import loadmat
+
+    useTimeDelay = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
 
-    # Setup equilibrium point
+    # Set directory for SSM Models
+    pathToModel = path + '/SSMmodels/'
+
+    # Setup equilibrium point (no time delay and observed position and velocity of tip)
     x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-    outputModel = linearModel([TIP_NODE], 1628)
-    z_eq_point = outputModel.evaluate(x_eq, qv=True)
+    if useTimeDelay:
+        outputModel = linearModel([TIP_NODE], 1628, vel=False)
+        z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
+        outputSSMModel = OutputModel(15, 3)
+        Cout = outputSSMModel.C
+    else:
+        outputModel = linearModel([TIP_NODE], 1628)
+        z_eq_point = outputModel.evaluate(x_eq, qv=True)
+        SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+        Cout = None
 
     # Loading SSM model from Matlab
-    pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
     model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params)
+                            model=raw_model, params=raw_params, C=Cout)
 
     # Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
     # V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])

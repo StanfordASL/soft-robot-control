@@ -36,12 +36,12 @@ class SSM:
         self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
         self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
         self.Ts = self.model['Ts'][0, 0][0, 0]
-        self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
-        self.ssm_phi = self.get_poly_basis(self.output_dim, self.SSM_order)
-
         # TODO: This is new
         self.delays = self.params['delays'][0, 0][0, 0]
         self.obs_dim = self.params['obs_dim'][0, 0][0, 0]
+
+        self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
+        self.ssm_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
 
         # Observation model
         if C is not None:
@@ -54,14 +54,19 @@ class SSM:
         # Continuous-time model
         self.V = self.model['V'][0, 0] # Tangent space TODO: this is new
         self.w_coeff = self.model['w_coeff'][0, 0] # reduced to observed
-        self.v_coeff = self.model['v_coeff'][0, 0] # observed to reduced
+
+        self.v_coeff = self.model['v_coeff'][0, 0]  # observed to reduced
+        if len(self.v_coeff) == 0:
+            self.v_coeff = None
+
         self.r_coeff = self.model['r_coeff'][0, 0] # reduced coefficients
         self.B_r = self.model['B'][0, 0] #reduced control matrix
 
         # Discrete-time model
         # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
-        self.rd_coeff = self.model['rd_coeff'][0, 0]  # reduced coefficients
-        self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
+        if discrete:
+            self.rd_coeff = self.model['rd_coeff'][0, 0]  # reduced coefficients
+            self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
@@ -114,7 +119,7 @@ class SSM:
             raise RuntimeError('Need to specify equilibrium point')
 
     # x is reduced state => This function goes from reduced state to (shifted) observation
-    # W_map expects (n, N) where n is the ROM state
+    # W_map expects (n, N) where n is the ROM state. W_map takes reduced to performance vars
     def x_to_zfyf(self, x, zf=True):
         """
         :x: (N, n_x) or (n_x,) array
@@ -122,6 +127,7 @@ class SSM:
         :yf: boolean
         """
         return self.W_map(x.T).T + self.y_ref
+
 
     def x_to_zy(self, x):
         """
@@ -185,7 +191,7 @@ class SSM:
 
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
-        if self.delays == 0:
+        if self.v_coeff is not None:
             return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
         else:
             return jnp.dot(np.transpose(self.V), y)
@@ -198,8 +204,8 @@ class SSM:
 class SSMDynamics(SSM):
     """
     """
-    def __init__(self, eq_point, discrete=False, discr_method='fe', **kwargs):
-        super(SSMDynamics, self).__init__(eq_point, discrete=discrete, discr_method=discr_method, **kwargs)
+    def __init__(self, eq_point, discrete=False, discr_method='fe', C=None, **kwargs):
+        super(SSMDynamics, self).__init__(eq_point, discrete=discrete, discr_method=discr_method, C=C, **kwargs)
 
     def update_state(self, x, u, dt):
         """
