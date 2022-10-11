@@ -3,6 +3,35 @@ from scipy.linalg import block_diag
 from scipy.sparse import lil_matrix, vstack
 from sofacontrol.utils import x2qv
 
+class OutputModel:
+    """ Assumes state vector y = [y1, ..., yn] representing the vector of measurable outputs
+        including, potentially, time delays of the outputs
+        This class builds a measurement model z = Cy, callable as z = class.evaluate(y)
+        Assumes that the performance variables at the current time-step are located at the end of the vector
+
+        Inputs:
+            num_obs: Number of observed quantities (dimension of y)
+            num_perf: Number of performance variables (no time-delay)
+
+        z = class.evaluate(y) outputs the performance variable at the current time-step
+        from the vector of observed variables (with time-delay)
+        C = class.C returns the selection matrix of scalar observables deemed as performance
+        variables
+        """
+    def __init__(self, num_obs, num_perf):
+        self.num_obs = num_obs
+        self.num_perf = num_perf
+        self.build_C_matrix(num_obs, num_perf)
+
+    def build_C_matrix(self, num_obs, num_perf):
+        # Generate output matrix (observed to output) - Assumed desired output is in the end of the vector
+        # Probably should refactor this later
+        self.C = np.zeros((self.num_perf, self.num_obs))
+        for i in range(self.num_perf):
+            self.C[self.num_perf - 1 - i, self.num_obs - 1 - i] = 1
+
+    def evaluate(self, y):
+        return self.C @ y
 
 class linearModel:
     """ Assumes state vector x = [v; q] and q = [n1.x; n1.y; n1.z; ...]. 

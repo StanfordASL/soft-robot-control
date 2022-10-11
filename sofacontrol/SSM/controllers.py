@@ -307,4 +307,4 @@ class SSMObserver:
 
     def update(self, u, y, dt, x=None):
         self.z = vq2qv(y)
-        self.x = self.dyn_sys.W_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
+        self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))

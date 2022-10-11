@@ -21,7 +21,7 @@ class SSM:
     forward simulate the dynamics (i.e. perform rollout)
     """
 
-    def __init__(self, eq_point, discrete=False, discr_method='fe', **kwargs):
+    def __init__(self, eq_point, discrete=False, discr_method='fe', C=None, **kwargs):
         self.maps = {}
 
         self.discrete = discrete
@@ -32,17 +32,30 @@ class SSM:
 
         self.state_dim = self.params['state_dim'][0, 0][0, 0]
         self.input_dim = self.params['input_dim'][0, 0][0, 0]
-        self.output_dim = self.params['output_dim'][0, 0][0, 0]
+        self.output_dim = self.params['output_dim'][0, 0][0, 0] #This is also performance dimension
         self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
         self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
         self.Ts = self.model['Ts'][0, 0][0, 0]
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
         self.ssm_phi = self.get_poly_basis(self.output_dim, self.SSM_order)
 
+        # TODO: This is new
+        self.delays = self.params['delays'][0, 0][0, 0]
+        self.obs_dim = self.params['obs_dim'][0, 0][0, 0]
+
+        # Observation model
+        if C is not None:
+            self.C = C
+            assert np.shape(self.C) == (self.output_dim, self.obs_dim)
+        else:
+            # When we learn mappings to output variables directly (no time-delays)
+            self.C = np.eye(self.output_dim, self.output_dim)
+
         # Continuous-time model
-        self.w_coeff = self.model['w_coeff'][0, 0] #reduced to observed
-        self.v_coeff = self.model['v_coeff'][0, 0] #observed to reduced
-        self.r_coeff = self.model['r_coeff'][0, 0] #reduced coefficients
+        self.V = self.model['V'][0, 0] # Tangent space TODO: this is new
+        self.w_coeff = self.model['w_coeff'][0, 0] # reduced to observed
+        self.v_coeff = self.model['v_coeff'][0, 0] # observed to reduced
+        self.r_coeff = self.model['r_coeff'][0, 0] # reduced coefficients
         self.B_r = self.model['B'][0, 0] #reduced control matrix
 
         # Discrete-time model
@@ -51,8 +64,8 @@ class SSM:
         self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
 
         # Manifold parametrization
-        self.C_map = self.reduced_to_observed
-        self.W_map = self.observed_to_reduced
+        self.W_map = self.reduced_to_output
+        self.V_map = self.observed_to_reduced
 
         # Continuous reduced dynamics
         self.maps['f_nl'] = self.reduced_dynamics
@@ -62,7 +75,7 @@ class SSM:
             self.maps['f_nl_d'] = self.reduced_dynamics_discrete
 
         # Set reference equilibrium point
-        self.z_ref = eq_point
+        self.y_ref = eq_point
 
         # Variables for precomputing discrete time matrices if desired
         self.A_d = None
@@ -85,30 +98,30 @@ class SSM:
         :zf: (N, n_z) or (n_z,) array
         :yf: (N, n_y) or (n_y,) array
         """
-        if zf is not None and self.z_ref is not None:
-            return zf - self.z_ref
+        if zf is not None and self.y_ref is not None:
+            return zf - self.y_ref
         else:
             raise RuntimeError('Need to specify equilibrium point')
 
-    def zy_to_zfyf(self, z=None):
+    def zy_to_zfyf(self, y=None):
         """
         :z: (N, n_z) or (n_z,) array
         :y: (N, n_y) or (n_y,) array
         """
-        if z is not None and self.z_ref is not None:
-            return z + self.z_ref
+        if y is not None and self.y_ref is not None:
+            return y + self.y_ref
         else:
             raise RuntimeError('Need to specify equilibrium point')
 
     # x is reduced state => This function goes from reduced state to (shifted) observation
-    # C_map expects (n, N) where n is the ROM state
+    # W_map expects (n, N) where n is the ROM state
     def x_to_zfyf(self, x, zf=True):
         """
         :x: (N, n_x) or (n_x,) array
         :zf: boolean
         :yf: boolean
         """
-        return self.C_map(x.T).T + self.z_ref
+        return self.W_map(x.T).T + self.y_ref
 
     def x_to_zy(self, x):
         """
@@ -116,7 +129,7 @@ class SSM:
         :z: boolean
         :y: boolean
         """
-        return self.C_map(x)
+        return self.W_map(x)
 
     def get_sim_params(self):
         return {'beta_weighting': self.beta_weighting, 'discr_method': self.discr_method,
@@ -167,11 +180,15 @@ class SSM:
     def reduced_dynamics(self, x, u):
         return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u)
 
-    def reduced_to_observed(self, x):
-        return jnp.dot(self.w_coeff, jnp.asarray(self.ssm_phi(*x)))
+    def reduced_to_output(self, x):
+        return jnp.dot(self.C, jnp.dot(self.w_coeff, jnp.asarray(self.ssm_phi(*x))))
 
-    def observed_to_reduced(self, z):
-        return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*z)))
+    @partial(jax.jit, static_argnums=(0,))
+    def observed_to_reduced(self, y):
+        if self.delays == 0:
+            return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
+        else:
+            return jnp.dot(np.transpose(self.V), y)
 
     # Discrete Map
     def reduced_dynamics_discrete(self, x, u):
@@ -230,8 +247,8 @@ class SSMDynamics(SSM):
                                x: jnp.ndarray):
         # x = x.reshape(self.state_dim, 1)
 
-        H = jax.jacobian(self.C_map, 0)(x)
-        c_res = self.C_map(x) - jnp.dot(H, x)
+        H = jax.jacobian(self.W_map, 0)(x)
+        c_res = self.W_map(x) - jnp.dot(H, x)
         return H, c_res
 
     # def get_jacobians(self, x, dt=None, u=None):
@@ -264,7 +281,7 @@ class SSMDynamics(SSM):
     #     """
     #     x = x.reshape(self.state_dim, 1)
     #     H = self.maps['H'](x)
-    #     c_nl = self.C_map(x)
+    #     c_nl = self.W_map(x)
     #     c_res = c_nl - H @ x
     #     return H, c_res
 
@@ -333,12 +350,12 @@ class SSMDynamics(SSM):
         return x_next
 
     def get_ref_point(self):
-        return self.z_ref
+        return self.y_ref
 
-    def compute_RO_state(self, z):
+    def compute_RO_state(self, y):
         """
         Compute reduced order projection of vector
         :param zf: position and velocity of observed state
         :return: Reduced order vector
         """
-        return self.W_map(z - self.z_ref)
+        return self.V_map(y - self.y_ref)

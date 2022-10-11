@@ -348,7 +348,7 @@ def run_gusto_solver():
     X = None
 
     # Define initial condition to be x_ref for initial solve
-    x0 = model.compute_RO_state(model.z_ref)
+    x0 = model.compute_RO_state(model.y_ref)
 
     # Define GuSTO model (dt here is discretization of model)
     dt = 0.02
