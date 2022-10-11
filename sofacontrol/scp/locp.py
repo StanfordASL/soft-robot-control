@@ -81,7 +81,7 @@ class LOCP:
             self.dd = cp.Parameter(self.N * self.n_x)
 
             # Adding observer linearization parameters here. Expect parameters to be None
-            # If dynamics class has nonlinear_observer = False. In this case this class should
+            # if dynamics class has nonlinear_observer = False. In this case this class should
             # use self.H as shown above. This seems to be different from when not warm_starting
             if self.nonlinear_observer:
                 self.Hd = [cp.Parameter((self.n_z, self.n_x)) for i in range(self.N + 1)]
@@ -326,7 +326,7 @@ class LOCP:
                 cdfull = cdfull[self.n_z:]
                 XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
                 Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
-                constr += [XAfull @ self.x[self.n_z:] <= Xbfull]
+                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
             else:
                 XAfull = block_diag(*[self.X.A for j in range(self.N)])
                 Xbfull = np.tile(self.X.b, self.N)

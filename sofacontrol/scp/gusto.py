@@ -189,9 +189,18 @@ class GuSTO:
         Requires both state and final state constraints to be specified by Polyhedra (see gusto_utils.py)
         """
         max_violation = 0.0
+        update_constraint = False
         if self.X is not None:
             for i in range(x.shape[0]):
-                val = self.X.get_constraint_violation(x[i, :])
+                # TODO: x is reduced dynamics so if we have a nonlinear observer, then the constraint should be
+                # with respect to the performance variable
+                if self.nonlinear_observer:
+                    x_curr = np.atleast_2d(x[i, :])
+                    H_curr, c_curr = self.get_observer_linearizations(x_curr)
+                    self.X.update(H_curr[0], c_curr[0])
+                    update_constraint = True
+
+                val = self.X.get_constraint_violation(x[i, :], update=update_constraint)
                 if val > max_violation:
                     max_violation = val
 
@@ -237,9 +246,10 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
-    def get_observer_linearizations(self, x, u):
+    def get_observer_linearizations(self, x, u=None):
         """
         Return the affine observer mappings at each point along trajectory in a list
+        TODO: Add input contribution to the dynamics
         """
         H_d = []
         c_d = []
@@ -359,7 +369,7 @@ class GuSTO:
                 self.xopt = np.copy(self.x_k)
                 self.uopt = np.copy(self.u_k)
                 if self.nonlinear_observer:
-                    self.zopt = self.model.dyn_sys.C_map(self.xopt.T)
+                    self.zopt = self.model.dyn_sys.W_map(self.xopt.T)
                 else:
                     self.zopt = np.transpose(self.model.H @ self.xopt.T)
                 return

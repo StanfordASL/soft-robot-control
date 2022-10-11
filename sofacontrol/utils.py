@@ -365,6 +365,8 @@ class Polyhedron:
     def __init__(self, A, b, with_reproject=False):
         self.A = A
         self.b = b
+        self.Ak = None
+        self.bk = None
 
         self.with_reproject = with_reproject
 
@@ -389,11 +391,14 @@ class Polyhedron:
         else:
             return True
 
-    def get_constraint_violation(self, x):
+    def get_constraint_violation(self, x, update=False):
         """
         Returns distance to constraint, i.e. how large the deviation is
         """
-        return np.linalg.norm(np.maximum(self.A @ x - self.b, 0))
+        if update:
+            return np.linalg.norm(np.maximum(self.Ak @ x - self.bk, 0))
+        else:
+            return np.linalg.norm(np.maximum(self.A @ x - self.b, 0))
 
     def project_to_polyhedron(self, x):
         if not self.with_reproject:
@@ -405,6 +410,9 @@ class Polyhedron:
         x_proj_alt = results.x
         return x_proj_alt
 
+    def update(self, Hk, ck):
+        self.Ak = np.dot(self.A, Hk)
+        self.bk = self.b - np.dot(self.A, ck)
 
 class HyperRectangle(Polyhedron):
     def __init__(self, ub, lb):

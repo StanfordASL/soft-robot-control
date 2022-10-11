@@ -10,20 +10,20 @@ from sofacontrol.utils import load_data, set_axes_equal
 
 path = dirname(abspath(__file__))
 
-constrained = False
+constrained = True
 plot_rompc = False
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
-# M = 3
-# T = 10
-# N = 500
-# t_target = np.linspace(0, M*T, M*N)
-# th = np.linspace(0, M * 2 * np.pi, M*N)
-# zf_target = np.zeros((M*N, 6))
-#
-# zf_target[:, 3] = -15. * np.sin(th) - 7.1
-# zf_target[:, 4] = 15. * np.sin(2 * th)
+M = 3
+T = 10
+N = 500
+t_target = np.linspace(0, M*T, M*N)
+th = np.linspace(0, M * 2 * np.pi, M*N)
+zf_target = np.zeros((M*N, 6))
+
+zf_target[:, 3] = -15. * np.sin(th) - 7.1
+zf_target[:, 4] = 15. * np.sin(2 * th)
 
 # zf_target[:, 3] = -25. * np.sin(th) + 13
 # zf_target[:, 4] = 25. * np.sin(2 * th) + 20
@@ -47,28 +47,28 @@ name = 'figure8'
 ##############################################
 # Problem 2, Circle on side
 ##############################################
-M = 3
-T = 5
-N = 1000
-t_target = np.linspace(0, M*T, M*N)
-th = np.linspace(0, M*2*np.pi, M*N)
-
-r = 15
-phi = 17
-x_target = np.zeros(M*N)
-y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+# M = 3
+# T = 5
+# N = 1000
+# t_target = np.linspace(0, M*T, M*N)
+# th = np.linspace(0, M*2*np.pi, M*N)
+#
+# r = 15
+# phi = 17
+# x_target = np.zeros(M*N)
+# y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+# z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
 
 # r = 15
 # x_target = np.zeros(M*N)
 # y_target = r * np.sin(th)
 # z_target = r - r * np.cos(th) + 107
 
-zf_target = np.zeros((M*N, 6))
-zf_target[:, 3] = x_target
-zf_target[:, 4] = y_target
-zf_target[:, 5] = z_target
-name = 'circle'
+# zf_target = np.zeros((M*N, 6))
+# zf_target[:, 3] = x_target
+# zf_target[:, 4] = y_target
+# zf_target[:, 5] = z_target
+# name = 'circle'
 
 
 # Load SSM data
@@ -118,7 +118,7 @@ z_rompc = rompc_data['z'][idx:, :]
 solve_times_rompc = rompc_data['info']['solve_times']
 real_time_limit_rompc = rompc_data['info']['rollout_time']
 
-plot_rollouts = False
+plot_rollouts = True
 m_w = 30
 
 fig1 = plt.figure(figsize=(10, 8), facecolor='w', edgecolor='k')

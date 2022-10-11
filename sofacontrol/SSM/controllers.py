@@ -115,10 +115,10 @@ class TemplateController(closed_loop_controller.TemplateController):
             # Updating controller (self.u) and/or policy (if first step or receding horizon)
             # Note: waiting to start simulation allows us to also populate the history to satisfy time-delay reqs
             if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to 0
-                # TODO: Add lifting function to get delay embeddings (i.e., coordinatesEmbeddingControl)
+                # TODO: Add lifting function to get delay embeddings
                 y_belief = self.data.get_y_delay()
 
-                # TODO: Update observer value based on past measurements (set to current measurements for now)
+                # TODO: Update observer value based on past measurements
                 self.observer.update(None, y_belief, None)
 
                 if self.recompute_policy(self.t_compute):

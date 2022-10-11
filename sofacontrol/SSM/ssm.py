@@ -189,7 +189,7 @@ class SSM:
     def reduced_to_output(self, x):
         return jnp.dot(self.C, jnp.dot(self.w_coeff, jnp.asarray(self.ssm_phi(*x))))
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
         if self.v_coeff is not None:
             return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))

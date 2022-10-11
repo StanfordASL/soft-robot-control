@@ -181,8 +181,8 @@ def run_scp():
     pathToModel = path + '/SSMmodels/'
 
     # Specify a measurement and output model
-    cov_q = 0.1 * np.eye(3)
-    cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.0 * np.eye(3)
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
     # Setup equilibrium point (no time delay and observed position and velocity of tip)
@@ -191,8 +191,7 @@ def run_scp():
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
         SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
-        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q,
-                                                  S_v=cov_v)
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q)
         outputSSMModel = OutputModel(15, 3)
         Cout = outputSSMModel.C
     else:
@@ -211,7 +210,7 @@ def run_scp():
                             model=raw_model, params=raw_params, C=Cout)
 
     # This dt for when to recalculate control
-    dt = 0.02
+    dt = 0.01
 
     ##############################################
     # Problem 1, Figure 8 with constraints
@@ -236,7 +235,7 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=1, delay=3)
 
     # Saving paths
     prob.opt['sim_duration'] = 13.
@@ -295,22 +294,22 @@ def run_gusto_solver():
     # Problem 1, Figure 8 with constraints
     #############################################
     # Define cost functions and trajectory
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
 
     #### Define Target Trajectory ####
-    # M = 3
-    # T = 10
-    # N = 1000
-    # t = np.linspace(0, M * T, M * N)
-    # th = np.linspace(0, M * 2 * np.pi, M * N)
-    # zf_target = np.zeros((M * N, model.output_dim))
-    #
-    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
+    M = 3
+    T = 10
+    N = 1000
+    t = np.linspace(0, M * T, M * N)
+    th = np.linspace(0, M * 2 * np.pi, M * N)
+    zf_target = np.zeros((M * N, model.output_dim))
+
+    zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(2 * th)
 
     # # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
@@ -331,33 +330,34 @@ def run_gusto_solver():
     # Problem 2, Circle on side (2pi/T = frequency rad/s)
     #####################################################
     # Multiply 'th' in sine terms to factor rad/s frequency
-    M = 3
-    T = 5.
-    N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    x_target = np.zeros(M * N)
-
+    # M = 3
+    # T = 5.
+    # N = 1000
+    # t = np.linspace(0, M * T, M * N)
+    # th = np.linspace(0, M * 2 * np.pi, M * N)
+    # x_target = np.zeros(M * N)
+    #
     # r = 15
     # y_target = r * np.sin(th)
     # z_target = r - r * np.cos(th) + 107.0
 
-    r = 15
-    phi = 17
-    y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-    z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+    # r = 15
+    # phi = 17
+    # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+    # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
 
-    zf_target = np.zeros((M * N, 6))
-    zf_target[:, 0] = x_target
-    zf_target[:, 1] = y_target
-    zf_target[:, 2] = z_target
+    # zf_target = np.zeros((M * N, model.output_dim))
+    #
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+    # zf_target[:, 2] = z_target
 
     # Cost
-    R = .00001 * np.eye(4)
-    Qz = np.zeros((6, 6))
-    Qz[0, 0] = 100.0  # corresponding to x position of end effector
-    Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(4)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
 
     z = model.zfyf_to_zy(zf=zf_target)
 
@@ -372,19 +372,19 @@ def run_gusto_solver():
     # dU = HyperRectangle([dU_max, dU_max, dU_max, dU_max], [-dU_max, -dU_max, -dU_max, -dU_max])
 
     # State constraints (q,v format)
-    # Hz = np.zeros((1, 6))
-    # Hz[0, 1] = 1
-    # b_z = np.array([5])
-    # X = Polyhedron(A=Hz, b=b_z - Hz @ model.z_ref)
+    Hz = np.zeros((1, model.output_dim))
+    Hz[0, 1] = 1
+    b_z = np.array([5])
+    X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
 
     # No constraints for now
-    X = None
+    # X = None
 
     # Define initial condition to be x_ref for initial solve
-    x0 = model.compute_RO_state(model.y_ref)
+    x0 = np.zeros(model.state_dim)
 
     # Define GuSTO model (dt here is discretization of model)
-    dt = 0.02
+    dt = 0.01
     N = 3
     gusto_model = SSMGuSTO(model)
 

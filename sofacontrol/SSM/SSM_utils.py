@@ -40,7 +40,7 @@ class SSMData:
             # udel = np.zeros((self.delay * self.u.shape[1]))
 
             for j in range(self.delays):
-                fillrange_y = range(self.y.shape[1] * j, self.y.shape[1] * (j + 1))
+                fillrange_y = range(-self.y.shape[1] * (j + 1), -self.y.shape[1] * j)
                 ydel[fillrange_y] = self.y[step - (j + 1), :]
 
                 # fillrange_u = range(self.u.shape[1] * j, self.u.shape[1] * (j + 1))
