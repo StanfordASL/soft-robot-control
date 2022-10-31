@@ -9,8 +9,8 @@
 # various mode shapes
 # problem = diamond.apply_constant_input
 
-# from examples.diamond import diamond_rompc
-# problem = diamond_rompc.run_rompc
+from examples.diamond import diamond_rompc
+problem = diamond_rompc.run_rompc
 
 # from examples.diamond import diamond_koopman
 # problem = diamond_koopman.run_koopman
@@ -32,8 +32,8 @@
 # from examples.hardware import diamond_rompc
 # problem = diamond_rompc.run_rompc
 
-from examples.hardware import diamond_koopman
-problem = diamond_koopman.run_koopman
+# from examples.hardware import diamond_koopman
+# problem = diamond_koopman.run_koopman
 # problem = diamond_koopman.run_MPC_OL
 
 # from examples.hardware import diamond_SSM
