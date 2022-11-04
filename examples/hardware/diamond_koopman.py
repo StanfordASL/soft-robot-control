@@ -64,7 +64,6 @@ def generate_koopman_data():
     state = qv2x(q=koopman_data['q'], v=koopman_data['v'])
     measurement_models = [linearModel(nodes=ee_node, num_nodes=num_nodes, pos=True, vel=useVel)]
 
-
     for i, name in enumerate(names):
         mat_data_file = join(path, '{}.mat'.format(name))
         y = measurement_models[i].evaluate(x=state.T)
@@ -89,6 +88,7 @@ def generate_koopman_data():
         # # Load old mat and save to pkl
         # koopman_old_model = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
         # save_data(join(path, '{}.pkl'.format('koopman_diamond_old_model')), koopman_old_model['model'])
+
 
 def run_koopman():
     """
@@ -230,9 +230,9 @@ def run_koopman_solver():
     M = 3
     T = 5
     N = 1000
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M*2*np.pi, M*N)
-    x_target = np.zeros(M*N)
+    t = np.linspace(0, M * T, M * N)
+    th = np.linspace(0, M * 2 * np.pi, M * N)
+    x_target = np.zeros(M * N)
 
     r = 15
     phi = 17
@@ -244,7 +244,7 @@ def run_koopman_solver():
     # z_target = r - r * np.cos(th) + 107.0
 
     # TODO: Modify number of observables
-    zf_target = np.zeros((M*N, model.n))
+    zf_target = np.zeros((M * N, model.n))
     zf_target[:, 0] = x_target
     zf_target[:, 1] = y_target
     zf_target[:, 2] = z_target
@@ -264,7 +264,6 @@ def run_koopman_solver():
     U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
     X = None
 
-    
     # Define target trajectory for optimization
     target.t = t
     target.z = scaling.scale_down(y=zf_target)
@@ -278,6 +277,7 @@ def run_koopman_solver():
 
     runMPCSolverNode(model=model, N=N, cost_params=cost, X=X, target=target, dt=model.Ts, verbose=1,
                      warm_start=False, U=U, solver='GUROBI')
+
 
 def run_MPC_OL():
     """
@@ -320,7 +320,8 @@ def run_MPC_OL():
         cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     else:
         cov_v = None
-    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v, vel=useVel)
+    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v,
+                                              vel=useVel)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354], vel=useVel, qv=True)
     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
 
@@ -445,8 +446,9 @@ def run_MPC_OL():
     N = 200
 
     # Using osqp instead of Gurobi because Gurobi had some numerical issues
-    xopt, uopt, zopt, topt = runMPCSolver(model=model, N=N, cost_params=cost, x0=x0_lifted, target=target, dt=model.Ts, verbose=1,
-                     warm_start=False, U=U, X=X, solver='OSQP')
+    xopt, uopt, zopt, topt = runMPCSolver(model=model, N=N, cost_params=cost, x0=x0_lifted, target=target, dt=model.Ts,
+                                          verbose=1,
+                                          warm_start=False, U=U, X=X, solver='OSQP')
 
     uopt_rescaled = data.scaling.scale_up(u=uopt)
 
@@ -459,6 +461,7 @@ def run_MPC_OL():
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'mpc_OL_Koopman'
     return prob
+
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:

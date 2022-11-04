@@ -10,12 +10,12 @@ from itertools import combinations, permutations, product
 from tqdm.auto import tqdm
 from pathlib import Path
 
-
 """
 Provides direct interface with SOFA and is either opened from sofa gui or run in the following command style:
 $SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.py
 Imports problem_specification to add specified robot (FEM model) and specific controller.
 """
+
 
 def createDataCollectionScene(rootNode, q0, save_filename, amplitude):
     # Start building scene
@@ -35,14 +35,14 @@ def createDataCollectionScene(rootNode, q0, save_filename, amplitude):
 
     # Define the specific instance via the problem_specification script
     # Run modal analysis or collect decaying trajectories
-    #input_const = np.array([1500., 1500., 0., 0.])
+    # input_const = np.array([1500., 1500., 0., 0.])
 
     import problem_specification
 
     # Rotation in degrees
-    #prob = problem_specification.problem(input=input_const)
+    # prob = problem_specification.problem(input=input_const)
     prob = problem_specification.problem(q0=q0, save_data=True, scale_mode=amplitude, filename=save_filename)
-    #prob = problem_specification.problem()
+    # prob = problem_specification.problem()
     prob.checkDefinition()
 
     # Set the gravity and simulation time step
@@ -68,9 +68,10 @@ def createDataCollectionScene(rootNode, q0, save_filename, amplitude):
                                             simdata_dir=prob.simdata_dir,
                                             snapshots_dir=prob.snapshots_dir,
                                             opt=prob.opt)
-                                            )
+                       )
     rootNode.autopaused = False  # Enables terminating simulation at the end when running from command line
     return rootNode
+
 
 def createScene(rootNode):
     # Start building scene
@@ -90,9 +91,9 @@ def createScene(rootNode):
 
     # Define the specific instance via the problem_specification script
     # Run modal analysis or collect decaying trajectories
-    #input_const = np.array([1., 0., 0., 0.])
-    #input_const = np.array([0., 1., 0., 0.])
-    #input_const = np.array([0., 2000., 0., 2000.])
+    # input_const = np.array([1., 0., 0., 0.])
+    # input_const = np.array([0., 1., 0., 0.])
+    # input_const = np.array([0., 2000., 0., 2000.])
     path = os.path.dirname(os.path.abspath(__file__))
 
     modeName1 = 'mode3'
@@ -111,7 +112,6 @@ def createScene(rootNode):
     modal_direction = ["", "pos", "neg"]
     signMode1 = modal_direction[direction1]
     signMode2 = modal_direction[direction2]
-
 
     if signMode1 == "":
         save_filename = signMode2 + modeName2 + "_" + str(amplitude)
@@ -132,7 +132,7 @@ def createScene(rootNode):
     input_const = np.array([amplitude, 0, 0, 0])
     prob = problem_specification.problem(q0=q0, input=input_const, save_data=True, filename=save_filename)
     # prob = problem_specification.problem(q0=q0, save_data=False, scale_mode=amplitude, filename=save_filename)
-    #prob = problem_specification.problem()
+    # prob = problem_specification.problem()
     prob.checkDefinition()
 
     # Set the gravity and simulation time step
@@ -158,16 +158,17 @@ def createScene(rootNode):
                                             simdata_dir=prob.simdata_dir,
                                             snapshots_dir=prob.snapshots_dir,
                                             opt=prob.opt)
-                                            )
+                       )
     rootNode.autopaused = False  # Enables terminating simulation at the end when running from command line
     return rootNode
 
-def main():
+
+def main(sofa_lib_path=None):
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
-    #sofa_lib_path = "/home/jjalora/sofa/build/lib"
-    sofa_lib_path = "/home/jalora/sofa/build/lib"
-
+    # sofa_lib_path = "/home/jjalora/sofa/build/lib"
+    # sofa_lib_path = "/home/jalora/sofa/build/lib"
+    sofa_lib_path = "/home/jason/sofa/build/v22.06/lib"
     runSingleSimulation = True
 
     if not os.path.exists(sofa_lib_path):
@@ -181,12 +182,11 @@ def main():
     global _runAsPythonScript
     _runAsPythonScript = True
 
-    #modesList = list(combinations(["mode2", "mode3"], 2))
+    # modesList = list(combinations(["mode2", "mode3"], 2))
     modesList = list(combinations(["mode1", "mode2", "mode3"], 3))
     amplitudeList = [1500, 2000]
-    #amplitudeList = [1000]
+    # amplitudeList = [1000]
     directionList = list(filter(lambda elem: elem != (0, 0, 0), [p for p in product([1, 0, -1], repeat=3)]))
-
 
     if runSingleSimulation:
         root = Sofa.Core.Node()
@@ -232,23 +232,28 @@ def main():
                     print("Now simulating " + modeName3 + " with " + str(amplitude) + " amplitude")
                 else:
                     save_filename = signMode2 + modeName2 + "_" + signMode3 + modeName3 + "_" + str(amplitude)
-                    print("Now simulating " + modeName2 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
+                    print(
+                        "Now simulating " + modeName2 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
             elif signMode2 == "":
                 if signMode3 == "":
                     save_filename = signMode1 + modeName1 + "_" + str(amplitude)
                     print("Now simulating " + modeName1 + " with " + str(amplitude) + " amplitude")
                 else:
                     save_filename = signMode1 + modeName1 + "_" + signMode3 + modeName3 + "_" + str(amplitude)
-                    print("Now simulating " + modeName1 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
+                    print(
+                        "Now simulating " + modeName1 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
             elif signMode3 == "":
                 save_filename = signMode1 + modeName1 + "_" + signMode2 + modeName2 + "_" + str(amplitude)
                 print("Now simulating " + modeName1 + " and " + modeName2 + " with " + str(amplitude) + " amplitude")
             else:
-                save_filename = signMode1 + modeName1 + "_" + signMode2 + modeName2 + "_" + signMode3 + modeName3 + "_" + str(amplitude)
-                print("Now simulating " + modeName1 + " and " + modeName2 + " and " + modeName3 + " with " + str(amplitude) + " amplitude")
+                save_filename = signMode1 + modeName1 + "_" + signMode2 + modeName2 + "_" + signMode3 + modeName3 + "_" + str(
+                    amplitude)
+                print("Now simulating " + modeName1 + " and " + modeName2 + " and " + modeName3 + " with " + str(
+                    amplitude) + " amplitude")
 
             # Single trajectory
-            q0 = direction1 * spio.loadmat(datafile1)[modeName1].T + direction2 * spio.loadmat(datafile2)[modeName2].T + direction3 * spio.loadmat(datafile3)[modeName3].T
+            q0 = direction1 * spio.loadmat(datafile1)[modeName1].T + direction2 * spio.loadmat(datafile2)[
+                modeName2].T + direction3 * spio.loadmat(datafile3)[modeName3].T
 
             currentModalFile = Path(path + "/examples/diamond/dataCollection/" + save_filename + '_snapshots' + '.pkl')
             if currentModalFile.exists():

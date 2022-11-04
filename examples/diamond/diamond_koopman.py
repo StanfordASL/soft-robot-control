@@ -30,13 +30,14 @@ from os.path import dirname, abspath, join
 import numpy as np
 
 path = dirname(abspath(__file__))
-root = dirname(path)
+root = dirname(dirname(path))  # added another layer of dirname because pathing wasnt working,
+# I suspect someone changed file structure but not this section
 sys.path.append(root)
-
-from examples import Problem
 
 # Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
+
+from examples import Problem
 
 
 def generate_koopman_data():
@@ -96,7 +97,7 @@ def run_koopman():
     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
 
     prob = Problem()
-    #prob.Robot = environments.Diamond()
+    # prob.Robot = environments.Diamond()
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
@@ -194,9 +195,11 @@ def run_koopman_solver():
 
     planning_horizon = 5
 
-    runMPCSolverNode(model=model, N=planning_horizon, cost_params=cost_params, target=target, dt=Ts, verbose=1,
-                     warm_start=True, U=U, solver='GUROBI')
+    # runMPCSolverNode(model=model, N=planning_horizon, cost_params=cost_params, target=target, dt=Ts, verbose=1,
+    #                  warm_start=True, U=U, solver='GUROBI')
 
+    runMPCSolverNode(model=model, N=planning_horizon, cost_params=cost_params, target=target, dt=Ts, verbose=2,
+                     warm_start=True, U=U, solver='GUROBI')
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:

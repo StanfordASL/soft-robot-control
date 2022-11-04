@@ -4,7 +4,7 @@ import sofacontrol.utils as scutils
 from .template import TemplateModel
 
 
-class TPWLGuSTO(TemplateModel):
+class TPWLGuSvariableTO(TemplateModel):
     """
     Provides an interface between GuSTO's template model and the TPWL model class
     defined in sofacontrol/tpwl/tpwl.py
