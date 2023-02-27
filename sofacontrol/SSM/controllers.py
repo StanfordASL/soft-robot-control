@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.interpolate import interp1d
+import time
 
 from sofacontrol.SSM.SSM_utils import SSMData
+from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
 from sofacontrol import closed_loop_controller
 from sofacontrol import open_loop_controller
 from sofacontrol.scp.ros import GuSTOClientNode
@@ -34,9 +36,9 @@ class TemplateController(closed_loop_controller.TemplateController):
         self.cost_params = cost_params
 
         # Define observer
-        self.observer = SSMObserver(dyn_sys)
+        self.observer = kwargs.pop('EKF', SSMObserver(dyn_sys))
 
-        self.data = SSMData(self.dyn_sys.delays, self.dyn_sys.y_ref)
+        self.data = SSMData(self.dyn_sys.delays, self.dyn_sys.y_eq)
 
         self.t_delay = delay
         if u0 is not None:
@@ -100,26 +102,45 @@ class TemplateController(closed_loop_controller.TemplateController):
         # Also assumes that we're only measuring the tip. Definitely modify this later
         if y.size > 3:
             y = vq2qv(y)
+        #     y = y[0:3]
+
+        # TODO: Automate this option
+        # Project to interior of constraint set. Ensures LOCP always solvable
         if self.Y is not None and not self.Y.contains(y):
             y = self.Y.project_to_polyhedron(y)
 
         # Store current observations for delay embedding ()
         self.data.add_measurement(y, u_prev)
 
+        # TODO: Debugging
+        # print('y: ', y)
+
         # Startup portion of controller, before OCP controller is activated
         if round(sim_time, 4) < round(self.t_delay, 4):
             self.u = self.u0
+
+            # TODO: When delay embeddings are included, this needs to be commented
+            # y_belief = self.data.get_y_delay()
+            # self.observer.update(u_prev, y_belief, self.dt)
 
         # Optimal controller is active
         else:
             # Updating controller (self.u) and/or policy (if first step or receding horizon)
             # Note: waiting to start simulation allows us to also populate the history to satisfy time-delay reqs
+            #print('debug position: ', y)
+            #print('debug past positions: ', self.data.y[-15:] + self.dyn_sys.y_ref)
             if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to 0
                 # TODO: Add lifting function to get delay embeddings
                 y_belief = self.data.get_y_delay()
 
-                # TODO: Update observer value based on past measurements
-                self.observer.update(None, y_belief, None)
+                # TODO: Debugging
+                #print('y_belief: ', y_belief + self.dyn_sys.y_ref)
+
+                # print('debug belief positions ', y_belief + np.tile(self.dyn_sys.y_ref, self.dyn_sys.delays + 1))
+                # print('Error between true output and estimated output on manifold', np.linalg.norm(self.dyn_sys.W_map(self.dyn_sys.V_map(y_belief)) + self.dyn_sys.y_ref - y))
+                # TODO: Update estimated state based on past measurements
+
+                self.observer.update(u_prev, y_belief, self.dt)
 
                 if self.recompute_policy(self.t_compute):
                     self.compute_policy(self.t_compute, self.observer.x)
@@ -173,6 +194,7 @@ class scp(TemplateController):
 
         # Set up the ROS client node
         self.GuSTO = GuSTOClientNode()
+        self.feedback = kwargs.pop('feedback', False)
 
     def compute_policy(self, t_step, x_belief):
         """
@@ -243,7 +265,19 @@ class scp(TemplateController):
 
     def compute_input(self, t_step, x_belief):
         self.GuSTO.force_spin()  # Periodic querying of client node
-        u = self.u_bar(t_step)
+        if self.feedback:
+            # Compute LQR
+            x_dist = np.linalg.norm(self.x_opt_current - x_belief, axis=1)
+            i_near = np.argmin(x_dist)
+
+            x_near = self.x_opt_current[i_near]
+            A_d, B_d, _ = self.dyn_sys.get_jacobians(x_near, u=self.u_opt_current[i_near],
+                                                     dt=self.dt)
+            Hk, _ = self.dyn_sys.get_observer_jacobians(x_near)
+            K, _ = dare(A_d, B_d, Hk.T @ self.cost.Q @ Hk, self.cost.R)
+            u = self.u_bar(t_step) + K @ (x_belief - x_near)
+        else:
+            u = self.u_bar(t_step)
 
         return u
 
@@ -306,17 +340,3 @@ class OpenLoop(open_loop_controller.OpenLoop):
                 self.u = np.zeros(self.m)
 
         return self.u.copy()
-
-
-class SSMObserver:
-    def __init__(self, dyn_sys):
-        self.z = None
-        self.x = None
-        self.dyn_sys = dyn_sys
-
-    def update(self, u, y, dt, x=None):
-        #self.z = vq2qv(y)
-        #self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
-
-        # Assumes y has been centered
-        self.x = self.dyn_sys.V_map(y)

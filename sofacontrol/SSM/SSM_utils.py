@@ -16,7 +16,7 @@ class SSMData:
     def add_measurement(self, y, u):
         """
         Adds data point (called in online simulation): Time delay embeddings are required to embed the SSM in
-        an appropriate-dimensional space
+        an appropriate-dimensional space. The observed states are automatically shifted to the origin
         :param y: Measurement of observable states (e.g. position of EE node)
         :param u: Control input
         """

@@ -121,9 +121,9 @@ def run_koopman():
     # Specify a measurement and output model vel=useVel, qv=useVel)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
-    cov_q = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     if useVel:
-        cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+        cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     else:
         cov_v = None
 
@@ -173,15 +173,15 @@ def run_koopman_solver():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    # M = 3
-    # T = 10
-    # N = 500
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M * 2 * np.pi, M*N)
-    # zf_target = np.zeros((M*N, model.n))
-    #
-    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
+    M = 3
+    T = 10
+    N = 500
+    t = np.linspace(0, M*T, M*N)
+    th = np.linspace(0, M * 2 * np.pi, M*N)
+    zf_target = np.zeros((M*N, model.n))
+
+    zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(2 * th)
 
     # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # zf_target[:, 1] = 25. * np.sin(2 * th) + 20.
@@ -200,26 +200,26 @@ def run_koopman_solver():
     # zf_target[:, 1] = 15. * np.sin(16 * th)
 
     # Cost
-    # cost.R = .00001 * np.eye(model.m)
-    # cost.Q = np.zeros((model.n, model.n))
-    # cost.Q[0, 0] = 100  # corresponding to x position of end effector
-    # cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    # cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
-    #
-    # # Control constraints
-    # u_ub = 2500. * np.ones(model.m)
-    # u_lb = 200. * np.ones(model.m)
-    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+    cost.R = .00001 * np.eye(model.m)
+    cost.Q = np.zeros((model.n, model.n))
+    cost.Q[0, 0] = 100  # corresponding to x position of end effector
+    cost.Q[1, 1] = 100  # corresponding to y position of end effector
+    cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
+
+    # Control constraints
+    u_ub = 2500. * np.ones(model.m)
+    u_lb = 200. * np.ones(model.m)
+    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
 
     # State constraints
-    # Hz = np.zeros((1, model.n))
-    # Hz[0, 1] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
-    # X = Polyhedron(A=H, b=b_z_ub_norm)
+    Hz = np.zeros((1, model.n))
+    Hz[0, 1] = 1
+    H = Hz @ model.H
+    b_z = np.array([5])
+    b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
+    X = Polyhedron(A=H, b=b_z_ub_norm)
 
     # X = None
 
@@ -227,42 +227,42 @@ def run_koopman_solver():
     # Problem 2, Circle on side (2pi/T = frequency rad/s)
     #####################################################
     # Multiply 'th' in sine terms to factor rad/s frequency
-    M = 3
-    T = 5
-    N = 1000
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M*2*np.pi, M*N)
-    x_target = np.zeros(M*N)
-
-    r = 15
-    phi = 17
-    y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-    z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
-
+    # M = 3
+    # T = 5
+    # N = 1000
+    # t = np.linspace(0, M*T, M*N)
+    # th = np.linspace(0, M*2*np.pi, M*N)
+    # x_target = np.zeros(M*N)
+    #
     # r = 15
-    # y_target = r * np.sin(th)
-    # z_target = r - r * np.cos(th) + 107.0
-
-    # TODO: Modify number of observables
-    zf_target = np.zeros((M*N, model.n))
-    zf_target[:, 0] = x_target
-    zf_target[:, 1] = y_target
-    zf_target[:, 2] = z_target
-
-    # Cost
-    cost.R = .00001 * np.eye(model.m)
-    cost.Q = np.zeros((model.n, model.n))
-    cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
-    cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
-    cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-
-    # Constraints
-    u_ub = 2500. * np.ones(model.m)
-    u_lb = 200. * np.ones(model.m)
-    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-    X = None
+    # phi = 17
+    # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+    # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+    #
+    # # r = 15
+    # # y_target = r * np.sin(th)
+    # # z_target = r - r * np.cos(th) + 107.0
+    #
+    # # TODO: Modify number of observables
+    # zf_target = np.zeros((M*N, model.n))
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+    # zf_target[:, 2] = z_target
+    #
+    # # Cost
+    # cost.R = .00001 * np.eye(model.m)
+    # cost.Q = np.zeros((model.n, model.n))
+    # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
+    # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
+    # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+    #
+    # # Constraints
+    # u_ub = 2500. * np.ones(model.m)
+    # u_lb = 200. * np.ones(model.m)
+    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+    # X = None
 
     
     # Define target trajectory for optimization
@@ -338,15 +338,15 @@ def run_MPC_OL():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    # M = 3
-    # T = 10
-    # N = 500
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M * 2 * np.pi, M*N)
-    # zf_target = np.zeros((M*N, model.n))
-    #
-    # zf_target[:, 0] = -15. * np.sin(2 * th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(4 * th)
+    M = 3
+    T = 10
+    N = 500
+    t = np.linspace(0, M*T, M*N)
+    th = np.linspace(0, M * 2 * np.pi, M*N)
+    zf_target = np.zeros((M*N, model.n))
+
+    zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(2 * th)
 
     # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # zf_target[:, 1] = 25. * np.sin(2 * th) + 20.
@@ -365,66 +365,66 @@ def run_MPC_OL():
     # zf_target[:, 1] = 15. * np.sin(16 * th)
 
     # Cost
-    # cost.R = .00001 * np.eye(model.m)
-    # cost.Q = np.zeros((model.n, model.n))
-    # cost.Q[0, 0] = 100  # corresponding to x position of end effector
-    # cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    # cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
+    cost.R = .00001 * np.eye(model.m)
+    cost.Q = np.zeros((model.n, model.n))
+    cost.Q[0, 0] = 100  # corresponding to x position of end effector
+    cost.Q[1, 1] = 100  # corresponding to y position of end effector
+    cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
 
     # # Control constraints
-    # u_ub = 4000. * np.ones(model.m)
-    # u_lb = 200. * np.ones(model.m)
-    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-
-    # State constraints
-    # Hz = np.zeros((1, 3))
-    # Hz[0, 1] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
-    # X = Polyhedron(A=H, b=b_z_ub_norm)
-
-    # X = None
-
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
-    M = 3
-    T = 5
-    N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    x_target = np.zeros(M * N)
-
-    r = 10
-    y_target = r * np.sin(th)
-    z_target = r - r * np.cos(th) + 107.0
-
-    # r = 20
-    # y_target = r * np.sin(17 * th)
-    # z_target = r - r * np.cos(17 * th) + 107.0
-
-    zf_target = np.zeros((M * N, 3))
-    zf_target[:, 0] = x_target
-    zf_target[:, 1] = y_target
-    zf_target[:, 2] = z_target
-
-    # Cost
-    cost.R = .00001 * np.eye(model.m)
-    cost.Q = np.zeros((3, 3))
-    cost.Q[0, 0] = 50.0  # corresponding to x position of end effector
-    cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
-    cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-
-    # Constraints
-    u_ub = 1500. * np.ones(model.m)
+    u_ub = 4000. * np.ones(model.m)
     u_lb = 200. * np.ones(model.m)
     u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
     u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
     U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+
+    # State constraints
+    Hz = np.zeros((1, 3))
+    Hz[0, 1] = 1
+    H = Hz @ model.H
+    b_z = np.array([5])
+    b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
+    X = Polyhedron(A=H, b=b_z_ub_norm)
+
     X = None
+
+    ##############################################
+    # Problem 2, Circle on side
+    ##############################################
+    # M = 3
+    # T = 5
+    # N = 1000
+    # t = np.linspace(0, M * T, M * N)
+    # th = np.linspace(0, M * 2 * np.pi, M * N)
+    # x_target = np.zeros(M * N)
+    #
+    # r = 10
+    # y_target = r * np.sin(th)
+    # z_target = r - r * np.cos(th) + 107.0
+    #
+    # # r = 20
+    # # y_target = r * np.sin(17 * th)
+    # # z_target = r - r * np.cos(17 * th) + 107.0
+    #
+    # zf_target = np.zeros((M * N, 3))
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+    # zf_target[:, 2] = z_target
+    #
+    # # Cost
+    # cost.R = .00001 * np.eye(model.m)
+    # cost.Q = np.zeros((3, 3))
+    # cost.Q[0, 0] = 50.0  # corresponding to x position of end effector
+    # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
+    # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+    #
+    # # Constraints
+    # u_ub = 1500. * np.ones(model.m)
+    # u_lb = 200. * np.ones(model.m)
+    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+    # X = None
 
     # Define target trajectory for optimization
     target.t = t

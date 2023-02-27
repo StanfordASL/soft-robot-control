@@ -1,5 +1,8 @@
-import numpy as np
 import time
+import jax.scipy as jsp
+import jax.numpy as jnp
+import numpy as np
+
 class FullStateObserver:
     """
     Default observer class, assumes full state perfect measurement
@@ -29,60 +32,55 @@ class FullStateObserver:
         else:
             self.z = x
 
+class SSMObserver:
+    def __init__(self, dyn_sys):
+        self.z = None
+        self.x = None
+        self.dyn_sys = dyn_sys
+
+    def update(self, u, y, dt, x=None):
+        #self.z = vq2qv(y)
+        #self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
+
+        # Assumes y has been centered
+        self.x = self.dyn_sys.V_map(y)
 
 class DiscreteEKFObserver:
     """
     Updates the belief state mean and covariance using the Extended Kalman Filter framework. We consider C is
-    linear with respect to the state. This is a reduced order estimator, it is assumed that the true
-    measurement model is
+    linear with respect to the state. This is a reduced order estimator.
 
-    y = Cf*xf
-
-    and that with a reduced order approximation xf = V*x + xf_ref this model becomes
-
-    y = C*x + y_ref
-
-    where C = Cf*V and y_ref = Cf*xf_ref.
-
-    :dyn_sys: TPWL dynamical system object of class TPWLATV
+    :dyn_sys: SSMR dynamical system object
     :param Sigma0: Initial state covariance (dim r x r)
     :param W: Process noise covariance (x_k+1 = f(x_k, u_k) + w_k
-    :param V: Observation noise covariance (y_k = Cx_k + v_k)
+    :param V: Observation noise covariance (y_k = W(x_k) + v_k)
     """
     def __init__(self, dyn_sys, **kwargs):
         self.dyn_sys = dyn_sys
-        if self.dyn_sys.C is None:
-            raise RuntimeError('Need to set meas. model in dyn_sys')
-        self.C = self.dyn_sys.C
         self.state_dim = self.dyn_sys.get_state_dim()
-        self.meas_dim = self.C.shape[0]
+        self.meas_dim = self.dyn_sys.get_output_dim()
 
         # Set initial covariance and noise covariances
-        self.Sigma = kwargs.get('Sigma0', np.eye(self.state_dim))
-        self.W = kwargs.get('W', 100*np.eye(self.state_dim))
-        self.V = kwargs.get('V', np.eye(self.meas_dim))
+        self.Sigma = jnp.asarray(kwargs.get('Sigma0', jnp.eye(self.state_dim)))
+        self.W = jnp.asarray(kwargs.get('W', 100*jnp.eye(self.state_dim)))
+        self.V = jnp.asarray(kwargs.get('V', jnp.eye(self.meas_dim)))
 
-        # Initialize observer to the TPWL reference state
-        self.initialize(self.dyn_sys.rom.x_ref)
+        # Initialize based on observable equilibrium position
+        self.initialize(jnp.zeros(self.meas_dim))
 
     def get_meas_dim(self):
         return self.meas_dim
 
-    def get_observer_params(self):
-        return {'W': self.W, 'V': self.V, 'meas_dim': self.meas_dim, 'state_dim': self.state_dim,
-                'C': self.C, 'H': self.dyn_sys.H}
 
-    def initialize(self, xf):
+    def initialize(self, y):
         """
         Initialize the reduced order state estimate. By default the state is initialized in __init__
         to x_ref, but the user can override if desired
         """
-        self.x = self.dyn_sys.rom.compute_RO_state(xf=xf)
-
-        if self.dyn_sys.H is not None:
-            self.z = self.dyn_sys.x_to_zfyf(self.x, zf=True)
-        else:
-            self.z = self.dyn_sys.x_to_zfyf(self.x, yf=True)
+        # Compute x based on current observation (q, v)
+        y = jnp.asarray(y)
+        self.x = self.dyn_sys.observed_to_reduced(y)
+        self.z = jnp.array(self.dyn_sys.x_to_zfyf(self.x, zf=True))
 
     def update(self, u, y, dt, **kwargs):
         """
@@ -91,6 +89,8 @@ class DiscreteEKFObserver:
         :param y: measurement at timestep k+1
         :dt: timestep (s)
         """
+        u = jnp.asarray(u)
+        y = jnp.asarray(y)
         self.predict_state(u, dt)
         self.update_state(y)
 
@@ -101,33 +101,40 @@ class DiscreteEKFObserver:
         :param u: input at timestep k
         :dt: timestep (s)
         """
-        A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, dt)
-        self.x = self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)
+        # Get linearizations of reduced dynamics at current state x
+        u = jnp.asarray(u)
+        A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, u, dt)
+
+        # Get next step based on linearization
+        self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d))
         self.Sigma = A_d @ self.Sigma @ A_d.T + self.W
 
     def update_state(self, y):
         """
         Filter update step, see https://www.cs.cmu.edu/~motionplanning/papers/sbp_papers/kalman/ekf_lecture_notes.pdf
         for details
-        :param y: measurement at timestep k+1
+        :param y: (centered) measurement at timestep k+1
         :return x: updated state based on measurement (x_{k+1|k+1})
         """
-        y = self.dyn_sys.zfyf_to_zy(yf=y) # convert full order measurement into reduced order measurement
 
-        S = self.C @ self.Sigma @ self.C.T + self.V
+        # Jacobian of manifold mapping (This is predicted x)
+        y = jnp.asarray(y)
+        H, c = self.dyn_sys.get_observer_jacobians(self.x)
 
-        # TODO: Debug
-        # t_clock = time.time()
-        K = self.Sigma @ self.C.T @ np.linalg.inv(S)
-        # print('Time to update state: ', time.time() - t_clock)
-        # print('S: ', np.shape(S))
+        # Computing inverse explicitly is faster
+        S = H @ self.Sigma @ H.T + self.V
+        K = self.Sigma @ H.T @ jnp.linalg.inv(S)
 
-        self.x = self.x + K @ (y - self.C @ self.x)
-        self.Sigma = (np.eye(self.state_dim) - K @ self.C) @ self.Sigma
-        if self.dyn_sys.H is not None:
-            self.z = self.dyn_sys.x_to_zfyf(self.x, zf=True)
-        else:
-            self.z = self.dyn_sys.x_to_zfyf(self.x, yf=True)
+        # K = computeRicattiGain(H, self.Sigma, self.V)
+
+        self.x = self.x + K @ (y - self.dyn_sys.reduced_to_output(np.array(self.x)))
+        self.Sigma = (jnp.eye(self.state_dim) - K @ H) @ self.Sigma
+        # self.z = self.dyn_sys.x_to_zfyf(self.x, zf=True)
 
         return self.x
 
+# @jax.jit
+# def computeRicattiGain(H, Sigma, V):
+#     S_T = jnp.transpose(H @ Sigma @ H.T + V)
+#     K_T = jsp.linalg.solve(S_T, H @ Sigma.T, sym_pos=True)
+#     return jnp.transpose(K_T)

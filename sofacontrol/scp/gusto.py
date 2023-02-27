@@ -15,7 +15,7 @@ RHO = 0.1  # model compute_accuracy
 # RHO0 = 0.005 # no longer needed
 BETA_FAIL = 0.5
 BETA_SUCC = 2
-EPSILON = 0.01
+EPSILON = 0.00001 # Originally 0.01
 GAMMA_FAIL = 5
 OMEGA_MAX = 1e10
 MAX_ITERS = 500
@@ -40,7 +40,7 @@ class GuSTO:
     :zf: (optional) terminal target state (n_z,), defaults to 0 if Qzf provided
     :U: (optional) control constraint (Polyhedron object)
     :X: (optional) state constraint (Polyhedron object)
-    :Xf: (optional) terminalstate constraint (Polyhedron object)
+    :Xf: (optional) terminal state constraint (Polyhedron object)
     :dU: (optional) u_k - u_{k-1} constraint Polyhedron object
     :verbose: (optional) 0,1,2 varying levels of verbosity (default 0)
     :visual: (optional) list of indices of z to plot at each iteration
@@ -352,6 +352,7 @@ class GuSTO:
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d)
                 new_solution = False
             else:
+                # Build new problem if no new solution
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d, full=False)
 
             # TODO: Timing computations
@@ -383,11 +384,6 @@ class GuSTO:
             if tr_satisfied:
                 t_tr = time.time()
                 rho_k = self.compute_accuracy(x_next, u_next, Jstar)
-
-                # TODO: Adding jax capes. Seems to not really help
-                # x_curr = np.copy(self.x_k)
-                # u_curr = np.copy(self.u_k)
-                # rho_k = self.compute_accuracy(x_next, u_next, x_curr, u_curr, Jstar)
 
                 # Nudge Gusto out of first iteration since it gets stuck
                 if rho_k > self.rho and itr != 1:

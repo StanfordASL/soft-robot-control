@@ -32,7 +32,7 @@ class SSM:
 
         self.state_dim = self.params['state_dim'][0, 0][0, 0]
         self.input_dim = self.params['input_dim'][0, 0][0, 0]
-        self.output_dim = self.params['output_dim'][0, 0][0, 0] #This is also performance dimension
+        self.output_dim = int(self.params['output_dim'][0, 0][0, 0]) #This is also performance dimension
         self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
         self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
         self.Ts = self.model['Ts'][0, 0][0, 0]
@@ -49,7 +49,7 @@ class SSM:
             assert np.shape(self.C) == (self.output_dim, self.obs_dim)
         else:
             # When we learn mappings to output variables directly (no time-delays)
-            self.C = np.eye(self.output_dim, self.output_dim)
+            self.C = np.eye(self.obs_dim, self.obs_dim)
 
         # Continuous-time model
         self.V = self.model['V'][0, 0] # Tangent space TODO: this is new
@@ -80,7 +80,9 @@ class SSM:
             self.maps['f_nl_d'] = self.reduced_dynamics_discrete
 
         # Set reference equilibrium point
-        self.y_ref = eq_point
+        self.y_eq = eq_point
+        self.y_ref = self.y_eq
+        # self.y_ref = np.tile(self.y_eq, self.delays + 1)
 
         # Variables for precomputing discrete time matrices if desired
         self.A_d = None
@@ -187,14 +189,20 @@ class SSM:
         return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u)
 
     def reduced_to_output(self, x):
-        return jnp.dot(self.C, jnp.dot(self.w_coeff, jnp.asarray(self.ssm_phi(*x))))
+        return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_phi(*x))))
 
-    #@partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
         if self.v_coeff is not None:
             return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
         else:
             return jnp.dot(np.transpose(self.V), y)
+
+    def observed_to_reduced_nojit(self, y):
+        if self.v_coeff is not None:
+            return np.dot(self.v_coeff, np.asarray(self.ssm_phi(*y)))
+        else:
+            return np.dot(np.transpose(self.V), y)
 
     # Discrete Map
     def reduced_dynamics_discrete(self, x, u):
@@ -247,9 +255,24 @@ class SSMDynamics(SSM):
 
         return A, B, d
 
+    def get_jacobians_nojit(self, x, u, dt):
+        if not self.discrete:
+            Ac, Bc, dc = self.get_continuous_jacobians(jnp.asarray(x), jnp.asarray(u))
+            A, B, d = self.discretize_dynamics(Ac, Bc, dc, dt)
+        else:
+            A, B, d = self.get_discrete_jacobians(jnp.asarray(x), jnp.asarray(u))
+
+        return A, B, d
+
     # TODO: Testing jax capes
     @partial(jax.jit, static_argnums=(0,))
     def get_observer_jacobians(self,
+                               x: jnp.ndarray):
+        H = jax.jacobian(self.W_map, 0)(x)
+        c_res = self.W_map(x) - jnp.dot(H, x)
+        return H, c_res
+
+    def get_observer_jacobians_nojit(self,
                                x: jnp.ndarray):
         # x = x.reshape(self.state_dim, 1)
 
@@ -364,6 +387,7 @@ class SSMDynamics(SSM):
         :param zf: position and velocity of observed state
         :return: Reduced order vector
         """
+        #TODO: This will introduce bugs. Fix this
         if self.delays == 0:
             return self.V_map(y - self.y_ref)
         else:

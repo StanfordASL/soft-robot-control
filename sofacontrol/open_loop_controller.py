@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import random
 import copy
 import os
 from datetime import datetime
@@ -115,11 +116,12 @@ class OpenLoopController(Sofa.Core.Controller):
             scutils.save_data(filename, self.sim_data)
 
         # self.save_point = False # debugging
-        LDL_path = os.path.join(self.LDL_dir, 'temp/')
-        currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
-                    os.path.isfile(os.path.join(LDL_path, f))]
+        if self.snapshots is not None:
+            LDL_path = os.path.join(self.LDL_dir, 'temp/')
+            currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
+                        os.path.isfile(os.path.join(LDL_path, f))]
 
-        if self.save_point and self.snapshots.save_dynamics and currFiles:
+        if self.save_point and self.snapshots.save_dynamics and (currFiles is not None):
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
             dv = self.point.v_next - self.point.v
@@ -216,6 +218,10 @@ class OpenLoop:
         self.m = m
         self.t_seq = t_sequence
         self.save_seq = save_sequence
+        self.maxNoise = kwargs.pop('maxNoise', 0) # Expect broadcasting
+        self.seed = kwargs.pop('seed', None)
+        self.minInput = kwargs.pop('minInput', 200)
+
         self.u_seq = self.convert_u_standard_form(u_sequence)
         self.u_interp = interp1d(self.t_seq, self.u_seq)
         self.dt = kwargs.get('dt', None)
@@ -234,8 +240,17 @@ class OpenLoop:
         :return: Input u to the system
         """
         t = args[0]
+        # Sample noise on the boundary
+        # if self.seed is not None:
+        #     random.seed(self.seed)
+        #     np.random.seed(self.seed)
+
+        inputDisturbance = np.random.normal(size=self.m)
+        inputDisturbance = self.maxNoise * inputDisturbance / np.linalg.norm(inputDisturbance)  # Scale to boundary
+
         if t <= self.t_seq[-1]:
-            return self.u_interp(t)
+            return self.u_interp(t) if np.linalg.norm(self.u_interp(t), np.inf) <= self.minInput \
+                                       else self.u_interp(t) + inputDisturbance
         else:
             return np.zeros(self.m)
 

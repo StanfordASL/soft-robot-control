@@ -222,8 +222,8 @@ def run_scp():
     prob.ControllerClass = ClosedLoopController
 
     # Specify a measurement and output model
-    cov_q = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 0.1 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
@@ -239,31 +239,31 @@ def run_scp():
     # Set up an EKF observer
     dt_char = model.get_characteristic_dx(dt)
     W = np.diag(dt_char)
-    V = 0.1 * np.eye(model.get_meas_dim())
+    V = 0.0 * np.eye(model.get_meas_dim())
     EKF = DiscreteEKFObserver(model, W=W, V=V)
 
 
     ##############################################
     # Problem 1, Figure 8 with constraints
     ##############################################
-    # cost = QuadraticCost()
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100  # corresponding to x position of end effector
-    # Qz[4, 4] = 100  # corresponding to y position of end effector
-    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    # cost.Q = model.H.T @ Qz @ model.H
-    # cost.R = .003 * np.eye(model.input_dim)
+    cost = QuadraticCost()
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100  # corresponding to x position of end effector
+    Qz[4, 4] = 100  # corresponding to y position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    cost.Q = model.H.T @ Qz @ model.H
+    cost.R = .003 * np.eye(model.input_dim)
 
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    cost = QuadraticCost()
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 50.0  # corresponding to x position of end effector
-    Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    Qz[5, 5] = 100.0  # corresponding to z position of end effector
-    cost.Q = model.H.T @ Qz @ model.H
-    cost.R = .003 * np.eye(model.input_dim)
+    # cost = QuadraticCost()
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 50.0  # corresponding to x position of end effector
+    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    # cost.Q = model.H.T @ Qz @ model.H
+    # cost.R = .003 * np.eye(model.input_dim)
 
 
     # Define controller (wait 3 seconds of simulation time to start)
@@ -297,15 +297,15 @@ def run_gusto_solver():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    # M = 3
-    # T = 10
-    # N = 500
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M * 2 * np.pi, M*N)
-    # zf_target = np.zeros((M*N, model.output_dim))
-    #
-    # zf_target[:, 3] = -15. * np.sin(th) - 7.1
-    # zf_target[:, 4] = 15. * np.sin(2 * th)
+    M = 3
+    T = 10
+    N = 500
+    t = np.linspace(0, M*T, M*N)
+    th = np.linspace(0, M * 2 * np.pi, M*N)
+    zf_target = np.zeros((M*N, model.output_dim))
+
+    zf_target[:, 3] = -15. * np.sin(th) - 7.1
+    zf_target[:, 4] = 15. * np.sin(2 * th)
 
     # zf_target[:, 3] = -25. * np.sin(th) + 13.
     # zf_target[:, 4] = 25. * np.sin(2 * th) + 20.
@@ -323,67 +323,67 @@ def run_gusto_solver():
     # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
     # zf_target[:, 4] = 15. * np.sin(16 * th)
 
-    # z = model.zfyf_to_zy(zf=zf_target)
-    #
-    # # Cost
-    # R = .00001 * np.eye(model.input_dim)
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100  # corresponding to x position of end effector
-    # Qz[4, 4] = 100  # corresponding to y position of end effector
-    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    #
-    #
-    # # Control constraints
-    # low = 200.0
-    # high = 4000.0
-    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
-    #
-    # # State constraints
-    # Hz = np.zeros((1, 6))
-    # Hz[0, 4] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
+    z = model.zfyf_to_zy(zf=zf_target)
+
+    # Cost
+    R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100  # corresponding to x position of end effector
+    Qz[4, 4] = 100  # corresponding to y position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
+
+
+    # Control constraints
+    low = 200.0
+    high = 4000.0
+    U = HyperRectangle([high, high, high, high], [low, low, low, low])
+
+    # State constraints
+    Hz = np.zeros((1, 6))
+    Hz[0, 4] = 1
+    H = Hz @ model.H
+    b_z = np.array([5])
+    X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
 
     # No constraints for now
     # X = None
     ##############################################
     # Problem 2, Circle on side
     ##############################################
-    M = 3
-    T = 5
-    N = 1000
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M*2*np.pi, M*N)
-    x_target = np.zeros(M*N)
+    # M = 3
+    # T = 5
+    # N = 1000
+    # t = np.linspace(0, M*T, M*N)
+    # th = np.linspace(0, M*2*np.pi, M*N)
+    # x_target = np.zeros(M*N)
 
     # r = 15
     # y_target = r * np.sin(th)
     # z_target = r - r * np.cos(th) + 107.0
 
-    r = 15
-    phi = 17
-    y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-    z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
-
-    zf_target = np.zeros((M*N, 6))
-    zf_target[:, 3] = x_target
-    zf_target[:, 4] = y_target
-    zf_target[:, 5] = z_target
-    z = model.zfyf_to_zy(zf=zf_target)
-
-    # Cost
-    R = .00001 * np.eye(4)
-    Qz = np.zeros((6, 6))
-    Qz[3, 3] = 0.0  # corresponding to x position of end effector
-    Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    # r = 15
+    # phi = 17
+    # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+    # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+    #
+    # zf_target = np.zeros((M*N, 6))
+    # zf_target[:, 3] = x_target
+    # zf_target[:, 4] = y_target
+    # zf_target[:, 5] = z_target
+    # z = model.zfyf_to_zy(zf=zf_target)
+    #
+    # # Cost
+    # R = .00001 * np.eye(4)
+    # Qz = np.zeros((6, 6))
+    # Qz[3, 3] = 0.0  # corresponding to x position of end effector
+    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
 
     # Constraints
-    low = 200.0
-    high = 2500.0
-    U = HyperRectangle([high, high, high, high], [low, low, low, low])
-    X = None
+    # low = 200.0
+    # high = 2500.0
+    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
+    # X = None
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)

@@ -26,8 +26,9 @@ def dare(Ad, Bd, Q, R):
     Solves discrete ARE, returns gain matrix K s.t. u = +K*x,
     for testing against solve_riccati
     """
+    gamma = 0.1
     P = scipy.linalg.solve_discrete_are(Ad, Bd, Q, R)
-    K = -scipy.linalg.inv(Bd.T @ P @ Bd + R) @ (Bd.T @ P @ Ad)
+    K = -scipy.linalg.inv(Bd.T @ P @ Bd + R + gamma * np.eye(np.shape(R)[0])) @ (Bd.T @ P @ Ad)
     return K, P
 
 

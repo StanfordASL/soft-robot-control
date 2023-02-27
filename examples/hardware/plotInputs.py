@@ -13,34 +13,34 @@ path = dirname(abspath(__file__))
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
-# M = 3
-# T = 10
-# N = 500
-# t_target = np.linspace(0, M*T, M*N)
-# th = np.linspace(0, M * 2 * np.pi, M*N)
-# zf_target = np.zeros((M*N, 6))
-# zf_target[:, 3] = -40. * np.sin(th) - 7.1
-# zf_target[:, 4] = 40. * np.sin(2 * th)
-# y_ub = 5
-# name = 'figure8_inputs'
+M = 3
+T = 10
+N = 500
+t_target = np.linspace(0, M*T, M*N)
+th = np.linspace(0, M * 2 * np.pi, M*N)
+zf_target = np.zeros((M*N, 6))
+zf_target[:, 3] = -20. * np.sin(th) - 7.1
+zf_target[:, 4] = 20. * np.sin(2 * th)
+y_ub = 5
+name = 'figure8_inputs'
 
 ##############################################
 # Problem 2, Circle on side
 ##############################################
-M = 3
-T = 5
-N = 1000
-r = 10
-t_target = np.linspace(0, M*T, M*N)
-th = np.linspace(0, M*2*np.pi, M*N)
-x_target = np.zeros(M*N)
-y_target = r * np.sin(th)
-z_target = r - r * np.cos(th) + 107
-zf_target = np.zeros((M*N, 6))
-zf_target[:, 3] = x_target
-zf_target[:, 4] = y_target
-zf_target[:, 5] = z_target
-name = 'circle_inputs'
+# M = 3
+# T = 5
+# N = 1000
+# r = 10
+# t_target = np.linspace(0, M*T, M*N)
+# th = np.linspace(0, M*2*np.pi, M*N)
+# x_target = np.zeros(M*N)
+# y_target = r * np.sin(th)
+# z_target = r - r * np.cos(th) + 107
+# zf_target = np.zeros((M*N, 6))
+# zf_target[:, 3] = x_target
+# zf_target[:, 4] = y_target
+# zf_target[:, 5] = z_target
+# name = 'circle_inputs'
 
 
 # Load SCP data

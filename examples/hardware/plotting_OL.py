@@ -10,6 +10,7 @@ from sofacontrol.utils import load_data
 
 path = dirname(abspath(__file__))
 
+sim_time = 20
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
@@ -20,13 +21,19 @@ t_target = np.linspace(0, M*T, M*N)
 th = np.linspace(0, M * 2 * np.pi, M*N)
 zf_target = np.zeros((M*N, 6))
 
-zf_target[:, 3] = -15. * np.sin(2 * th) - 7.1
-zf_target[:, 4] = 15. * np.sin(4 * th)
+zf_target[:, 3] = -25. * np.sin(th)
+zf_target[:, 4] = 25. * np.sin(2 * th)
+
+# zf_target[:, 3] = -15. * np.sin(2 * th) - 7.1
+# zf_target[:, 4] = 15. * np.sin(4 * th)
 
 # zf_target[:, 3] = -15. * np.sin(8 * th)
 # zf_target[:, 4] = 15. * np.sin(16 * th)
 
-y_ub = 5
+x_ub = 20
+x_lb = -x_ub
+y_ub = 15
+y_lb = -y_ub
 name = 'figure8'
 
 ##############################################
@@ -81,9 +88,11 @@ ax2 = fig2.add_subplot(211)
 
 if name == 'figure8':
     ax2.plot(t_ssm, z_ssm[:, 3], 'tab:blue', label='SSM Open Loop', linewidth=3)
-    ax2.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL Open Loop', linewidth=1)
-    ax2.plot(t_koop, z_koop[:, 0], 'tab:orange', marker='^', markevery=m_w, label='Koopman Open Loop', linewidth=1)
+    #ax2.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL Open Loop', linewidth=1)
+    #ax2.plot(t_koop, z_koop[:, 0], 'tab:orange', marker='^', markevery=m_w, label='Koopman Open Loop', linewidth=1)
     ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
+    ax2.plot(t_target, x_ub * np.ones_like(t_target), 'r', label='Constraint')
+    ax2.plot(t_target, x_lb * np.ones_like(t_target), 'r')
     plt.ylabel(r'$x_{ee}$ [mm]', fontsize=14)
 else:
     # ax2.plot(t_rompc, z_rompc[:, 4], 'tab:green', marker='x', markevery=m_w, label='Linear ROMPC', linewidth=1)
@@ -91,16 +100,18 @@ else:
     # ax2.plot(t_scp, z_scp[:, 4], 'tab:blue', label='Nonlinear ROMPC', linewidth=3)
     ax2.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
-ax2.set_xlim([0, 10])
+ax2.set_xlim([0, sim_time])
 plt.xlabel(r'$t$ [s]', fontsize=14)
 plt.legend(loc='best', prop={'size': 14})
 
 ax3 = fig2.add_subplot(212)
 if name == 'figure8':
     ax3.plot(t_ssm, z_ssm[:, 4], 'tab:blue', label='SSM Open Loop', linewidth=3)
-    ax3.plot(t_tpwl, z_tpwl[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL Open Loop', linewidth=1)
-    ax3.plot(t_koop, z_koop[:, 1], 'tab:orange', marker='^', markevery=m_w, label='Koopman Open Loop', linewidth=1)
+    #ax3.plot(t_tpwl, z_tpwl[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL Open Loop', linewidth=1)
+    #ax3.plot(t_koop, z_koop[:, 1], 'tab:orange', marker='^', markevery=m_w, label='Koopman Open Loop', linewidth=1)
     ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
+    ax3.plot(t_target, y_ub * np.ones_like(t_target), 'r')
+    ax3.plot(t_target, y_lb * np.ones_like(t_target), 'r')
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
 else:
     # ax3.plot(t_rompc, z_rompc[:, 5], 'tab:green', marker='x', markevery=m_w, label='Linear ROMPC', linewidth=1)
@@ -108,7 +119,7 @@ else:
     # ax3.plot(t_scp, z_scp[:, 5], 'tab:blue', label='Nonlinear ROMPC', linewidth=3)
     ax3.plot(t_target, zf_target[:, 5], '--k', alpha=1, linewidth=1, label='Target')
     plt.ylabel(r'$z_{ee}$ [mm]', fontsize=14)
-ax3.set_xlim([0, 10])
+ax3.set_xlim([0, sim_time])
 plt.xlabel(r'$t$ [s]', fontsize=14)
 plt.legend(loc='best', prop={'size': 14})
 

@@ -22,11 +22,14 @@ t_target = np.linspace(0, M*T, M*N)
 th = np.linspace(0, M * 2 * np.pi, M*N)
 zf_target = np.zeros((M*N, 6))
 
-zf_target[:, 3] = -15. * np.sin(th) - 7.1
-zf_target[:, 4] = 15. * np.sin(2 * th)
+zf_target[:, 3] = -25. * np.sin(th)
+zf_target[:, 4] = 25. * np.sin(2 * th)
 
-# zf_target[:, 3] = -25. * np.sin(th) + 13
-# zf_target[:, 4] = 25. * np.sin(2 * th) + 20
+# zf_target[:, 3] = -30. * np.sin(th) - 7.1
+# zf_target[:, 4] = 30. * np.sin(2 * th)
+
+# zf_target[:, 3] = -30. * np.sin(2 * th)
+# zf_target[:, 4] = 30. * np.sin(4 * th)
 
 # zf_target[:, 3] = -35. * np.sin(th) - 7.1
 # zf_target[:, 4] = 35. * np.sin(2 * th)
@@ -40,7 +43,7 @@ zf_target[:, 4] = 15. * np.sin(2 * th)
 # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
 # zf_target[:, 4] = 15. * np.sin(16 * th)
 if constrained:
-    y_ub = 5
+    y_ub = 15
 
 name = 'figure8'
 
@@ -210,8 +213,8 @@ fig2 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
 ax2 = fig2.add_subplot(211)
 
 if name ==  'figure8':
-    ax2.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
-    ax2.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
+    #ax2.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
+    #ax2.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
     ax2.plot(t_scp, z_scp[:, 3], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
     ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
     if plot_rompc:
@@ -220,7 +223,7 @@ if name ==  'figure8':
     idx = 0
     if plot_rollouts:
         for idx in range(np.shape(z_opt_rollout)[0]):
-            if idx % 5 == 0:
+            if idx % 2 == 0:
                 z_horizon = z_opt_rollout[idx]
                 t_horizon = t_opt_rollout[idx]
                 ax2.plot(t_horizon, z_horizon[:, 0], 'tab:red', marker='o', markevery=2)
@@ -241,8 +244,8 @@ plt.xlabel(r'$t$ [s]', fontsize=14)
 
 ax3 = fig2.add_subplot(212)
 if name == 'figure8':
-    ax3.plot(t_tpwl, z_tpwl[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
-    ax3.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
+    #ax3.plot(t_tpwl, z_tpwl[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
+    #ax3.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
     ax3.plot(t_scp, z_scp[:, 4], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
     ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
     if plot_rompc:
@@ -252,7 +255,7 @@ if name == 'figure8':
         ax3.plot(t_target, y_ub * np.ones_like(t_target), 'r', label='Constraint')
     if plot_rollouts:
         for idx in range(np.shape(z_opt_rollout)[0]):
-            if idx % 5 == 0:
+            if idx % 2 == 0:
                 z_horizon = z_opt_rollout[idx]
                 t_horizon = t_opt_rollout[idx]
                 ax3.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)

@@ -1,10 +1,7 @@
 import numpy as np
-import rclpy
-from rclpy.node import Node
 from scipy.interpolate import interp1d
-from soft_robot_control_ros.srv import GuSTOsrv
 
-from sofacontrol.scp_test.gusto import GuSTO
+from sofacontrol.scp.gusto import GuSTO
 from sofacontrol.utils import arr2np, np2arr
 
 

@@ -41,13 +41,14 @@ def module_test_continuous():
 
     pathToModel = path + '/SSMmodels/'
     #SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
+    # SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
+    SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
-    outputSSMModel = OutputModel(15, 3)
+    outputSSMModel = OutputModel(6, 3)
     model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=outputSSMModel.C)
+                            model=raw_model, params=raw_params, C=None)
     n = raw_params['state_dim'][0, 0][0, 0]
 
     # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
@@ -69,16 +70,23 @@ def module_test_continuous():
     p0 = np.zeros((n,))
     p_traj, z_traj = model.rollout(p0, u_interp, dt)
 
+    xbar_traj = np.zeros(np.shape(p_traj))
+    zbar_traj = np.zeros(np.shape(z_traj))
+    for idx in range(np.shape(xbar_traj)[0]):
+        xbar_traj[idx, :] = model.V_map(model.zfyf_to_zy(z_traj)[idx])
+        zbar_traj[idx, :] = model.x_to_zfyf(xbar_traj[idx])
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot3D(z_traj[:, 0], z_traj[:, 1], z_traj[:, 2], label='Predicted Trajectory')
+    ax.plot3D(z_traj[:, 3], z_traj[:, 4], z_traj[:, 5], label='Predicted Trajectory')
     ax.plot3D(zq_true[:, 0], zq_true[:, 1], zq_true[:, 2], label='Actual Trajectory')
+    ax.plot3D(zbar_traj[:, 3], zbar_traj[:, 4], zbar_traj[:, 5], label='Manifold Projected Trajectory')
     plt.legend()
     plt.title('SSM Open Loop Trajectory')
 
     z_true_qv = interp1d(t_original, np.hstack((zq_true, zv_true)), axis=0)(t_interp)
     #err_SSM = z_true_qv - z_traj[:-1]
-    err_SSM = z_true_qv[:, 0:3] - z_traj[:-1]
+    err_SSM = z_true_qv[:, 0:3] - z_traj[:-1, 3:]
     SSM_RMSE = np.linalg.norm(np.linalg.norm(err_SSM, axis=1))**2 / err_SSM.shape[0]
     print('------ Mean Squared Errors (MSEs)----------')
     print('Ours (SSM): {}'.format(SSM_RMSE))
@@ -163,6 +171,7 @@ def run_scp():
     from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron
     from sofacontrol.SSM import ssm
+    from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
     from sofacontrol.SSM.controllers import scp
     from scipy.io import loadmat
 
@@ -190,9 +199,11 @@ def run_scp():
     if useTimeDelay:
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model_5delay.mat'))['py_data'][0, 0]
+        SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
         prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q)
-        outputSSMModel = OutputModel(15, 3)
+        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)
@@ -200,6 +211,11 @@ def run_scp():
         SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
         prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
                                                   S_v=cov_v)
+        # prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
+        #                                           S_v=cov_v)
+        # outputModel = linearModel([TIP_NODE], 1628, vel=False)
+        # z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
         Cout = None
 
     # Loading SSM model from Matlab
@@ -210,7 +226,15 @@ def run_scp():
                             model=raw_model, params=raw_params, C=Cout)
 
     # This dt for when to recalculate control
-    dt = 0.01
+    dt = 0.02
+
+    # Pure SSM Manifold Observer
+    observer = SSMObserver(model)
+
+    # Set up an EKF observer
+    # W = np.diag(np.ones(model.state_dim))
+    # V = 0.1 * np.eye(model.output_dim)
+    # observer = DiscreteEKFObserver(model, W=W, V=V)
 
     ##############################################
     # Problem 1, Figure 8 with constraints
@@ -235,7 +259,7 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=1, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=2, delay=3, feedback=False, EKF=observer)
 
     # Saving paths
     prob.opt['sim_duration'] = 13.
@@ -271,13 +295,18 @@ def run_gusto_solver():
     if useTimeDelay:
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
-        outputSSMModel = OutputModel(15, 3)
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model_5delay.mat'))['py_data'][0, 0]
+        SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
+        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)
         z_eq_point = outputModel.evaluate(x_eq, qv=True)
         SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+        # outputModel = linearModel([TIP_NODE], 1628, vel=False)
+        # z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
         Cout = None
 
     # Loading SSM model from Matlab
@@ -308,8 +337,12 @@ def run_gusto_solver():
     th = np.linspace(0, M * 2 * np.pi, M * N)
     zf_target = np.zeros((M * N, model.output_dim))
 
-    zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    zf_target[:, 1] = 15. * np.sin(2 * th)
+    zf_target[:, 0] = -25. * np.sin(th)
+    zf_target[:, 1] = 25. * np.sin(2 * th)
+
+    # This trajectory results in constraint violation
+    # zf_target[:, 0] = -30. * np.sin(5 * th)
+    # zf_target[:, 1] = 30. * np.sin(10 * th)
 
     # # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
@@ -368,13 +401,19 @@ def run_gusto_solver():
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
     # Control change constraints
-    # dU_max = 100
+    # dU_max = 50
     # dU = HyperRectangle([dU_max, dU_max, dU_max, dU_max], [-dU_max, -dU_max, -dU_max, -dU_max])
 
+    dU = None
+
     # State constraints (q,v format)
-    Hz = np.zeros((1, model.output_dim))
-    Hz[0, 1] = 1
-    b_z = np.array([5])
+    Hz = np.zeros((4, model.output_dim))
+    Hz[0, 0] = 1
+    Hz[1, 0] = -1
+    Hz[2, 1] = 1
+    Hz[3, 1] = -1
+
+    b_z = np.array([20, 20, 15, 15])
     X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
 
     # No constraints for now
@@ -384,14 +423,17 @@ def run_gusto_solver():
     x0 = np.zeros(model.state_dim)
 
     # Define GuSTO model (dt here is discretization of model)
-    dt = 0.01
+    dt = 0.02
     N = 3
     gusto_model = SSMGuSTO(model)
 
     # TODO: For some odd reason, GUROBI is slower than OSQP
+    # runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
+    #                    verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
+    #                    max_gusto_iters=0, input_nullspace=None, dU=None)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=None)
+                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
 
 
 def run_scp_OL():
@@ -406,42 +448,57 @@ def run_scp_OL():
      python3 launch_sofa.py
      """
     from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
-    from sofacontrol.measurement_models import MeasurementModel, linearModel
+    from sofacontrol.measurement_models import OutputModel, linearModel, MeasurementModel
     from sofacontrol.scp.models.ssm import SSMGuSTO
     from sofacontrol.scp.standalone_test import runGuSTOSolverStandAlone
-    from sofacontrol.utils import HyperRectangle, vq2qv, x2qv, load_data, qv2x
+    from sofacontrol.utils import HyperRectangle, vq2qv, x2qv, load_data, qv2x, SnapshotData, Polyhedron
     from sofacontrol.SSM import ssm
+    from scipy.io import loadmat
 
-    t0 = 3.0
-    dt = 0.05
+    dt = 0.01
     prob = Problem()
     prob.Robot = diamondRobot(dt=0.01)
     prob.ControllerClass = OpenLoopController
-    Sequences = DiamondRobotSequences(t0=t0, dt=dt)
+    Sequences = DiamondRobotSequences(t0=3.0, dt=dt) # t0 is delay before real inputs
 
-    # Specify a measurement and output model
-    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
-    prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
+    useTimeDelay = False
 
-    # Load and configure the SSM model
-    # Specify output model
-    output_model = linearModel(nodes=[1354], num_nodes=1628)
-
-    # Setup model
+    # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
 
-    # Necessary since rest position above is in full state space
-    # I extracted the equilibrium in qv so need to switch to vq format.
-    # Then I extract both configuration and velocity and return in qv format
-    x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-    outputModel = linearModel([TIP_NODE], 1628)
-    z_eq_point = outputModel.evaluate(x_eq, qv=True)
+    # Set directory for SSM Models
+    pathToModel = path + '/SSMmodels/'
 
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be')
+    cov_q = 0.0 * np.eye(3)
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
+
+    # Setup equilibrium point (no time delay and observed position and velocity of tip)
+    x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
+    if useTimeDelay:
+        outputModel = linearModel([TIP_NODE], 1628, vel=False)
+        z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q)
+        outputSSMModel = OutputModel(6, 3) # TODO: Modify this based on observables
+        Cout = outputSSMModel.C
+    else:
+        outputModel = linearModel([TIP_NODE], 1628)
+        z_eq_point = outputModel.evaluate(x_eq, qv=True)
+        SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
+                                                  S_v=cov_v)
+        Cout = None
+
+    # Loading SSM model from Matlab
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
+
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params, C=Cout)
 
     # Define cost functions and trajectory
     Qz = np.zeros((model.output_dim, model.output_dim))
@@ -460,38 +517,53 @@ def run_scp_OL():
     t = np.linspace(0, M * T, M * N)
     th = np.linspace(0, M * 2 * np.pi, M * N)
     zf_target = np.zeros((M * N, model.output_dim))
-    zf_target[:, 0] = -15. * np.sin(2 * th) - 7.1
-    zf_target[:, 1] = 15. * np.sin(4 * th)
+
+    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(2 * th)
+
+    zf_target[:, 0] = -25. * np.sin(th)
+    zf_target[:, 1] = 25. * np.sin(2 * th)
 
     # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
     # zf_target[:, 1] = 15. * np.sin(16 * th)
+
+    # zf_target[:, 0] = -15. * np.sin(4 * th)
+    # zf_target[:, 1] = 15. * np.sin(8 * th)
 
     #z = zf_target
     z = model.zfyf_to_zy(zf=zf_target)
 
     # Define controller (wait 3 seconds of simulation time to start)
     from types import SimpleNamespace
-    target = SimpleNamespace(z=z, Hf=output_model.C, t=t)
+    target = SimpleNamespace(z=z, Hf=outputModel.C, t=t)
 
     # Control constraints
     low = 200.0
     high = 4000.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
-    # State Constraints
-    X = None
+    # State constraints (q,v format)
+    # Hz = np.zeros((4, model.output_dim))
+    # Hz[0, 0] = 1
+    # Hz[1, 0] = -1
+    # Hz[2, 1] = 1
+    # Hz[3, 1] = -1
+    #
+    # b_z = np.array([20, 20, 15, 15])
+    # X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
 
-    x0 = model.compute_RO_state(model.z_ref)
+    X = None
+    x0 = np.zeros((model.state_dim,))
 
     # Define GuSTO model
-    N = 200
+    N = 1000
     gusto_model = SSMGuSTO(model)
     # xopt, uopt, zopt, topt = runGuSTOSolverStandAlone(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
     #                    verbose=1, warm_start=False, convg_thresh=0.001, solver='GUROBI')
 
     xopt, uopt, zopt, topt = runGuSTOSolverStandAlone(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                                                      verbose=1, warm_start=False, convg_thresh=1e-6, solver='GUROBI',
-                                                      input_nullspace=None)
+                                                      verbose=1, warm_start=False, convg_thresh=1e-5, solver='GUROBI',
+                                                      input_nullspace=None, jit=False)
 
     ###### Plot results. Make sure comment this or robot will not animate ########
     # zopt = vq2qv(model.zy_to_zfyf(zopt))
@@ -504,11 +576,57 @@ def run_scp_OL():
 
     # Open loop
     u, save, t = Sequences.augment_input_with_base(uopt.T, save_data=True)
-    prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt)
+    prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt, maxNoise=0)
 
-    #prob.snapshots = SnapshotData(save_dynamics=False)
+    # prob.snapshots = SnapshotData(save_dynamics=False)
 
     prob.opt['sim_duration'] = 13.
+    prob.simdata_dir = path
+    prob.opt['save_prefix'] = 'scp_OL_SSM'
+
+    return prob
+
+def collect_traj_data():
+    """
+    In problem_specification add:
+
+    from examples.hardware import diamond
+    problem = diamond.collect_POD_data
+
+    then run:
+
+    $SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.py
+
+    or
+
+    python3 launch_sofa.py
+
+    This function runs a Sofa simulation with an open loop controller to collect data that will be used to identify the
+    POD basis.
+    """
+    from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
+    from sofacontrol.utils import SnapshotData
+    from sofacontrol.measurement_models import OutputModel, linearModel, MeasurementModel
+
+
+    # Adjust dt here as necessary (esp for Koopman)
+    dt = 0.01
+    prob = Problem()
+    prob.Robot = diamondRobot()
+    prob.ControllerClass = OpenLoopController
+    Sequences = DiamondRobotSequences(t0=3.0, dt=dt)  # t0 is delay before real inputs
+
+    cov_q = 0.0 * np.eye(3)
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
+    outputModel = linearModel([TIP_NODE], 1628)
+    prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
+                                              S_v=cov_v)
+
+    # Training snapshots
+    u, save, t = Sequences.lhs_sequence(nbr_samples=10, t_step=1.5, add_base=True, interp_pts=1, nbr_zeros=5, seed=4321)
+    prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt, maxNoise=0)
+
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'scp_OL_SSM'
 

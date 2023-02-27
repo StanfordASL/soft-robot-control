@@ -119,7 +119,7 @@ class LOCP:
                 elif self.Qzf is not None and zf is None:
                     self.zf.value = np.zeros(self.n_z)  # default set to 0
 
-                # Added observer linearizations here. Make sure to propogate Hd and cd as parameters in kwargs
+                # Added observer linearizations. Make sure to propogate Hd and cd as parameters in kwargs
                 for j in range(self.N):
                     self.Ad[j].value = np.asarray(Ad[j])
                     self.Bd[j].value = np.asarray(Bd[j])
@@ -241,7 +241,6 @@ class LOCP:
                 Hfull = cp.bmat(Hfull)
             else:
                 Hfull = block_diag(*[self.Hd[j] for j in range(self.N + 1)])
-
             J += cp.quad_form(Hfull @ self.x + cdfull - self.z, Qzfull)
         else:
             Hfull = block_diag(*[self.H for j in range(self.N + 1)])
