@@ -1,5 +1,5 @@
 import sys
-from os.path import dirname, abspath, join
+from os.path import dirname, abspath, join, split
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -14,7 +14,7 @@ from sofacontrol.open_loop_sequences import DiamondRobotSequences
 # Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
-def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0, filename=None, scale_mode=1000):
+def apply_constant_input(input=np.zeros(4), q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
     """
     In problem_specification add:
 
@@ -38,12 +38,11 @@ def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0, fi
     from sofacontrol.utils import SnapshotData
 
     prob = Problem()
-    #prob.Robot = environments.Diamond(q0=q0)
-    prob.Robot = diamondRobot(q0=q0, scale_mode=scale_mode)
+    prob.Robot = diamondRobot(q0=q0)
     prob.ControllerClass = OpenLoopController
 
     # t0 is when force is actually applied and when data is saved
-    Sequences = DiamondRobotSequences(t0=t0, dt=0.001)
+    Sequences = DiamondRobotSequences(t0=t0, dt=0.01)
 
     # 1) Wind up the robot
     t_duration1 = 1.0
@@ -56,16 +55,10 @@ def apply_constant_input(input=np.zeros(4), q0=None, save_data=False, t0=0.0, fi
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration2, save_data=save_data)
 
     u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+
     prob.controller = OpenLoop(u.shape[0], t, u, save)
-
     prob.snapshots = SnapshotData(save_dynamics=False)
-
-    prob.snapshots_dir = path + "/dataCollection/"
-
-    if filename is None:
-        prob.opt['save_prefix'] = 'decay'
-    else:
-        prob.opt['save_prefix'] = filename
+    prob.snapshots_dir, prob.opt['save_prefix'] = split(filepath)[0], split(filepath)[1]
     prob.opt['sim_duration'] = t_duration1 + t_duration2
 
     return prob

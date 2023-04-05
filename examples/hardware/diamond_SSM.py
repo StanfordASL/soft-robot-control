@@ -39,6 +39,7 @@ def module_test_continuous():
     # TODO: This evaluation is a mess - qv option fails terribly if observation is only position (i.e., 3 dim)
     z_eq_point = outputModel.evaluate(x_eq, qv=False)
 
+    # load SSM model as computed using SSMLearn (.mat file)
     pathToModel = path + '/SSMmodels/'
     #SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
     # SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
@@ -174,6 +175,7 @@ def run_scp():
     from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
     from sofacontrol.SSM.controllers import scp
     from scipy.io import loadmat
+    import pickle
 
     prob = Problem()
     prob.Robot = diamondRobot()
@@ -218,7 +220,10 @@ def run_scp():
         # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
         Cout = None
 
-    # Loading SSM model from Matlab
+    pathToModel = path + '/SSMmodels/'
+    # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    with open(join(pathToModel, 'SSM_dummy_model.pkl'), 'rb') as f:
+        SSM_data = pickle.load(f)
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
@@ -259,10 +264,10 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=3, feedback=False, EKF=observer)
+    prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
 
     # Saving paths
-    prob.opt['sim_duration'] = 13.
+    prob.opt['sim_duration'] = 7
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'scp_CL'
 
@@ -279,6 +284,7 @@ def run_gusto_solver():
     from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron
     from sofacontrol.SSM import ssm
     from scipy.io import loadmat
+    import pickle
 
     useTimeDelay = False
 
@@ -310,6 +316,10 @@ def run_gusto_solver():
         Cout = None
 
     # Loading SSM model from Matlab
+    pathToModel = path + '/SSMmodels/'
+    # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+        SSM_data = pickle.load(f)
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
@@ -352,12 +362,12 @@ def run_gusto_solver():
 
     # # zf_target[:, 0] = -5. * np.sin(th) - 7.1
     # # zf_target[:, 1] = 5. * np.sin(2 * th)
-    #
+    
     # zf_target[:, 0] = -15. * np.sin(th)
     # zf_target[:, 1] = 15. * np.sin(2 * th)
-    #
-    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(16 * th)
+    
+    zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(16 * th)
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)

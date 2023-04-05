@@ -34,15 +34,13 @@
 
 # from examples.hardware import diamond_koopman
 # problem = diamond_koopman.run_koopman
-# problem = diamond_koopman.run_MPC_OLs
+# problem = diamond_koopman.run_MPC_OL
 
 from examples.hardware import diamond_SSM
-# problem = diamond_SSM.run_scp
-problem = diamond_SSM.run_scp_OL
-# problem = diamond_SSM.collect_traj_data
+problem = diamond_SSM.run_scp
+# problem = diamond_SSM.run_scp_OL
 # problem = diamond_SSM.module_test
 # problem = diamond_SSM.module_test_continuous
-
 
 ### TRUNK ROBOT PROBLEM SPECIFICATION ###
 # from examples.trunk import trunk

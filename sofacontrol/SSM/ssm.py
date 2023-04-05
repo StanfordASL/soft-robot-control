@@ -30,15 +30,15 @@ class SSM:
         self.model = kwargs.pop('model', None)
         self.params = kwargs.pop('params', None)
 
-        self.state_dim = self.params['state_dim'][0, 0][0, 0]
-        self.input_dim = self.params['input_dim'][0, 0][0, 0]
-        self.output_dim = int(self.params['output_dim'][0, 0][0, 0]) #This is also performance dimension
-        self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
-        self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
-        self.Ts = self.model['Ts'][0, 0][0, 0]
+        self.state_dim = self.params['state_dim'] # [0, 0][0, 0]
+        self.input_dim = self.params['input_dim'] # [0, 0][0, 0]
+        self.output_dim = int(self.params['output_dim']) # [0, 0][0, 0]) #This is also performance dimension
+        self.SSM_order = self.params['SSM_order'] # [0, 0][0, 0]
+        self.ROM_order = self.params['ROM_order'] # [0, 0][0, 0]
+        self.Ts = self.model['Ts'] # [0, 0][0, 0]
         # TODO: This is new
-        self.delays = self.params['delays'][0, 0][0, 0]
-        self.obs_dim = self.params['obs_dim'][0, 0][0, 0]
+        self.delays = self.params['delays'] # [0, 0][0, 0]
+        self.obs_dim = self.params['obs_dim'] # [0, 0][0, 0]
 
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
         self.ssm_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
@@ -52,21 +52,21 @@ class SSM:
             self.C = np.eye(self.obs_dim, self.obs_dim)
 
         # Continuous-time model
-        self.V = self.model['V'][0, 0] # Tangent space TODO: this is new
-        self.w_coeff = self.model['w_coeff'][0, 0] # reduced to observed
+        self.V = self.model['V'] # [0, 0] # Tangent space TODO: this is new
+        self.w_coeff = self.model['w_coeff'] # [0, 0] # reduced to observed
 
-        self.v_coeff = self.model['v_coeff'][0, 0]  # observed to reduced
+        self.v_coeff = self.model['v_coeff'] # [0, 0]  # observed to reduced
         if len(self.v_coeff) == 0:
             self.v_coeff = None
 
-        self.r_coeff = self.model['r_coeff'][0, 0] # reduced coefficients
-        self.B_r = self.model['B'][0, 0] #reduced control matrix
+        self.r_coeff = self.model['r_coeff'] # [0, 0] # reduced coefficients
+        self.B_r = self.model['B'] # [0, 0] #reduced control matrix
 
         # Discrete-time model
         # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
         if discrete:
-            self.rd_coeff = self.model['rd_coeff'][0, 0]  # reduced coefficients
-            self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
+            self.rd_coeff = self.model['rd_coeff'] # [0, 0]  # reduced coefficients
+            self.Bd_r = self.model['Bd'] # [0, 0]  # reduced control matrix
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
