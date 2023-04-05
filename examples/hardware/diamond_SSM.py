@@ -286,7 +286,7 @@ def run_gusto_solver():
     from scipy.io import loadmat
     import pickle
 
-    useTimeDelay = False
+    useTimeDelay = True
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -366,8 +366,8 @@ def run_gusto_solver():
     # zf_target[:, 0] = -15. * np.sin(th)
     # zf_target[:, 1] = 15. * np.sin(2 * th)
     
-    zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
-    zf_target[:, 1] = 15. * np.sin(16 * th)
+    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(16 * th)
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)
