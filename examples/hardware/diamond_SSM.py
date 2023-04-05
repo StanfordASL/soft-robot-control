@@ -201,18 +201,18 @@ def run_scp():
     if useTimeDelay:
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model_5delay.mat'))['py_data'][0, 0]
-        SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
+        with open(join(pathToModel, 'SSM_model_delayEmbedding.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)        
         prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q)
-        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        outputSSMModel = OutputModel(6, 3) # TODO: modify this
+        outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)
         z_eq_point = outputModel.evaluate(x_eq, qv=True)
-        SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
-                                                  S_v=cov_v)
+        with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)         
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
         # prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
         #                                           S_v=cov_v)
         # outputModel = linearModel([TIP_NODE], 1628, vel=False)
@@ -220,10 +220,6 @@ def run_scp():
         # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
         Cout = None
 
-    pathToModel = path + '/SSMmodels/'
-    # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    with open(join(pathToModel, 'SSM_dummy_model.pkl'), 'rb') as f:
-        SSM_data = pickle.load(f)
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
@@ -286,7 +282,7 @@ def run_gusto_solver():
     from scipy.io import loadmat
     import pickle
 
-    useTimeDelay = True
+    useTimeDelay = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -301,25 +297,25 @@ def run_gusto_solver():
     if useTimeDelay:
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
         # SSM_data = loadmat(join(pathToModel, 'SSM_model_5delay.mat'))['py_data'][0, 0]
-        SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
-        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        outputSSMModel = OutputModel(6, 3) # TODO: modify this
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
+        with open(join(pathToModel, 'SSM_model_delayEmbedding.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)
+        outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)
         z_eq_point = outputModel.evaluate(x_eq, qv=True)
-        SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+        # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+        with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)
         # outputModel = linearModel([TIP_NODE], 1628, vel=False)
         # z_eq_point = outputModel.evaluate(x_eq, qv=False)
         # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
         Cout = None
 
-    # Loading SSM model from Matlab
-    pathToModel = path + '/SSMmodels/'
-    # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
-        SSM_data = pickle.load(f)
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
@@ -347,8 +343,8 @@ def run_gusto_solver():
     th = np.linspace(0, M * 2 * np.pi, M * N)
     zf_target = np.zeros((M * N, model.output_dim))
 
-    zf_target[:, 0] = -25. * np.sin(th)
-    zf_target[:, 1] = 25. * np.sin(2 * th)
+    # zf_target[:, 0] = -25. * np.sin(th)
+    # zf_target[:, 1] = 25. * np.sin(2 * th)
 
     # This trajectory results in constraint violation
     # zf_target[:, 0] = -30. * np.sin(5 * th)
@@ -366,8 +362,8 @@ def run_gusto_solver():
     # zf_target[:, 0] = -15. * np.sin(th)
     # zf_target[:, 1] = 15. * np.sin(2 * th)
     
-    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(16 * th)
+    zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(16 * th)
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)
@@ -417,17 +413,17 @@ def run_gusto_solver():
     dU = None
 
     # State constraints (q,v format)
-    Hz = np.zeros((4, model.output_dim))
-    Hz[0, 0] = 1
-    Hz[1, 0] = -1
-    Hz[2, 1] = 1
-    Hz[3, 1] = -1
+    # Hz = np.zeros((4, model.output_dim))
+    # Hz[0, 0] = 1
+    # Hz[1, 0] = -1
+    # Hz[2, 1] = 1
+    # Hz[3, 1] = -1
 
-    b_z = np.array([20, 20, 15, 15])
-    X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
+    # b_z = np.array([20, 20, 15, 15])
+    # X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
 
     # No constraints for now
-    # X = None
+    X = None
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)
@@ -464,6 +460,7 @@ def run_scp_OL():
     from sofacontrol.utils import HyperRectangle, vq2qv, x2qv, load_data, qv2x, SnapshotData, Polyhedron
     from sofacontrol.SSM import ssm
     from scipy.io import loadmat
+    import pickle
 
     dt = 0.01
     prob = Problem()
@@ -490,17 +487,17 @@ def run_scp_OL():
     if useTimeDelay:
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
+        with open(join(pathToModel, 'SSM_model_delayEmbedding.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)
         prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q)
-        outputSSMModel = OutputModel(6, 3) # TODO: Modify this based on observables
+        outputSSMModel = OutputModel(15, 3) # TODO: Modify this based on observables
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)
         z_eq_point = outputModel.evaluate(x_eq, qv=True)
-        SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q,
-                                                  S_v=cov_v)
+        with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)
+        prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
         Cout = None
 
     # Loading SSM model from Matlab

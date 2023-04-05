@@ -35,7 +35,6 @@ class SSM:
         self.output_dim = int(self.params['output_dim']) # [0, 0][0, 0]) #This is also performance dimension
         self.SSM_order = self.params['SSM_order'] # [0, 0][0, 0]
         self.ROM_order = self.params['ROM_order'] # [0, 0][0, 0]
-        self.Ts = self.model['Ts'] # [0, 0][0, 0]
         # TODO: This is new
         self.delays = self.params['delays'] # [0, 0][0, 0]
         self.obs_dim = self.params['obs_dim'] # [0, 0][0, 0]
@@ -46,6 +45,7 @@ class SSM:
         # Observation model
         if C is not None:
             self.C = C
+            print(C.shape, self.output_dim, self.obs_dim)
             assert np.shape(self.C) == (self.output_dim, self.obs_dim)
         else:
             # When we learn mappings to output variables directly (no time-delays)
@@ -56,8 +56,8 @@ class SSM:
         self.w_coeff = self.model['w_coeff'] # [0, 0] # reduced to observed
 
         self.v_coeff = self.model['v_coeff'] # [0, 0]  # observed to reduced
-        if len(self.v_coeff) == 0:
-            self.v_coeff = None
+        # if len(self.v_coeff) == 0:
+        #     self.v_coeff = None
 
         self.r_coeff = self.model['r_coeff'] # [0, 0] # reduced coefficients
         self.B_r = self.model['B'] # [0, 0] #reduced control matrix
@@ -65,6 +65,7 @@ class SSM:
         # Discrete-time model
         # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
         if discrete:
+            self.Ts = self.model['Ts'] # [0, 0][0, 0]
             self.rd_coeff = self.model['rd_coeff'] # [0, 0]  # reduced coefficients
             self.Bd_r = self.model['Bd'] # [0, 0]  # reduced control matrix
 
@@ -193,6 +194,7 @@ class SSM:
 
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
+        print(y.shape)
         if self.v_coeff is not None:
             return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
         else:
