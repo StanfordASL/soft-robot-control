@@ -30,25 +30,29 @@ class SSM:
         self.model = kwargs.pop('model', None)
         self.params = kwargs.pop('params', None)
 
-        self.state_dim = self.params['state_dim'][0, 0][0, 0]
-        self.input_dim = self.params['input_dim'][0, 0][0, 0]
-        self.output_dim = self.params['output_dim'][0, 0][0, 0]
-        self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
-        self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
-        self.Ts = self.model['Ts'][0, 0][0, 0]
+        self.state_dim = self.params['state_dim'] # [0, 0][0, 0]
+        self.input_dim = self.params['input_dim'] # [0, 0][0, 0]
+        self.output_dim = self.params['output_dim'] # [0, 0][0, 0]
+        self.SSM_order = self.params['SSM_order'] # [0, 0][0, 0]
+        self.ROM_order = self.params['ROM_order'] # [0, 0][0, 0]
+
+        print(self.ROM_order)
+
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
         self.ssm_phi = self.get_poly_basis(self.output_dim, self.SSM_order)
 
         # Continuous-time model
-        self.w_coeff = self.model['w_coeff'][0, 0] #reduced to observed
-        self.v_coeff = self.model['v_coeff'][0, 0] #observed to reduced
-        self.r_coeff = self.model['r_coeff'][0, 0] #reduced coefficients
-        self.B_r = self.model['B'][0, 0] #reduced control matrix
-
+        if not discrete:
+            self.w_coeff = self.model['w_coeff'] # [0, 0] # reduced to observed
+            self.v_coeff = self.model['v_coeff'] # [0, 0] # observed to reduced
+            self.r_coeff = self.model['r_coeff'] # [0, 0] # reduced coefficients
+            self.B_r = self.model['B'] # [0, 0] # reduced control matrix
         # Discrete-time model
-        # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
-        self.rd_coeff = self.model['rd_coeff'][0, 0]  # reduced coefficients
-        self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
+        else:
+            self.Ts = self.model['Ts'] # [0, 0][0, 0]
+            # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
+            self.rd_coeff = self.model['rd_coeff'] # [0, 0]  # reduced coefficients
+            self.Bd_r = self.model['Bd'] # [0, 0]  # reduced control matrix
 
         # Manifold parametrization
         self.C_map = self.reduced_to_observed

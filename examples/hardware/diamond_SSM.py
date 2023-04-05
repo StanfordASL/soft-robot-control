@@ -36,14 +36,16 @@ def module_test_continuous():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
+    # load SSM model as computed using SSMLearn (.mat file)
     pathToModel = path + '/SSMmodels/'
     SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
+    # init SSM model using the dedicated Python class
     model = ssm.SSMDynamics(z_eq_point, discrete=True, discr_method='be',
                             model=raw_model, params=raw_params)
-    n = raw_model['state_dim'][0, 0][0, 0]
+    n = raw_params['state_dim'][0, 0][0, 0]
 
     # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
     # with true response of system (need to extract z from simulation and load here). Plot comparison
@@ -159,6 +161,7 @@ def run_scp():
     from sofacontrol.SSM import ssm
     from sofacontrol.SSM.controllers import scp
     from scipy.io import loadmat
+    import pickle
 
     prob = Problem()
     prob.Robot = diamondRobot()
@@ -174,9 +177,10 @@ def run_scp():
     outputModel = linearModel([TIP_NODE], 1628)
     z_eq_point = outputModel.evaluate(x_eq, qv=True)
 
-    # TODO: Loading SSM model from Matlab
     pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    with open(join(pathToModel, 'SSM_dummy_model.pkl'), 'rb') as f:
+        SSM_data = pickle.load(f)
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
@@ -215,10 +219,10 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=2, delay=1)
 
     # Saving paths
-    prob.opt['sim_duration'] = 13.
+    prob.opt['sim_duration'] = 7
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'scp_CL'
 
@@ -235,6 +239,7 @@ def run_gusto_solver():
     from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron
     from sofacontrol.SSM import ssm
     from scipy.io import loadmat
+    import pickle
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -248,7 +253,9 @@ def run_gusto_solver():
 
     # Loading SSM model from Matlab
     pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
+    with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+        SSM_data = pickle.load(f)
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
@@ -262,20 +269,20 @@ def run_gusto_solver():
     # Problem 1, Figure 8 with constraints
     #############################################
     # Define cost functions and trajectory
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
 
     #### Define Target Trajectory ####
-    # M = 3
-    # T = 10
-    # N = 1000
-    # t = np.linspace(0, M * T, M * N)
-    # th = np.linspace(0, M * 2 * np.pi, M * N)
-    # zf_target = np.zeros((M * N, model.output_dim))
-    #
+    M = 3
+    T = 10
+    N = 1000
+    t = np.linspace(0, M * T, M * N)
+    th = np.linspace(0, M * 2 * np.pi, M * N)
+    zf_target = np.zeros((M * N, model.output_dim))
+    
     # zf_target[:, 0] = -15. * np.sin(th) - 7.1
     # zf_target[:, 1] = 15. * np.sin(2 * th)
 
@@ -287,44 +294,46 @@ def run_gusto_solver():
 
     # # zf_target[:, 0] = -5. * np.sin(th) - 7.1
     # # zf_target[:, 1] = 5. * np.sin(2 * th)
-    #
+    
     # zf_target[:, 0] = -15. * np.sin(th)
     # zf_target[:, 1] = 15. * np.sin(2 * th)
-    #
-    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(16 * th)
+    
+    zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
+    zf_target[:, 1] = 15. * np.sin(16 * th)
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)
     #####################################################
     # Multiply 'th' in sine terms to factor rad/s frequency
-    M = 3
-    T = 5.
-    N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    x_target = np.zeros(M * N)
+    # M = 3
+    # T = 5.
+    # N = 1000
+    # t = np.linspace(0, M * T, M * N)
+    # th = np.linspace(0, M * 2 * np.pi, M * N)
+    # x_target = np.zeros(M * N)
+
+    # # r = 15
+    # # y_target = r * np.sin(th)
+    # # z_target = r - r * np.cos(th) + 107.0
 
     # r = 15
-    # y_target = r * np.sin(th)
-    # z_target = r - r * np.cos(th) + 107.0
+    # phi = 17
+    # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+    # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
 
-    r = 15
-    phi = 17
-    y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-    z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+    # zf_target = np.zeros((M * N, 6))
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+    # zf_target[:, 2] = z_target
 
-    zf_target = np.zeros((M * N, 6))
-    zf_target[:, 0] = x_target
-    zf_target[:, 1] = y_target
-    zf_target[:, 2] = z_target
+    # # Cost
+    # R = .00001 * np.eye(4)
+    # Qz = np.zeros((6, 6))
+    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
 
-    # Cost
-    R = .00001 * np.eye(4)
-    Qz = np.zeros((6, 6))
-    Qz[0, 0] = 100.0  # corresponding to x position of end effector
-    Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    ### End of problem formulation ###
 
     z = model.zfyf_to_zy(zf=zf_target)
 
