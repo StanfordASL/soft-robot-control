@@ -84,7 +84,7 @@ def collectDecayTrajectories():
     sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
     path = os.path.dirname(os.path.abspath(__file__))
 
-    save_dir = os.path.join(path, "examples/diamond/dataCollection/pre-tensioned") # origin"
+    save_dir = os.path.join(path, "examples/diamond/dataCollection/controlled") # origin"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -98,9 +98,9 @@ def collectDecayTrajectories():
 
     # global _runAsPythonScript
     # _runAsPythonScript = True
-    # pre_tensioning = np.zeros(4)
-    pre_tensioning = np.array([900, 1200, 0, 0])
-    # u_max = [1000, 2000, 3000] # , 4000]
+    pre_tensioning = np.zeros(4)
+    # pre_tensioning = np.array([900, 1200, 0, 0])
+    u_max = 3000
     u_dim = 4
     # inputs = []
     # for u in u_max:

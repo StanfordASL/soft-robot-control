@@ -201,6 +201,8 @@ class scp(TemplateController):
         Policy computed online based on observer belief state and current time
         """
         print('t_sim = {:.3f}'.format(t_step))
+        print(f'x_belief = {x_belief}')
+
 
         # If the controller hasn't been initialized yet start with x_belief and solve
         if not self.initialized:

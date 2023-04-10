@@ -1,0 +1,85 @@
+show: {
+    'ssmr_delay_step_inputs': True,
+    'ssmr_delay_smooth_inputs': True,
+    'ssmr': True,
+    'ssmr_delay_my_data': True,
+    'ssmr_full': True,
+    'tpwl': False,
+    'koopman': False,
+    'rompc': False
+}
+display_name: {
+    'ssmr_delay_step_inputs': "SSMR (delay embeddings, step inputs)",
+    'ssmr_delay_smooth_inputs': "SSMR (delay embeddings, smooth inputs)",
+    'ssmr_delay_my_data': "SSMR (delay embeddings, my data)",
+    'ssmr_full': "SSMR (full state SSM)",
+    'ssmr': "SSMR (current model)",
+    'tpwl': "TPWL",
+    'koopman': "Koopman",
+    'rompc': "ROMPC",
+}
+color: {
+    'ssmr_delay_step_inputs': 'tab:blue',
+    'ssmr_delay_smooth_inputs': 'tab:orange',
+    'ssmr_delay_my_data': 'tab:purple',
+    'ssmr_full': 'tab:green',
+    'ssmr': 'tab:brown',
+    'tpwl': 'tab:orange',
+    'koopman': 'tab:green',
+    'rompc': 'tab:purple',
+    'target': 'black'
+}
+linestyle: {
+    'ssmr_delay_step_inputs': '-',
+    'ssmr_delay_smooth_inputs': '-',
+    'ssmr_delay_my_data': '-',
+    'ssmr_full': '-',
+    'ssmr': '-',
+    'tpwl': '-',
+    'koopman': '-',
+    'rompc': '-',
+    'target': '--'
+}
+linewidth: {
+    'ssmr_delay_step_inputs': 2,
+    'ssmr_delay_smooth_inputs': 2,
+    'ssmr_delay_my_data': 2,
+    'ssmr_full': 2,
+    'ssmr': 2,
+    'tpwl': 2,
+    'koopman': 2,
+    'rompc': 2,
+    'target': 1
+}
+# Figure8 target
+target: {
+  target_name: "figure8",
+  M: 1,
+  T: 5,
+  N: 1000,
+  radius: 15,
+  # state constraints
+  z_lb: null, # [-16, -16],
+  z_ub: null  # [16, 5]
+}
+
+plot_mpc_rollouts: False
+
+
+# TODO
+##############################################
+# Problem 2, Circle on side
+##############################################
+# M = 3
+# T = 5
+# N = 1000
+# t_target = np.linspace(0, M*T, M*N)
+# th = np.linspace(0, M*2*np.pi, M*N)
+#
+# r = 15
+# phi = 17
+# x_target = np.zeros(M*N)
+# y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+# z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+
+# NAME = 'circle'

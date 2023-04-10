@@ -41,11 +41,11 @@ class SSM:
 
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
         self.ssm_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
+        self.control_phi = self.get_poly_basis(self.input_dim + self.state_dim, 2)
 
         # Observation model
         if C is not None:
             self.C = C
-            print(C.shape, self.output_dim, self.obs_dim)
             assert np.shape(self.C) == (self.output_dim, self.obs_dim)
         else:
             # When we learn mappings to output variables directly (no time-delays)
@@ -187,14 +187,13 @@ class SSM:
 
     # Continuous maps
     def reduced_dynamics(self, x, u):
-        return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u)
+        return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u) # jnp.dot(self.B_r, jnp.asarray(self.control_phi(*jnp.hstack([u, x]))))
 
     def reduced_to_output(self, x):
         return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_phi(*x))))
 
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
-        print(y.shape)
         if self.v_coeff is not None:
             return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
         else:

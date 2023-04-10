@@ -15,7 +15,7 @@ from sofacontrol.open_loop_sequences import TrunkRobotSequences
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
 
 
-def apply_constant_input(input=np.zeros(8), q0=None, save_data=False, t0=0.0, filename=None, scale_mode=1000):
+def apply_constant_input(input=np.ones(8)*500, q0=None, save_data=False, t0=0.0, filename=None, scale_mode=1000):
     """
     In problem_specification add:
 

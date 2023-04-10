@@ -181,7 +181,7 @@ def run_scp():
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
-    useTimeDelay = False
+    useTimeDelay = True
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -260,12 +260,12 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
+    prob.controller = scp(model, cost, dt, N_replan=2, delay=3, feedback=False, EKF=observer)
 
     # Saving paths
-    prob.opt['sim_duration'] = 7
+    prob.opt['sim_duration'] = 8
     prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'scp_CL'
+    prob.opt['save_prefix'] = 'ssmr'
 
     return prob
 
@@ -282,7 +282,7 @@ def run_gusto_solver():
     from scipy.io import loadmat
     import pickle
 
-    useTimeDelay = False
+    useTimeDelay = True
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -297,9 +297,6 @@ def run_gusto_solver():
     if useTimeDelay:
         outputModel = linearModel([TIP_NODE], 1628, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model_5delay.mat'))['py_data'][0, 0]
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model_1delay.mat'))['py_data'][0, 0]
         with open(join(pathToModel, 'SSM_model_delayEmbedding.pkl'), 'rb') as f:
             SSM_data = pickle.load(f)
         outputSSMModel = OutputModel(15, 3) # TODO: modify this
@@ -308,12 +305,8 @@ def run_gusto_solver():
     else:
         outputModel = linearModel([TIP_NODE], 1628)
         z_eq_point = outputModel.evaluate(x_eq, qv=True)
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
         with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
             SSM_data = pickle.load(f)
-        # outputModel = linearModel([TIP_NODE], 1628, vel=False)
-        # z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        # SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
         Cout = None
 
     raw_model = SSM_data['model']
@@ -335,35 +328,15 @@ def run_gusto_solver():
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
     R = .00001 * np.eye(model.input_dim)
 
-    #### Define Target Trajectory ####
-    M = 3
-    T = 10
+    M = 1
+    T = 5
     N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    zf_target = np.zeros((M * N, model.output_dim))
-
-    # zf_target[:, 0] = -25. * np.sin(th)
-    # zf_target[:, 1] = 25. * np.sin(2 * th)
-
-    # This trajectory results in constraint violation
-    # zf_target[:, 0] = -30. * np.sin(5 * th)
-    # zf_target[:, 1] = 30. * np.sin(10 * th)
-
-    # # zf_target[:, 0] = -25. * np.sin(th) + 13.
-    # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
-
-    # zf_target[:, 0] = -35. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 35. * np.sin(2 * th)
-
-    # # zf_target[:, 0] = -5. * np.sin(th) - 7.1
-    # # zf_target[:, 1] = 5. * np.sin(2 * th)
-    
-    # zf_target[:, 0] = -15. * np.sin(th)
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
-    
-    zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
-    zf_target[:, 1] = 15. * np.sin(16 * th)
+    radius = 15
+    t = np.linspace(0, M * T, M * N + 1)
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    zf_target[:, 0] += -radius * np.sin(th)
+    zf_target[:, 1] += radius * np.sin(2 * th)
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)
@@ -468,7 +441,7 @@ def run_scp_OL():
     prob.ControllerClass = OpenLoopController
     Sequences = DiamondRobotSequences(t0=3.0, dt=dt) # t0 is delay before real inputs
 
-    useTimeDelay = False
+    useTimeDelay = True
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
