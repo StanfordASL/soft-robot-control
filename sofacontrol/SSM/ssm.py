@@ -7,6 +7,9 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import jax
 from functools import partial
+from sofacontrol.utils import norm2, blockDiagonalize
+from scipy.linalg import solve_continuous_lyapunov
+
 
 ###  DEFAULT VALUES
 DISCR_METHOD = 'zoh'  # other options: be, zoh, bil. Forward Euler, Backward Euler, Bilinear transf. or Zero-Order Hold
@@ -29,10 +32,13 @@ class SSM:
 
         self.model = kwargs.pop('model', None)
         self.params = kwargs.pop('params', None)
+        self.robustParams = kwargs.pop('robustParams', None) # Expect dictionary {lambda_n, lambda_r, L_n, L_r, Bnorm}
 
         self.state_dim = self.params['state_dim'][0, 0][0, 0]
+        self.n_x = self.state_dim  # This is for SSM reduced dynamics only
         self.input_dim = self.params['input_dim'][0, 0][0, 0]
         self.output_dim = int(self.params['output_dim'][0, 0][0, 0]) #This is also performance dimension
+        self.n_z = self.output_dim  # This is pure output only
         self.SSM_order = self.params['SSM_order'][0, 0][0, 0]
         self.ROM_order = self.params['ROM_order'][0, 0][0, 0]
         self.Ts = self.model['Ts'][0, 0][0, 0]
@@ -42,14 +48,6 @@ class SSM:
 
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
         self.ssm_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
-
-        # Observation model
-        if C is not None:
-            self.C = C
-            assert np.shape(self.C) == (self.output_dim, self.obs_dim)
-        else:
-            # When we learn mappings to output variables directly (no time-delays)
-            self.C = np.eye(self.obs_dim, self.obs_dim)
 
         # Continuous-time model
         self.V = self.model['V'][0, 0] # Tangent space TODO: this is new
@@ -62,18 +60,56 @@ class SSM:
         self.r_coeff = self.model['r_coeff'][0, 0] # reduced coefficients
         self.B_r = self.model['B'][0, 0] #reduced control matrix
 
+        # self.Bn = self.model['Bn'][0, 0]
+
         # Discrete-time model
-        # TODO: There seems to be a bug in the discrete dynamics - by some factor of scaling
         if discrete:
             self.rd_coeff = self.model['rd_coeff'][0, 0]  # reduced coefficients
             self.Bd_r = self.model['Bd'][0, 0]  # reduced control matrix
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
+        self.W_map_traj = self.reduced_to_output_traj
         self.V_map = self.observed_to_reduced
 
         # Continuous reduced dynamics
-        self.maps['f_nl'] = self.reduced_dynamics
+        if self.robustParams is not None:
+            self.lambda_n = self.robustParams['lambda_n']
+            self.lambda_r = self.robustParams['lambda_r']
+            self.L_n = self.robustParams['L_n']
+            self.L_r = self.robustParams['L_r']
+            self.L_b = self.robustParams['L_b']
+            self.Bnorm = self.robustParams['Bnorm']
+            self.d = self.robustParams['d']
+            self.robust = True
+            # Set performance to zero matrix with appropriate dimension (n_z, n_x)
+            self.maps['f_nl'] = self.robust_reduced_dynamics
+            self.state_dim = self.state_dim + 2 # Add dimension due to tube dynamics
+            self.output_dim = self.output_dim + 2
+            # Define positive definite P
+            Ar = self.r_coeff[:self.n_x, :self.n_x]
+            self.P = solve_continuous_lyapunov(np.transpose(Ar), -np.eye(self.n_x))
+
+            # TODO: Add this later
+            self.T, _ = blockDiagonalize(self.r_coeff[:self.n_x, :self.n_x]) # Change of basis for diagonalization
+
+            # TODO: Add retrieval of Bn. Comment it out when using the learned dynamics
+            # self.Lwnl = self.robustParams['Lwnl']
+        else:
+            self.robust = False
+            self.maps['f_nl'] = self.reduced_dynamics
+            self.T = np.eye(self.n_x)
+
+        # Observation model
+        if C is not None:
+            self.C = C
+            assert np.shape(self.C) == (self.output_dim, self.obs_dim)
+        else:
+            # When we learn mappings to output variables directly (no time-delays)
+            self.C = np.eye(self.obs_dim, self.obs_dim)
+
+        # Set performance to zero matrix with appropriate dimension (n_z, n_x)
+        self.H = np.zeros((self.output_dim, self.state_dim))
 
         # Discrete reduced dynamics
         if self.discrete:
@@ -88,9 +124,6 @@ class SSM:
         self.A_d = None
         self.B_d = None
         self.d_d = None
-
-        # Set performance to zero matrix with appropriate dimension (n_z, n_x)
-        self.H = np.zeros((self.output_dim, self.state_dim))
         self.nonlinear_observer = True
 
     def update_state(self, x, u, dt):
@@ -128,7 +161,8 @@ class SSM:
         :zf: boolean
         :yf: boolean
         """
-        return self.W_map(x.T).T + self.y_ref
+        x = x[:, :self.n_x]
+        return self.W_map_traj(x.T).T + self.y_ref
 
 
     def x_to_zy(self, x):
@@ -137,7 +171,8 @@ class SSM:
         :z: boolean
         :y: boolean
         """
-        return self.W_map(x)
+        x = x[:, :self.n_x]
+        return self.W_map_traj(x.T).T
 
     def get_sim_params(self):
         return {'beta_weighting': self.beta_weighting, 'discr_method': self.discr_method,
@@ -161,7 +196,7 @@ class SSM:
         Returns reduced order state x (N + 1, n_x) and performance variable z (N + 1, n_z)
         """
         N = u.shape[0]
-        x = np.zeros((N + 1, self.state_dim))
+        x = np.zeros((N + 1, np.size(x0)))
         z_lin = np.zeros((N + 1, self.output_dim))
 
         # Set initial condition
@@ -188,8 +223,44 @@ class SSM:
     def reduced_dynamics(self, x, u):
         return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u)
 
+    # TODO: Lump tube dynamics with normal dynamics. Might be breaking other functions because now we have augmented states
+    # TODO: Make it standard to just evaluate the reduced states up to the reduced dimension
+    # TODO: Need to handle special case where norm(u) = 0
+    def robust_reduced_dynamics(self, x, u):
+        # TODO: Learned B matrix
+        T = jnp.asarray(self.T)
+        xr = jnp.linalg.inv(T) @ x[:self.n_x]
+        xdot = jnp.hstack((jnp.dot(T, jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*xr))) + jnp.dot(self.B_r, u)),
+                          -(self.lambda_n - self.L_b) * x[self.n_x] + self.Bnorm * norm2(u) + self.d,
+                           -(self.lambda_r - self.L_r) * x[self.n_x + 1] + self.L_n * x[self.n_x] + self.d))
+
+        # TODO: Known B matrix
+        # xdot = jnp.hstack((jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x[0:self.n_x]))) + jnp.dot(self.B_r, u),
+        #                    -(self.lambda_n - self.L_n) * x[self.n_x] + (1 + self.Lwnl) * (self.L_n * x[self.n_x] + self.d) + norm2(self.Bn @ u) + self.Lwnl * norm2(self.B_r @ u),
+        #                    -(self.lambda_r - self.L_r) * x[self.n_x + 1] + self.L_n * x[self.n_x] + self.d))
+
+        return xdot
+
+    # TODO: Pad the last two entries with 0 if we are in robust case
+    @partial(jax.jit, static_argnums=(0,))
     def reduced_to_output(self, x):
-        return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_phi(*x))))
+        T = jnp.asarray(self.T)
+        xr = jnp.linalg.inv(T) @ x[:self.n_x]
+        if self.robust:
+            return jnp.hstack((jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff),
+                                                               jnp.asarray(self.ssm_phi(*xr)))), 0., 0.))
+        else:
+            return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff),
+                                                        jnp.asarray(self.ssm_phi(*x[0:self.n_x]))))
+    def reduced_to_output_traj(self, x):
+        T = jnp.asarray(self.T)
+        xr = jnp.linalg.inv(T) @ x[:self.n_x]
+        if self.robust:
+            return jnp.vstack((jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff),
+                                                               jnp.asarray(self.ssm_phi(*xr)))), jnp.zeros((2, x.shape[1]))))
+        else:
+            return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff),
+                                                                    jnp.asarray(self.ssm_phi(*x))))
 
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
@@ -275,50 +346,11 @@ class SSMDynamics(SSM):
     def get_observer_jacobians_nojit(self,
                                x: jnp.ndarray):
         # x = x.reshape(self.state_dim, 1)
-
         H = jax.jacobian(self.W_map, 0)(x)
         c_res = self.W_map(x) - jnp.dot(H, x)
         return H, c_res
 
-    # def get_jacobians(self, x, dt=None, u=None):
-    #     """
-    #     Extract the Jacobians A, B, d (or A_d, B_d, d_d) at the state x
-    #     :x: reduced state
-    #     """
-    #     assert u is not None, 'Need to supply current input'
-    #     x = x.reshape(self.state_dim, 1)
-    #     u = u.reshape(self.input_dim, 1)
-    #     if self.discrete:
-    #         A = self.maps['A_d'](x)
-    #         B = self.maps['B_d'](x)
-    #         f_nl = self.maps['f_nl_d'](x, u)
-    #         d = f_nl - A@x - B@u
-    #     else:
-    #         A = self.maps['A'](x)
-    #         B = self.maps['B'](x)
-    #         f_nl = self.maps['f_nl'](x, u)
-    #         d = f_nl - A @ x - B @ u
-    #         if dt is not None:
-    #             A, B, d = self.discretize_dynamics(A, B, d, dt)
-    #
-    #     return A, B, np.squeeze(d)
-
-    # def get_observer_jacobians(self, x, dt=None, u=None):
-    #     """
-    #     Extract the Jacobians H, c at the state x
-    #     :x: reduced state
-    #     """
-    #     x = x.reshape(self.state_dim, 1)
-    #     H = self.maps['H'](x)
-    #     c_nl = self.W_map(x)
-    #     c_res = c_nl - H @ x
-    #     return H, c_res
-
     def update_observer_state(self, x, dt=None, u=None):
-        # TODO: Testing jax capes
-        # H, c = self.get_observer_jacobians(x, dt=dt, u=u)
-        # return np.squeeze(H @ x) + np.squeeze(c)
-
         H, c = self.get_observer_jacobians(x)
         return np.squeeze(jnp.dot(H, x)) + np.squeeze(c)
 
@@ -346,33 +378,6 @@ class SSMDynamics(SSM):
 
         return A_d, B_d, d_d
 
-    # def discretize_dynamics(self, A_c, B_c, d_c, dt):
-    #     if self.discr_method == 'fe':
-    #         A_d = np.eye(A_c.shape[0]) + dt * A_c
-    #         B_d = dt * B_c
-    #         d_d = dt * d_c
-    #
-    #     elif self.discr_method == 'be':
-    #         A_d = np.linalg.inv(np.eye(A_c.shape[0]) - dt * A_c)
-    #         sep_term = np.linalg.inv(A_c) @ (A_d - np.eye(A_c.shape[0]))
-    #         B_d = sep_term @ B_c
-    #         d_d = sep_term @ d_c
-    #
-    #     elif self.discr_method == 'bil':
-    #         A_d = (np.eye(A_c.shape[0]) + 0.5 * dt * A_c) @ np.linalg.inv(np.eye(A_c.shape[0])
-    #                                                                            - 0.5 * dt * A_c)
-    #         sep_term = np.linalg.inv(A_c) @ (A_d - np.eye(A_c.shape[0]))
-    #         B_d = sep_term @ B_c
-    #         d_d = sep_term @ d_c
-    #
-    #     elif self.discr_method == 'zoh':
-    #         A_d, B_d, d_d = scutils.zoh_affine(A_c, B_c, d_c, dt)
-    #
-    #     else:
-    #         raise RuntimeError('self.discr_method must be in [fe, be, bil, zoh]')
-    #
-    #     return A_d, B_d, d_d
-
     @staticmethod
     def update_dynamics(x, u, A_d, B_d, d_d):
         x_next = np.squeeze(A_d @ x) + np.squeeze(B_d @ u) + np.squeeze(d_d)
@@ -387,8 +392,9 @@ class SSMDynamics(SSM):
         :param zf: position and velocity of observed state
         :return: Reduced order vector
         """
-        #TODO: This will introduce bugs. Fix this
+        # TODO: This will introduce bugs. Fix this
+        # TODO: Make sure we do the same for delays
         if self.delays == 0:
-            return self.V_map(y - self.y_ref)
+            return self.V_map(y - self.y_ref[:-2]) if self.robust else self.V_map(y - self.y_ref)
         else:
             return np.transpose(self.V) @ (y - self.y_ref)

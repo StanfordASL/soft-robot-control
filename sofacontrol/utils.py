@@ -5,6 +5,10 @@ from scipy.sparse import linalg, coo_matrix
 import osqp
 import jax
 import jax.numpy as jnp
+from jax import custom_jvp
+from functools import partial
+import jax.scipy as jsp
+
 
 class QuadraticCost:
     """
@@ -335,7 +339,6 @@ def zoh_affine(A, B, d, dt):
     d_d = B_d_ext[:, -1]  # last column
     return A_d, B_d, d_d
 
-
 def dict_lists_to_array(dict):
     """
     Transform all lists in dict to np arrays for more complex mathematical operations
@@ -467,122 +470,57 @@ def set_axes_equal(ax):
     ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
-""" Fast linear algebra routines
-Credits: https://gist.github.com/tbenthompson/faae311ec4e465b0ff47b4aabe0d56b2
 """
+Custom JAX routine for jnp.norm
+"""
+# TODO: Would really like a custom_jvp.
+# @custom_jvp
+def norm2(x):
+    is_zero = jnp.allclose(x, 0.)
+    x = jnp.where(is_zero, jnp.ones_like(x), x)
+    ans = jnp.linalg.norm(x)
+    ans = jnp.where(is_zero, 0., ans)
 
-def fast_dot(a, b):
-    return (a * b).sum()
+    return jnp.max(jnp.array([ans, 0.001]))
 
-fast_mat_mul = jax.vmap(jax.vmap(fast_dot, in_axes=(None, 1)), in_axes=(0, None))
+def norm2Diff(x, y, P=None):
+    is_zero = jnp.allclose(x - y, 0.)
+    x = jnp.where(is_zero, jnp.ones_like(x), x)
+    if P is not None:
+        ans = jnp.linalg.norm(jnp.dot(jsp.linalg.sqrtm(P), x.T - y.T), axis=0)
+    else:
+        ans = jnp.linalg.norm(x - y)
+    ans = jnp.where(is_zero, 0., ans)
 
-def inv22(mat):
-    m1, m2 = mat[0]
-    m3, m4 = mat[1]
-    inv_det = 1.0 / (m1 * m4 - m2 * m3)
-    return jnp.array([[m4, -m2], [-m3, m1]]) * inv_det
+    return jnp.max(jnp.array([ans, 0.001]))
 
+def norm2Linearize(x, y, dt, P=None):
+    fixed_y_norm2 = partial(norm2Diff, y=y, P=P)
+    A = jax.jacobian(fixed_y_norm2)(x)
+    c = fixed_y_norm2(x) - A @ x
+    return A, c
 
-def inv33(mat):
-    m1, m2, m3 = mat[0]
-    m4, m5, m6 = mat[1]
-    m7, m8, m9 = mat[2]
-    det = m1 * (m5 * m9 - m6 * m8) + m4 * (m8 * m3 - m2 * m9) + m7 * (m2 * m6 - m3 * m5)
-    inv_det = 1.0 / det
-    return (
-        jnp.array(
-            [
-                [m5 * m9 - m6 * m8, m3 * m8 - m2 * m9, m2 * m6 - m3 * m5],
-                [m6 * m7 - m4 * m9, m1 * m9 - m3 * m7, m3 * m4 - m1 * m6],
-                [m4 * m8 - m5 * m7, m2 * m7 - m1 * m8, m1 * m5 - m2 * m4],
-            ]
-        )
-        * inv_det
-    )
+def blockDiagonalize(A):
+    eigvals, V = np.linalg.eig(A)
 
+    # Sort eigenvectors and eigenvalues by real part of eigenvalue
+    idx = np.lexsort((np.imag(eigvals), np.real(eigvals)))[::-1]
+    eigvals = eigvals[idx]
+    V = V[:, idx]
 
-def inv44(m):
-    """
-    See https://github.com/willnode/N-Matrix-Programmer
-    for source in the "Info" folder
-    MIT License.
-    """
-    A2323 = m[2, 2] * m[3, 3] - m[2, 3] * m[3, 2]
-    A1323 = m[2, 1] * m[3, 3] - m[2, 3] * m[3, 1]
-    A1223 = m[2, 1] * m[3, 2] - m[2, 2] * m[3, 1]
-    A0323 = m[2, 0] * m[3, 3] - m[2, 3] * m[3, 0]
-    A0223 = m[2, 0] * m[3, 2] - m[2, 2] * m[3, 0]
-    A0123 = m[2, 0] * m[3, 1] - m[2, 1] * m[3, 0]
-    A2313 = m[1, 2] * m[3, 3] - m[1, 3] * m[3, 2]
-    A1313 = m[1, 1] * m[3, 3] - m[1, 3] * m[3, 1]
-    A1213 = m[1, 1] * m[3, 2] - m[1, 2] * m[3, 1]
-    A2312 = m[1, 2] * m[2, 3] - m[1, 3] * m[2, 2]
-    A1312 = m[1, 1] * m[2, 3] - m[1, 3] * m[2, 1]
-    A1212 = m[1, 1] * m[2, 2] - m[1, 2] * m[2, 1]
-    A0313 = m[1, 0] * m[3, 3] - m[1, 3] * m[3, 0]
-    A0213 = m[1, 0] * m[3, 2] - m[1, 2] * m[3, 0]
-    A0312 = m[1, 0] * m[2, 3] - m[1, 3] * m[2, 0]
-    A0212 = m[1, 0] * m[2, 2] - m[1, 2] * m[2, 0]
-    A0113 = m[1, 0] * m[3, 1] - m[1, 1] * m[3, 0]
-    A0112 = m[1, 0] * m[2, 1] - m[1, 1] * m[2, 0]
-
-    det = (
-        m[0, 0] * (m[1, 1] * A2323 - m[1, 2] * A1323 + m[1, 3] * A1223)
-        - m[0, 1] * (m[1, 0] * A2323 - m[1, 2] * A0323 + m[1, 3] * A0223)
-        + m[0, 2] * (m[1, 0] * A1323 - m[1, 1] * A0323 + m[1, 3] * A0123)
-        - m[0, 3] * (m[1, 0] * A1223 - m[1, 1] * A0223 + m[1, 2] * A0123)
-    )
-    invdet = 1.0 / det
-
-    return invdet * jnp.array(
-        [
-            (m[1, 1] * A2323 - m[1, 2] * A1323 + m[1, 3] * A1223),
-            -(m[0, 1] * A2323 - m[0, 2] * A1323 + m[0, 3] * A1223),
-            (m[0, 1] * A2313 - m[0, 2] * A1313 + m[0, 3] * A1213),
-            -(m[0, 1] * A2312 - m[0, 2] * A1312 + m[0, 3] * A1212),
-            -(m[1, 0] * A2323 - m[1, 2] * A0323 + m[1, 3] * A0223),
-            (m[0, 0] * A2323 - m[0, 2] * A0323 + m[0, 3] * A0223),
-            -(m[0, 0] * A2313 - m[0, 2] * A0313 + m[0, 3] * A0213),
-            (m[0, 0] * A2312 - m[0, 2] * A0312 + m[0, 3] * A0212),
-            (m[1, 0] * A1323 - m[1, 1] * A0323 + m[1, 3] * A0123),
-            -(m[0, 0] * A1323 - m[0, 1] * A0323 + m[0, 3] * A0123),
-            (m[0, 0] * A1313 - m[0, 1] * A0313 + m[0, 3] * A0113),
-            -(m[0, 0] * A1312 - m[0, 1] * A0312 + m[0, 3] * A0112),
-            -(m[1, 0] * A1223 - m[1, 1] * A0223 + m[1, 2] * A0123),
-            (m[0, 0] * A1223 - m[0, 1] * A0223 + m[0, 2] * A0123),
-            -(m[0, 0] * A1213 - m[0, 1] * A0213 + m[0, 2] * A0113),
-            (m[0, 0] * A1212 - m[0, 1] * A0212 + m[0, 2] * A0112),
-        ]
-    ).reshape((4, 4))
-
-@jax.jit
-def fast_inv(mat):
-    if mat.shape[0] == 1:
-        return 1.0 / mat
-    if mat.shape[0] == 2:
-        return inv22(mat)
-    elif mat.shape[0] == 3:
-        return inv33(mat)
-    elif mat.shape[0] == 4:
-        return inv44(mat)
-    r = 4
-    A = mat[:r, :r]
-    B = mat[:r, r:]
-    C = mat[r:, :r]
-    D = mat[r:, r:]
-    A_inv = fast_inv(A)
-    CA_inv = fast_mat_mul(C, A_inv)
-    schur = D - fast_mat_mul(CA_inv, B)
-    schur_inv = fast_inv(schur)
-    A_invB = fast_mat_mul(A_inv, B)
-    lr = schur_inv
-    ur = -fast_mat_mul(A_invB, schur_inv)
-    ll = -fast_mat_mul(schur_inv, CA_inv)
-    ul = A_inv - fast_mat_mul(A_invB, ll)
-    return jnp.concatenate(
-        (
-            jnp.concatenate((ul, ur), axis=1),
-            jnp.concatenate((ll, lr), axis=1),
-        ),
-        axis=0,
-    )
+    # Compute real matrix T that block-diagonalizes A
+    T = np.zeros_like(A)
+    i = 0
+    j = 0
+    while i < len(A):
+        if np.imag(eigvals[i]) != 0:
+            T[:, j] = np.real(V[:, i])
+            T[:, j + 1] = np.imag(V[:, i])
+            i += 1
+            j += 1
+        else:
+            T[:, j] = V[:, i]
+        i += 1
+        j += 1
+    D = np.linalg.inv(T) @ A @ T
+    return T, D

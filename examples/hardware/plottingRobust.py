@@ -5,6 +5,7 @@ from matplotlib import patches
 from matplotlib import pyplot as plt
 from scipy.interpolate import interp1d
 import pdb
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 
 from sofacontrol.utils import load_data, set_axes_equal
 
@@ -12,11 +13,12 @@ path = dirname(abspath(__file__))
 
 constrained = False
 plot_rompc = False
+plot_tubes = True
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
 M = 5
-T = 0.1
+T = 0.05
 N = 1000
 t_target = np.linspace(0, M*T, M*N)
 th = np.linspace(0, M * 2 * np.pi, M*N)
@@ -24,11 +26,11 @@ zf_target = np.zeros((M*N, 6))
 
 # Define the coordinates of the corners of the square
 center = np.array([-7.1, 0.])
-top_mid = np.array([-7.1, 2.])
-top_left = np.array([-10, 2.])
-top_right = np.array([25., 2.])
-bottom_left = np.array([-10., -25.])
-bottom_right = np.array([25, -25])
+top_mid = np.array([-7.1, 1.])
+top_left = np.array([-9, 1.])
+top_right = np.array([25., 1.])
+bottom_left = np.array([-9., -24.])
+bottom_right = np.array([25, -24])
 
 # Define the number of points along each edge of the square
 num_points = M * N
@@ -46,11 +48,10 @@ points_top = np.linspace(top_left, top_right, num_points, endpoint=False)
 
 # Setpoint to top left corner
 setptLength = 10
-setpoint_left = np.linspace(top_left, top_left, setptLength * num_points, endpoint=False)
-
+setpoint_left = np.linspace(np.array([-10., 3.]), np.array([-10., 3.]), setptLength * num_points, endpoint=False)
 
 # Combine the points from each edge into a single array
-numRepeat = 10
+numRepeat = 2
 pointsTransient = np.concatenate((points_center_topmid, points_top_mid_right))
 points = np.concatenate((points_right, points_bottom, points_left))
 pointsConnected = np.concatenate((points, points_top))
@@ -84,8 +85,6 @@ zf_target[:, 4] = squareTraj[:, 1]
 
 # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
 # zf_target[:, 4] = 15. * np.sin(16 * th)
-if constrained:
-    y_ub = 15
 
 name = 'figure8'
 
@@ -168,6 +167,11 @@ real_time_limit_rompc = rompc_data['info']['rollout_time']
 plot_rollouts = False
 m_w = 30
 
+x_ub = 25
+x_lb = -10
+y_ub = 3.1
+y_lb = -25.1
+
 fig1 = plt.figure(figsize=(10, 8), facecolor='w', edgecolor='k')
 ##################################################
 # Plot infinity sign via x vs. y
@@ -177,35 +181,97 @@ if name == 'figure8':
     # z_lb = np.array([-20 - 7.1, -25 + 0])
     # z_ub = np.array([20 - 7.1, 5 + 0])
 
-    z_ub = np.array([23, 2 + 0])
-    z_lb = np.array([-8., -23 + 0])
+    z_ub = np.array([25, 3 + 0])
+    z_lb = np.array([-10.05, -25 + 0])
+
+    # small plot
+    # z_ub = np.array([5, 3 + 0])
+    # z_lb = np.array([-10., -5 + 0])
 
     ax1.add_patch(
         patches.Rectangle(
             xy=(z_lb[0], z_lb[1]),  # point of origin.
             width=z_ub[0] - z_lb[0],
             height=z_ub[1] - z_lb[1],
-            linewidth=2,
+            linewidth=5,
             color='tab:red',
             fill=False,
         )
     )
 
-    # ax1.plot(z_tpwl[:, 3], z_tpwl[:, 4], 'tab:green', marker='x', markevery=20, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
-    # ax1.plot(z_koop[:, 3], z_koop[:, 4], 'tab:orange', marker='^', markevery=20, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
-    ax1.plot(z_scp[:, 3], z_scp[:, 4], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
-    ax1.plot(zf_target[:, 3], zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
-    if plot_rompc:
-        ax1.plot(z_rompc[:, 3], z_rompc[:, 4], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
+    # Plot initial condition
+    plt.scatter(z_scp[0, 3], z_scp[0, 4], color='green', marker='^', s=200)
 
-    ax1.set_xlabel(r'$x_{ee}$ [mm]', fontsize=14)
-    ax1.set_ylabel(r'$y_{ee}$ [mm]', fontsize=14)
+    # Plot trajectory
+    ax1.plot(z_scp[:, 3], z_scp[:, 4], 'tab:blue', label='SSMR (Ours)', linewidth=3)
+    ax1.plot(pointsConnected[:, 0], pointsConnected[:, 1], '--k', alpha=1, linewidth=1, label='Target')
+
+    # Plot steady state
+    plt.scatter(zf_target[-1, 3], zf_target[-1, 4], color="blue", marker="*", s=200)
+
+    # Plot steady state point
+    # plt.scatter(z_scp[-1, 3], z_scp[-1, 4], color="red", marker="^", s=100)
+
+    ax1.set_xlabel(r'$x$ [mm]', fontsize=20)
+    ax1.set_ylabel(r'$y$ [mm]', fontsize=20)
+    ax1.tick_params(axis='both', labelsize=24)
 
     # Remove top and right border
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
     ax1.get_xaxis().tick_bottom()
     ax1.get_yaxis().tick_left()
+
+    # Plot tubes
+    # plot_idxs = [60, 20, 32, 40, 50, 115]
+    plot_idxs = [62, 20, 34, 52, 130]
+
+    # Faster
+    # plot_idxs = [54, 68, 30, 42, 130]
+
+    # if plot_tubes:
+    #     for idx in plot_idxs:
+    #         s_horizon = s_delta_scp[idx]
+    #         z_horizon = z_opt_rollout[idx]
+    #         ax1.plot(z_horizon[:, 0], z_horizon[:, 1], 'tab:red', marker='o', markevery=1)
+    #         r = s_horizon[:, -2] + 0.09 * s_horizon[:, -1]
+    #         for idxPoint in range(z_horizon.shape[0]):
+    #             circle = patches.Circle((z_horizon[idxPoint, 0], z_horizon[idxPoint, 1]), r[idxPoint],
+    #                                     facecolor='orange', edgecolor='black', alpha=0.5)
+    #             ax1.add_patch(circle)
+
+    # Plot zoomed in view of movement towards setpoint
+    # Create a zoomed-in inset axes outside the original plot
+    axins = inset_axes(ax1, width="30%", height="30%", loc="center",
+                       bbox_transform=ax1.transAxes)
+
+    # Plot the zoomed-in tubes
+    # s_zoom = s_delta_scp[plot_idxs[-1]]
+    # z_zoom = z_opt_rollout[plot_idxs[-1]]
+    # axins.plot(z_zoom[:-1, 0], z_zoom[:-1, 1], 'tab:red', marker='o', markevery=1)
+    # r_zoom = s_zoom[:-1, -2] + 0.09 * s_zoom[:-1, -1]
+    # for idxPoint in range(z_zoom.shape[0]-1):
+    #     circleZoom = patches.Circle((z_zoom[idxPoint, 0], z_zoom[idxPoint, 1]), r_zoom[idxPoint],
+    #                             facecolor='orange', edgecolor='black', alpha=0.5)
+    #     axins.add_patch(circleZoom)
+
+    axins.plot(z_scp[:, 3], z_scp[:, 4])
+    axins.plot(pointsConnected[:, 0], pointsConnected[:, 1], '--k', alpha=1, linewidth=1)
+    y_line = np.linspace(-1, 3.1, 100)
+    x_line = np.linspace(-10, -6, 100)
+    axins.plot(x_lb * np.ones_like(y_line), y_line, 'r', linewidth=5, zorder=1)
+    axins.plot(x_line, y_ub * np.ones_like(x_line), 'r', linewidth=5, zorder=2)
+    axins.scatter(z_scp[0, 3], z_scp[0, 4], color='green', marker='^', s=200)
+    # # plt.scatter(z_scp[-1, 3], z_scp[-1, 4], color="red", marker="^", s=50)
+    axins.set_xlim(-11, -6)
+    axins.set_ylim(-1, 4)
+    # axins.set_xlabel('x')
+    # axins.set_ylabel('y')
+    axins.scatter(zf_target[-1, 3], zf_target[-1, 4]+0.1, color='blue', marker='*', s=200, zorder=3)
+
+    # Draw a rectangle around the zoomed-in region
+    mark_inset(ax1, axins, loc1=1, loc2=3, fc="none", ec="0.5")
+    plt.show()
 else:
     ax1 = fig1.add_subplot(111, projection='3d')
     # z_lb = np.array([-30 - 0, -30 + 127.])
@@ -229,9 +295,9 @@ else:
     if plot_rompc:
         ax1.plot3D(z_rompc[:, 3], z_rompc[:, 4], z_rompc[:, 5], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
 
-    ax1.set_xlabel(r'$x_{ee}$ [mm]', fontsize=14)
-    ax1.set_ylabel(r'$y_{ee}$ [mm]', fontsize=14)
-    ax1.set_zlabel(r'$z_{ee}$ [mm]', fontsize=14)
+    ax1.set_xlabel(r'$x$ [mm]', fontsize=14)
+    ax1.set_ylabel(r'$y$ [mm]', fontsize=14)
+    ax1.set_zlabel(r'$z$ [mm]', fontsize=14)
     set_axes_equal(ax1)
 
     # startx, endx = ax1.get_xlim()
@@ -259,11 +325,13 @@ ax2 = fig2.add_subplot(211)
 if name ==  'figure8':
     #ax2.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
     #ax2.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
-    ax2.plot(t_scp, z_scp[:, 3], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
+    ax2.plot(t_scp, z_scp[:, 3], 'tab:blue', label='SSMR (Ours)', linewidth=3)
     ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
     if plot_rompc:
         ax2.plot(t_rompc, z_rompc[:, 3], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
 
+    ax2.plot(t_target, x_ub * np.ones_like(t_target), 'r', label='Constraint')
+    ax2.plot(t_target, x_lb * np.ones_like(t_target), 'r')
     idx = 0
     if plot_rollouts:
         for idx in range(np.shape(z_opt_rollout)[0]):
@@ -281,7 +349,7 @@ else:
         ax2.plot(t_rompc, z_rompc[:, 4], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
 
     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
-ax2.set_xlim([0, 10])
+ax2.set_xlim([0, 9])
 ax2.tick_params(axis='both', labelsize=18)
 plt.xlabel(r'$t$ [s]', fontsize=14)
 #plt.legend(loc='upper left', prop={'size': 12})
@@ -294,6 +362,9 @@ if name == 'figure8':
     ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
     if plot_rompc:
         ax3.plot(t_rompc, z_rompc[:, 4], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
+
+    ax3.plot(t_target, y_ub * np.ones_like(t_target), 'r')
+    ax3.plot(t_target, y_lb * np.ones_like(t_target), 'r')
 
     if constrained:
         ax3.plot(t_target, y_ub * np.ones_like(t_target), 'r', label='Constraint')
@@ -313,7 +384,7 @@ else:
         ax3.plot(t_rompc, z_rompc[:, 5], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
 
     plt.ylabel(r'$z_{ee}$ [mm]', fontsize=14)
-ax3.set_xlim([0, 10])
+ax3.set_xlim([0, 9])
 ax3.tick_params(axis='both', labelsize=18)
 plt.xlabel(r'$t$ [s]', fontsize=14)
 #plt.legend(loc='upper left', prop={'size': 14}, borderaxespad=0, bbox_to_anchor=(0, 1.2))
@@ -331,154 +402,38 @@ if name == 'figure8':
 else:
     zf_desired = zf_target.copy()
 
-# f = interp1d(t_target, zf_desired, axis=0)
-# zd_koop = f(t_koop)
-# zd_scp = f(t_scp)
-# zd_tpwl = f(t_tpwl)
-# zd_rompc = f(t_rompc)
-#
-# # Remove constraints from error and compute num violations / num points
-# # idx represents where the constraints are active. idx_viol_x represent where
-# # the constraints are violated
-# constraint_idx = 4
-# if constrained:
-#     idx_koop = np.argwhere(zd_koop[:, constraint_idx] >= y_ub)
-#     viol_koop = np.count_nonzero(z_koop[idx_koop.flatten(), constraint_idx] > y_ub + 0.2) / idx_koop.size
-#     idx_viol_koop = np.argwhere(z_koop[idx_koop.flatten(), constraint_idx] > y_ub + 0.2)
-#     zd_koop = np.delete(zd_koop, idx_viol_koop, axis=0)
-#     z_koop = np.delete(z_koop, idx_viol_koop, axis=0)
-#
-#     idx_scp = np.argwhere(zd_scp[:, constraint_idx] >= y_ub)
-#     viol_scp = np.count_nonzero(z_scp[idx_scp.flatten(), constraint_idx] > y_ub + 0.2) / idx_scp.size
-#     idx_viol_scp = np.argwhere(z_scp[idx_scp.flatten(), constraint_idx] > y_ub + 0.2)
-#     zd_scp = np.delete(zd_scp, idx_viol_scp, axis=0)
-#     z_scp = np.delete(z_scp, idx_viol_scp, axis=0)
-#
-#     idx_tpwl = np.argwhere(zd_tpwl[:, constraint_idx] >= y_ub)
-#     viol_tpwl = np.count_nonzero(z_tpwl[idx_tpwl.flatten(), constraint_idx] > y_ub + 0.2) / idx_tpwl.size
-#     idx_viol_tpwl = np.argwhere(z_tpwl[idx_tpwl.flatten(), constraint_idx] > y_ub + 0.2)
-#     zd_tpwl = np.delete(zd_tpwl, idx_viol_tpwl, axis=0)
-#     z_tpwl = np.delete(z_tpwl, idx_viol_tpwl, axis=0)
-#
-#     idx_rompc = np.argwhere(zd_rompc[:, constraint_idx] >= y_ub)
-#     viol_rompc = np.count_nonzero(z_rompc[idx_rompc.flatten(), constraint_idx] > y_ub + 0.2) / idx_rompc.size
-#     idx_viol_rompc = np.argwhere(z_rompc[idx_rompc.flatten(), constraint_idx] > y_ub + 0.2)
-#     zd_rompc = np.delete(zd_rompc, idx_viol_rompc, axis=0)
-#     z_rompc = np.delete(z_rompc, idx_viol_rompc, axis=0)
-#
-# if name == 'figure8':
-#     err_koop = (z_koop - zd_koop)[:,3:5]
-#     err_scp = (z_scp - zd_scp)[:,3:5]
-#     err_tpwl = (z_tpwl - zd_tpwl)[:,3:5]
-#     err_rompc = (z_rompc - zd_rompc)[:, 3:5]
-# else:
-#     err_koop = (z_koop - zd_koop)[:,3:6]
-#     err_scp = (z_scp - zd_scp)[:,3:6]
-#     err_tpwl = (z_tpwl - zd_tpwl)[:,3:6]
-#     err_rompc = (z_rompc - zd_rompc)[:, 3:6]
-#
-# # inner norm gives euclidean distance, outer norm squared / nbr_samples gives MSE
-# koop_norm = np.linalg.norm(np.linalg.norm(zd_koop, axis=1))**2
-# tpwl_norm = np.linalg.norm(np.linalg.norm(zd_tpwl, axis=1))**2
-# scp_norm = np.linalg.norm(np.linalg.norm(zd_scp, axis=1))**2
-# rompc_norm = np.linalg.norm(np.linalg.norm(zd_rompc, axis=1))**2
-#
-# # TODO: Wait for transients to dies down
-# if name == 'circle':
-#     mse_koop = np.linalg.norm(np.linalg.norm(err_koop[20:], axis=1))**2 / err_koop.shape[0]
-#     mse_tpwl = np.linalg.norm(np.linalg.norm(err_tpwl[20:], axis=1))**2 / err_tpwl.shape[0]
-#     mse_scp = np.linalg.norm(np.linalg.norm(err_scp[20:], axis=1))**2 / err_scp.shape[0]
-#     mse_rompc = np.linalg.norm(np.linalg.norm(err_rompc[20:], axis=1)) ** 2 / err_rompc.shape[0]
-# else:
-#     mse_koop = np.linalg.norm(np.linalg.norm(err_koop, axis=1)) ** 2 / err_koop.shape[0]
-#     mse_tpwl = np.linalg.norm(np.linalg.norm(err_tpwl, axis=1)) ** 2 / err_tpwl.shape[0]
-#     mse_scp = np.linalg.norm(np.linalg.norm(err_scp, axis=1)) ** 2 / err_scp.shape[0]
-#     mse_rompc = np.linalg.norm(np.linalg.norm(err_rompc, axis=1)) ** 2 / err_rompc.shape[0]
-#
-# if name == 'circle':
-#     fig3 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
-#
-#     ax_circ_x = fig3.add_subplot(111)
-#     ax_circ_x.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL', linewidth=1)
-#     ax_circ_x.plot(t_koop, z_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
-#     ax_circ_x.plot(t_scp, z_scp[:, 3], 'tab:blue', label='SSMR (Ours)', linewidth=3)
-#     ax_circ_x.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
-#     ax_circ_x.set_xlim([0, 10])
-#
-# ### Plotting Errors ###
-# if not constrained:
-#     fig4 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
-#
-#     ax_err1 = fig4.add_subplot(111)
-#     if name == 'figure8':
-#         ax_err1.plot(t_tpwl, np.linalg.norm(err_tpwl, axis=1, ord=2), 'tab:green', marker='x', markevery=m_w, label='TPWL', linewidth=1)
-#         ax_err1.plot(t_koop, np.linalg.norm(err_koop, axis=1, ord=2), 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
-#         ax_err1.plot(t_scp, np.linalg.norm(err_scp, axis=1, ord=2), 'tab:blue', marker='*', markevery=m_w, label='SSMR', linewidth=3)
-#         plt.ylabel(r'$\log ||z - z_{des}||_2$', fontsize=14)
-#     else:
-#         ax_err1.plot(t_tpwl, np.linalg.norm(err_tpwl, axis=1), 'tab:green', marker='x', markevery=m_w, label='TPWL', linewidth=1)
-#         ax_err1.plot(t_koop, np.linalg.norm(err_koop, axis=1), 'tab:orange', marker='^', markevery=m_w, label='Koopman', linewidth=1)
-#         ax_err1.plot(t_scp, np.linalg.norm(err_scp, axis=1), 'tab:blue', marker='*', markevery=m_w, label='SSMR', linewidth=3)
-#         plt.ylabel(r'$\log ||z - z_{des}||_2$', fontsize=14)
-#     ax_err1.set_xlim([0, 10])
-#     ax_err1.set_yscale('log')
-#     plt.xlabel(r'$t$ [s]', fontsize=14)
-#     plt.legend(loc='best', prop={'size': 14})
-#     plt.grid()
-#     # Save error
-#     name_err = name + '_error'
-#     figure_file = join(path, name_err + '.png')
-#     plt.savefig(figure_file, dpi=300, bbox_inches='tight')
-#     plt.show()
-
 fig5 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
-ax_tube1 = fig5.add_subplot(211)
+ax_tube1 = fig5.add_subplot(111)
 for idx in range(np.shape(s_delta_scp)[0]):
     if idx % 1 == 0:
         s_horizon = s_delta_scp[idx]
         t_horizon = t_opt_rollout[idx]
-        ax_tube1.plot(t_horizon, s_horizon[:, -2], 'tab:green', markevery=2)
-plt.ylabel(r'$s$', fontsize=14)
+        ax_tube1.plot(t_horizon, s_horizon[:, -2] + 0.09 * s_horizon[:, -1], 'tab:green', markevery=2)
+plt.ylabel(r'$||\mathbf{G}_j||L_{\mathbf{C_w}}\delta + ||\mathbf{G}_j \mathbf{C}||s}$', fontsize=14)
 
-ax_tube2 = fig5.add_subplot(212)
-for idx in range(np.shape(s_delta_scp)[0]):
-    if idx % 1 == 0:
-        s_horizon = s_delta_scp[idx]
-        t_horizon = t_opt_rollout[idx]
-        ax_tube2.plot(t_horizon, s_horizon[:, -1], 'tab:orange', markevery=2)
-plt.ylabel(r'$\delta$', fontsize=14)
+# Separate plots of s and delta
+# fig5 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
+# ax_tube1 = fig5.add_subplot(211)
+# for idx in range(np.shape(s_delta_scp)[0]):
+#     if idx % 1 == 0:
+#         s_horizon = s_delta_scp[idx]
+#         t_horizon = t_opt_rollout[idx]
+#         ax_tube1.plot(t_horizon, s_horizon[:, -2], 'tab:green', markevery=2)
+# plt.ylabel(r'$s$', fontsize=14)
+#
+# ax_tube2 = fig5.add_subplot(212)
+# for idx in range(np.shape(s_delta_scp)[0]):
+#     if idx % 1 == 0:
+#         s_horizon = s_delta_scp[idx]
+#         t_horizon = t_opt_rollout[idx]
+#         ax_tube2.plot(t_horizon, s_horizon[:, -1], 'tab:orange', markevery=2)
+# plt.ylabel(r'$\delta$', fontsize=14)
 
-ax_tube1.set_xlim([0, 30])
+ax_tube1.set_xlim([0, 9])
 ax_tube1.tick_params(axis='both', labelsize=18)
 plt.xlabel(r'$t$ [s]', fontsize=14)
-ax_tube2.set_xlim([0, 30])
-ax_tube2.tick_params(axis='both', labelsize=18)
-plt.xlabel(r'$t$ [s]', fontsize=14)
-plt.show()
+# ax_tube2.set_xlim([0, 9])
+# ax_tube2.tick_params(axis='both', labelsize=18)
+# plt.xlabel(r'$t$ [s]', fontsize=14)
 
-# print('------ Mean Squared Errors (MSEs)----------')
-# print('Ours (SSMR): {}'.format(mse_scp))
-# print('Koopman: {}'.format(mse_koop))
-# print('TPWL: {}'.format(mse_tpwl))
-# print('Linear: {}'.format(mse_rompc))
-#
-#
-# print('-------------Solve times ---------------')
-# print('TPWL: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_tpwl), np.mean(solve_times_tpwl),
-#                                                      np.max(solve_times_tpwl)))
-#
-# print('Koopman: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_koop), np.mean(solve_times_koop),
-#                                                         np.max(solve_times_koop)))
-#
-# print('Ours (SSMR): Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_ssm), np.mean(solve_times_ssm),
-#                                                      np.max(solve_times_ssm)))
-#
-# print('Linear: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_rompc), np.mean(solve_times_rompc),
-#                                                      np.max(solve_times_rompc)))
-#
-# if constrained:
-#     print('-------------Fraction of Constraint Violations ---------------')
-#     print('Ours (SSMR): {}'.format(viol_scp))
-#     print('Koopman: {}'.format(viol_koop))
-#     print('TPWL: {}'.format(viol_tpwl))
-#     print('Linear: {}'.format(viol_rompc))
+plt.show()

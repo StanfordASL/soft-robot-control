@@ -355,16 +355,19 @@ class DiamondRobotSequences(BaseRobotSequences):
         if generation_method == 'periodic_input':
             input_mean = kwargs.get('input_mean', 0)
             amplitude = kwargs.get('amplitude', 1500.)
-            period = kwargs.get('period', 5)
+            period = kwargs.get('period', 2)
             repetitions = kwargs.get('repetitions', 1)
 
-            sine_wave = input_mean + amplitude * np.sin(np.linspace(0, 2 * repetitions * np.pi,
+            sine_wave1 = input_mean + amplitude * np.sin(np.linspace(0, 2 * repetitions * np.pi,
                                                                     int(period / self.dt * repetitions)))
+            sine_wave2 = input_mean + amplitude * np.sin(2 * np.linspace(0, 2 * repetitions * np.pi,
+                                                                    int(period / self.dt * repetitions)))
+
             sine_input = np.zeros((int(period * repetitions / self.dt), self.m))
-            sine_input[:, 0] = np.maximum(0, sine_wave)
-            sine_input[:, 1] = np.maximum(0, sine_wave)
-            sine_input[:, 2] = -np.minimum(0, sine_wave)
-            sine_input[:, 3] = -np.minimum(0, sine_wave)
+            sine_input[:, 0] = np.maximum(0, sine_wave1)
+            sine_input[:, 1] = np.maximum(0, sine_wave2)
+            sine_input[:, 2] = -np.minimum(0, sine_wave1)
+            sine_input[:, 3] = -np.minimum(0, sine_wave2)
             u_sequence = sine_input.T
             u_sequence += self.u0.reshape(-1, 1)
 

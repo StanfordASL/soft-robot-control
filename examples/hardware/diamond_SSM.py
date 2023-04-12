@@ -180,6 +180,7 @@ def run_scp():
     prob.ControllerClass = ClosedLoopController
 
     useTimeDelay = False
+    doRobust = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -222,8 +223,18 @@ def run_scp():
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=Cout)
+    if doRobust:
+        addOutputDim = 2
+        # tubeParams = {'lambda_n': 14.982, 'lambda_r': 3.516, 'L_n': 106.586, 'L_r': 2.747, 'L_b': 0.001, 'Bnorm': 0.0167, 'd': 3.0}
+        tubeParams = {'lambda_n': 14.982, 'lambda_r': 3.516, 'L_n': 120.897, 'L_r': 2.019, 'L_b': 0.001, 'Bnorm': 0.0128, 'd': 3.0}
+
+        z_eq_point = np.hstack((z_eq_point, np.zeros(addOutputDim)))
+        model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params, C=Cout, robustParams=tubeParams)
+    else:
+        model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                                model=raw_model, params=raw_params, C=Cout)
+        addOutputDim = 0
 
     # This dt for when to recalculate control
     dt = 0.02
@@ -259,10 +270,10 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=3, feedback=False, EKF=observer)
+    prob.controller = scp(model, cost, dt, N_replan=1, delay=3, feedback=False, EKF=observer, maxNoise=400)
 
     # Saving paths
-    prob.opt['sim_duration'] = 13.
+    prob.opt['sim_duration'] = 9.0
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'scp_CL'
 
@@ -281,6 +292,7 @@ def run_gusto_solver():
     from scipy.io import loadmat
 
     useTimeDelay = False
+    doRobust = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -313,8 +325,18 @@ def run_gusto_solver():
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
 
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=Cout)
+    if doRobust:
+        addOutputDim = 2
+        # tubeParams = {'lambda_n': 14.982, 'lambda_r': 3.516, 'L_n': 106.586, 'L_r': 2.747, 'L_b': 0.001, 'Bnorm': 0.0167, 'd': 3.0}
+        tubeParams = {'lambda_n': 14.982, 'lambda_r': 3.516, 'L_n': 120.897, 'L_r': 2.019, 'L_b': 0.001, 'Bnorm': 0.0128, 'd': 3.0}
+
+        z_eq_point = np.hstack((z_eq_point, np.zeros(addOutputDim)))
+        model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                                model=raw_model, params=raw_params, C=Cout, robustParams=tubeParams)
+    else:
+        model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                                model=raw_model, params=raw_params, C=Cout)
+        addOutputDim = 0
 
     # Nullspace penalization (Hardcoded from Matlab) - nullspace of V^T * H
     # V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])
@@ -329,23 +351,68 @@ def run_gusto_solver():
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
     R = .00001 * np.eye(model.input_dim)
 
-    #### Define Target Trajectory ####
-    M = 3
-    T = 10
+    M = 5
+    T = 0.05
     N = 1000
     t = np.linspace(0, M * T, M * N)
     th = np.linspace(0, M * 2 * np.pi, M * N)
-    zf_target = np.zeros((M * N, model.output_dim))
 
-    zf_target[:, 0] = -25. * np.sin(th)
-    zf_target[:, 1] = 25. * np.sin(2 * th)
+    # Define the coordinates of the corners of the square
+    center = np.array([-7.1, 0.])
+    top_mid = np.array([-7.1, 1.])
+    top_left = np.array([-9, 1.])
+    top_right = np.array([25., 1.])
+    bottom_left = np.array([-9., -24.])
+    bottom_right = np.array([25, -24])
+
+    # Define the number of points along each edge of the square
+    num_points = M * N
+
+    # Create a set of points that trace out the perimeter of the square
+    # Transient points
+    points_center_topmid = np.linspace(center, top_mid, int(num_points / 2), endpoint=False)
+    points_top_mid_right = np.linspace(top_mid, top_right, int(num_points / 2), endpoint=False)
+
+    # Square points
+    points_right = np.linspace(top_right, bottom_right, num_points, endpoint=False)
+    points_bottom = np.linspace(bottom_right, bottom_left, num_points, endpoint=False)
+    points_left = np.linspace(bottom_left, top_left, num_points, endpoint=False)
+    points_top = np.linspace(top_left, top_right, num_points, endpoint=False)
+
+    # Setpoint to top left corner
+    setptLength = 10
+    setpoint_left = np.linspace(np.array([-10., 3.]), np.array([-10., 3.]), setptLength * num_points, endpoint=False)
+
+    # Combine the points from each edge into a single array
+    numRepeat = 2
+    pointsTransient = np.concatenate((points_center_topmid, points_top_mid_right))
+    points = np.concatenate((points_right, points_bottom, points_left))
+    pointsConnected = np.concatenate((points, points_top))
+    squarePeriodic = np.tile(pointsConnected, (numRepeat - 1, 1))
+    squareTraj = np.concatenate((pointsTransient, squarePeriodic, points, setpoint_left))
+
+    numSegments = 4 * (numRepeat) + setptLength
+    t = np.linspace(0, numSegments * M * T, numSegments * M * N)
+
+    zf_target = np.zeros((squareTraj.shape[0], model.output_dim))
+    zf_target[:, 0] = squareTraj[:, 0]
+    zf_target[:, 1] = squareTraj[:, 1]
+
+    # M = 3
+    # T = 10
+    # N = 1000
+    # t = np.linspace(0, M * T, M * N)
+    # th = np.linspace(0, M * 2 * np.pi, M * N)
+
+    # zf_target[:, 0] = -25. * np.sin(th)
+    # zf_target[:, 1] = 25. * np.sin(2 * th)
 
     # This trajectory results in constraint violation
     # zf_target[:, 0] = -30. * np.sin(5 * th)
     # zf_target[:, 1] = 30. * np.sin(10 * th)
 
-    # # zf_target[:, 0] = -25. * np.sin(th) + 13.
-    # # zf_target[:, 1] = 25. * np.sin(2 * th) + 20
+    # zf_target[:, 0] = -30. * np.sin(th)
+    # zf_target[:, 1] = 30. * np.sin(2 * th)
 
     # zf_target[:, 0] = -35. * np.sin(th) - 7.1
     # zf_target[:, 1] = 35. * np.sin(2 * th)
@@ -395,13 +462,13 @@ def run_gusto_solver():
     z = model.zfyf_to_zy(zf=zf_target)
 
     # Control constraints
-    low = 200.0
+    low = 0.0
     high = 2500.0
     # high = 1500.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
     # Control change constraints
-    # dU_max = 50
+    # dU_max = 100
     # dU = HyperRectangle([dU_max, dU_max, dU_max, dU_max], [-dU_max, -dU_max, -dU_max, -dU_max])
 
     dU = None
@@ -413,7 +480,15 @@ def run_gusto_solver():
     Hz[2, 1] = 1
     Hz[3, 1] = -1
 
-    b_z = np.array([20, 20, 15, 15])
+    # [ub, lb]
+    # b_z = np.array([25, 10, 3, 25])
+
+    # Smaller
+    # b_z = np.array([5, 10, 3, 5])
+
+    # Artificial tightening
+    b_z = np.array([22, 9.4, 2.5, 23])
+
     X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
 
     # No constraints for now
@@ -433,7 +508,7 @@ def run_gusto_solver():
     #                    max_gusto_iters=0, input_nullspace=None, dU=None)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
+                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True, robust=doRobust)
 
 
 def run_scp_OL():
@@ -511,18 +586,54 @@ def run_scp_OL():
     # V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])
 
     #### Define Target Trajectory ####
+
+    # Trajectory 1
     M = 3
-    T = 10
+    T = 3
     N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    zf_target = np.zeros((M * N, model.output_dim))
+    t1 = np.linspace(0, M * T, M * N)
+    idx1 = np.argwhere(t1 >= T)[0][0]
+    th1 = np.linspace(0, M * 2 * np.pi, M * N)
+    zf_target1 = np.zeros((M * N, model.output_dim))
 
-    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
+    t1 = t1[:idx1]
+    th1 = th1[:idx1]
+    zf_target1 = zf_target1[:idx1]
 
-    zf_target[:, 0] = -25. * np.sin(th)
-    zf_target[:, 1] = 25. * np.sin(2 * th)
+    # Trajectory 2
+    M2 = 4
+    T2 = 3
+    N2 = 1000
+    t2 = t1[-1] + np.linspace(0, M2 * T2, M2 * N2)
+    idx2 = np.argwhere(t2 >= T + T2)[0][0]
+    th2 = np.linspace(0, M2 * 2 * np.pi, M2 * N2)
+    zf_target2 = np.zeros((M2 * N2, model.output_dim))
+
+    t2 = t2[:idx2]
+    th2 = th2[:idx2]
+    zf_target2 = zf_target2[:idx2]
+
+    # Trajectory 3
+    M3 = 3
+    T3 = 4
+    N3 = 1000
+    t3 = t2[-1] + np.linspace(0, M3 * T3, M3 * N3)
+    idx3 = np.argwhere(t3 >= T + T2 + T3)[0][0]
+    th3 = np.linspace(0, M3 * 2 * np.pi, M3 * N3)
+    zf_target3 = np.zeros((M3 * N3, model.output_dim))
+
+    t3 = t3[:idx3]
+    th3 = th3[:idx3]
+    zf_target3 = zf_target3[:idx3]
+
+    zf_target1[:, 0] = -15. * np.sin(th1)
+    zf_target1[:, 1] = 15. * np.sin(2 * th1)
+
+    zf_target2[:, 0] = -25. * np.sin(3 * th2)
+    zf_target2[:, 1] = 25. * np.sin(6 * th2)
+
+    zf_target3[:, 0] = 0. * np.sin(th3) - 7.1
+    zf_target3[:, 1] = 0. * np.sin(2 * th3)
 
     # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
     # zf_target[:, 1] = 15. * np.sin(16 * th)
@@ -531,11 +642,10 @@ def run_scp_OL():
     # zf_target[:, 1] = 15. * np.sin(8 * th)
 
     #z = zf_target
-    z = model.zfyf_to_zy(zf=zf_target)
+    zf_target = np.vstack((zf_target1, zf_target2, zf_target3))
+    t = np.hstack((t1, t2, t3))
 
-    # Define controller (wait 3 seconds of simulation time to start)
-    from types import SimpleNamespace
-    target = SimpleNamespace(z=z, Hf=outputModel.C, t=t)
+    z = model.zfyf_to_zy(zf=zf_target)
 
     # Control constraints
     low = 200.0
@@ -549,7 +659,7 @@ def run_scp_OL():
     # Hz[2, 1] = 1
     # Hz[3, 1] = -1
     #
-    # b_z = np.array([20, 20, 15, 15])
+    # b_z = np.array([20, 20, 20, 20])
     # X = Polyhedron(A=Hz, b=b_z - Hz @ model.y_ref)
 
     X = None
@@ -562,7 +672,7 @@ def run_scp_OL():
     #                    verbose=1, warm_start=False, convg_thresh=0.001, solver='GUROBI')
 
     xopt, uopt, zopt, topt = runGuSTOSolverStandAlone(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                                                      verbose=1, warm_start=False, convg_thresh=1e-5, solver='GUROBI',
+                                                      verbose=1, warm_start=False, convg_thresh=1e4, solver='GUROBI',
                                                       input_nullspace=None, jit=False)
 
     ###### Plot results. Make sure comment this or robot will not animate ########
@@ -580,7 +690,7 @@ def run_scp_OL():
 
     # prob.snapshots = SnapshotData(save_dynamics=False)
 
-    prob.opt['sim_duration'] = 13.
+    prob.opt['sim_duration'] = 15.
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'scp_OL_SSM'
 
@@ -624,8 +734,27 @@ def collect_traj_data():
                                               S_v=cov_v)
 
     # Training snapshots
-    u, save, t = Sequences.lhs_sequence(nbr_samples=10, t_step=1.5, add_base=True, interp_pts=1, nbr_zeros=5, seed=4321)
-    prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt, maxNoise=0)
+    # Random sampling
+    # u, save, t = Sequences.lhs_sequence(nbr_samples=10, t_step=2, add_base=True, interp_pts=1, nbr_zeros=5, seed=4321)
+
+    # Periodic trajectories
+    u1, save1, t1 = Sequences.constant_input(np.zeros(4), 3., add_base=True)
+    u2, save2, t2 = Sequences.traj_tracking('periodic_input', amplitude=1000., period=5.)
+    # u3, save3, t3 = Sequences.traj_tracking('periodic_input', amplitude=2000., period=3.)
+    u4, save4, t4 = Sequences.traj_tracking('periodic_input', amplitude=2000., period=7.)
+    # u5, save5, t5 = Sequences.traj_tracking('periodic_input', amplitude=2000., period=2.)
+    u6, save6, t6 = Sequences.traj_tracking('periodic_input', amplitude=1000., period=5.)
+    u7, save7, t7 = Sequences.constant_input(np.zeros(4), 5.)
+
+    # u, save, t = prob.Robot.sequences.combined_sequence([u1, u2, u3, u4, u5, u6],
+    #                                                     [save1, save2, save3, save4, save5, save6],
+    #                                                     [t1, t2, t3, t4, t5, t6])
+
+    u, save, t = prob.Robot.sequences.combined_sequence([u1, u2, u4, u6, u7],
+                                                        [save1, save2, save4, save6, save7],
+                                                        [t1, t2, t4, t6, t7])
+
+    prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt, maxNoise=0.)
 
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'scp_OL_SSM'

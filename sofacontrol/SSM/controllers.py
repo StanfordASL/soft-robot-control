@@ -50,6 +50,7 @@ class TemplateController(closed_loop_controller.TemplateController):
         self.u = self.u0
 
         self.Y = kwargs.pop('Y', None)
+        self.maxNoise = kwargs.pop('maxNoise', 0)
 
     def validate_problem(self):
         raise NotImplementedError('Must be subclassed')
@@ -109,12 +110,16 @@ class TemplateController(closed_loop_controller.TemplateController):
         if self.Y is not None and not self.Y.contains(y):
             y = self.Y.project_to_polyhedron(y)
 
-        # Store current observations for delay embedding ()
-        self.data.add_measurement(y, u_prev)
+        # Store current observations for delay embedding
+        if self.dyn_sys.robust:
+            self.data.add_measurement(np.hstack((y, 0., 0.)), u_prev)
+        else:
+            self.data.add_measurement(y, u_prev)
 
         # TODO: Debugging
         # print('y: ', y)
 
+        inputDisturbance = np.zeros(self.dyn_sys.get_input_dim())
         # Startup portion of controller, before OCP controller is activated
         if round(sim_time, 4) < round(self.t_delay, 4):
             self.u = self.u0
@@ -122,6 +127,7 @@ class TemplateController(closed_loop_controller.TemplateController):
             # TODO: When delay embeddings are included, this needs to be commented
             # y_belief = self.data.get_y_delay()
             # self.observer.update(u_prev, y_belief, self.dt)
+
 
         # Optimal controller is active
         else:
@@ -132,6 +138,8 @@ class TemplateController(closed_loop_controller.TemplateController):
             if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to 0
                 # TODO: Add lifting function to get delay embeddings
                 y_belief = self.data.get_y_delay()
+                if self.dyn_sys.robust:
+                    y_belief = y_belief[0:self.dyn_sys.n_z]
 
                 # TODO: Debugging
                 #print('y_belief: ', y_belief + self.dyn_sys.y_ref)
@@ -139,10 +147,10 @@ class TemplateController(closed_loop_controller.TemplateController):
                 # print('debug belief positions ', y_belief + np.tile(self.dyn_sys.y_ref, self.dyn_sys.delays + 1))
                 # print('Error between true output and estimated output on manifold', np.linalg.norm(self.dyn_sys.W_map(self.dyn_sys.V_map(y_belief)) + self.dyn_sys.y_ref - y))
                 # TODO: Update estimated state based on past measurements
-
                 self.observer.update(u_prev, y_belief, self.dt)
 
                 if self.recompute_policy(self.t_compute):
+                    # TODO: Modify this to include tube states when necessary
                     self.compute_policy(self.t_compute, self.observer.x)
 
                 self.u = self.compute_input(self.t_compute, self.observer.x)
@@ -150,8 +158,13 @@ class TemplateController(closed_loop_controller.TemplateController):
                 self.t_compute += self.dt  # Increment t_compute
                 self.t_compute = round(self.t_compute, 4)
 
+                # Add disturbance
+                inputDisturbance = np.random.normal(size=self.dyn_sys.get_input_dim())
+                inputDisturbance = self.maxNoise * inputDisturbance / np.linalg.norm(inputDisturbance)  # Scale to boundary
+
         self.u = np.atleast_1d(self.u)
-        return self.u.copy()  # Returns copy of self.u
+
+        return self.u.copy() + inputDisturbance  # Returns copy of self.u
 
     def save_controller_info(self):
         """
@@ -183,6 +196,7 @@ class scp(TemplateController):
         self.x_bar = None
 
         self.z_opt_horizon = []
+        self.x_opt_horizon = []
 
         self.wait = wait
 
@@ -205,10 +219,17 @@ class scp(TemplateController):
         # If the controller hasn't been initialized yet start with x_belief and solve
         if not self.initialized:
             # x_belief = self.dyn_sys.rom.compute_RO_state(xf=self.dyn_sys.rom.x_ref)
+            if self.dyn_sys.robust:
+                x_belief = np.concatenate((x_belief, np.zeros(2)))
             self.run_GuSTO(t_step, x_belief, wait=True)  # Upon instantiation always wait
             self.update_policy(init=True)
             self.initialized = True
         else:
+            # TODO: Take last 2 states, if available (x_belief, self.x_opt[1, self.dyn_sys.n_x], ||xr-zr||_2)
+            # TODO: We optimize over zr
+            if self.dyn_sys.robust:
+                x_belief = np.hstack((x_belief, self.x_opt_horizon[-1][1, self.dyn_sys.n_x:]))
+
             self.run_GuSTO(t_step, x_belief, wait=self.wait)
             self.update_policy()
 
@@ -253,6 +274,7 @@ class scp(TemplateController):
         # Define short time optimal horizon solutions
         self.z_opt_horizon.append(self.dyn_sys.x_to_zfyf(x_opt_p))
         self.t_opt_horizon.append(t_opt_p)
+        self.x_opt_horizon.append(x_opt_p)
 
         # Define interpolation functions for new optimal trajectory, note
         # that these include traj from time t = 0 onward
@@ -288,6 +310,7 @@ class scp(TemplateController):
         info['t_opt'] = self.t_opt
         info['u_opt'] = self.u_opt
         info['z_opt'] = self.dyn_sys.x_to_zfyf(self.x_opt, zf=True)
+        info['x_opt'] = self.x_opt_horizon
         info['solve_times'] = self.solve_times
         info['rollout_time'] = self.N_replan * self.dt
         info['z_rollout'] = self.z_opt_horizon

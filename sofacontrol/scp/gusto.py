@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from functools import partial
 
 from sofacontrol.scp.locp import LOCP
+from sofacontrol.utils import norm2Linearize
 
 #### Default variables for GuSTO ####
 DELTA0 = 1e4  # trust region
@@ -132,10 +133,13 @@ class GuSTO:
         # Get observer type
         self.nonlinear_observer = model.nonlinear_observer
 
+        # Get whether robust or not
+        self.robust = kwargs.pop("robust", False)
+
         self.locp = LOCP(self.N, self.model.H, self.Qz, self.R, Qzf=self.Qzf,
                          U=self.U, X=self.X, Xf=self.Xf, dU=self.dU,
                          verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char,
-                         nonlinear_observer=self.nonlinear_observer, **kwargs)
+                         nonlinear_observer=self.nonlinear_observer, robust=self.robust, **kwargs)
 
         # Solve SCP
         self.jit = kwargs.pop('jit', True)
@@ -321,6 +325,14 @@ class GuSTO:
         else:
             H_d, c_d = None, None
 
+        if self.robust:
+            Anorm, cnorm = norm2Linearize(self.model.dyn_sys.T @ self.x_k[0][:self.model.dyn_sys.n_x], self.model.dyn_sys.T @ x0[:self.model.dyn_sys.n_x],
+                                          self.dt, P=self.model.dyn_sys.P)
+            # Rotate if needed, otherwise T is identity
+            x0 = np.hstack((self.model.dyn_sys.T @ x0[:self.model.dyn_sys.n_x], x0[-2:]))
+        else:
+            Anorm, cnorm = None, None
+
         t_jac = time.time()
         # TODO: Timing computations
         print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
@@ -349,11 +361,13 @@ class GuSTO:
 
             # Update the LOCP with new parameters and solve
             if new_solution:
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d)
+                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u,
+                                 Hd=H_d, cd=c_d, Anorm=Anorm, cnorm=cnorm)
                 new_solution = False
             else:
                 # Build new problem if no new solution
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d, full=False)
+                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u,
+                                 Hd=H_d, cd=c_d, Anorm=Anorm, cnorm=cnorm, full=False)
 
             # TODO: Timing computations
             print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
@@ -477,6 +491,12 @@ class GuSTO:
                             H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
                     else:
                         H_d, c_d = None, None
+
+                    if self.robust:
+                        Anorm, cnorm = norm2Linearize(self.x_k[0][:self.model.dyn_sys.n_x], x0[:self.model.dyn_sys.n_x],
+                                                      self.dt)
+                    else:
+                        Anorm, cnorm = None, None
 
         t_gusto = time.time() - t0
         if omega > self.omega_max:

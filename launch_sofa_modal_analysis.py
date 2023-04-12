@@ -149,6 +149,7 @@ def createScene(rootNode):
         print('[PROBLEM WARNING]   Minimal force for 1 or more actuators set to {}, which is higher than 0. '
               'Undesired behavior might occur'.format(max(robot.min_force)))
 
+    # Add save equilibrium point here
     rootNode.addObject(prob.ControllerClass(rootNode=rootNode,
                                             robot=robot,
                                             snapshots=prob.snapshots,

@@ -5,6 +5,7 @@ from cvxpy.atoms.affine.wraps import psd_wrap
 from cvxpy.atoms.affine.reshape import reshape
 import time
 import scipy.sparse as sp
+from sofacontrol.utils import norm2Linearize
 
 class LOCP:
     """
@@ -37,6 +38,7 @@ class LOCP:
         self.verbose = verbose
         self.warm_start = warm_start
         self.nonlinear_observer = kwargs.pop('nonlinear_observer', False)
+        self.robust = kwargs.pop('robust', False)
 
         # Ensure we have a self.H in SSM class such that 2nd dim is dim of RO state
         self.n_x = H.shape[1]
@@ -44,6 +46,7 @@ class LOCP:
         self.n_u = R.shape[0]
 
         # Characteristic values for scaling
+        # TODO: Add capability to robust tube dynamics
         if x_char is None:
             self.x_scale = np.ones(self.n_x)  # default no scaling
 
@@ -51,7 +54,7 @@ class LOCP:
             self.x_scale = 1. / np.abs(x_char)
 
         # Build CVX problem
-        self.x = cp.Variable((self.N + 1) * self.n_x)
+        self.x = cp.Variable((self.N + 1) * (self.n_x))
         self.u = cp.Variable(self.N * self.n_u)
 
         self.tr_active = kwargs.pop('is_tr_active', True)
@@ -78,7 +81,7 @@ class LOCP:
             self.u_des = cp.Parameter(self.N * self.n_u)
             self.Ad = [cp.Parameter((self.n_x, self.n_x)) for i in range(self.N)]
             self.Bd = [cp.Parameter((self.n_x, self.n_u)) for i in range(self.N)]
-            self.dd = cp.Parameter(self.N * self.n_x)
+            self.dd = cp.Parameter(self.N * (self.n_x))
 
             # Adding observer linearization parameters here. Expect parameters to be None
             # if dynamics class has nonlinear_observer = False. In this case this class should
@@ -86,6 +89,12 @@ class LOCP:
             if self.nonlinear_observer:
                 self.Hd = [cp.Parameter((self.n_z, self.n_x)) for i in range(self.N + 1)]
                 self.cd = cp.Parameter((self.N + 1) * self.n_z)
+
+            # Adding linearization of conic constraint
+            if self.robust:
+                self.Anorm = cp.Parameter((self.n_x - 2,))
+                self.cnorm = cp.Parameter((1,))
+                self.sl_robust = cp.Variable((self.n_x - 2,))
 
             self.x0 = cp.Parameter(self.n_x)
             self.xk = cp.Parameter((self.N + 1, self.n_x))
@@ -129,9 +138,14 @@ class LOCP:
                         self.Hd[j].value = np.asarray(kwargs.get('Hd')[j])
 
                 self.dd.value = np.ravel(np.asarray(dd))
+                # TODO: move to the other conditional
                 if self.nonlinear_observer:
                     cd = kwargs.get('cd')
                     self.cd.value = np.ravel(np.asarray(cd))
+
+                if self.robust:
+                    self.Anorm.value = np.asarray(kwargs.get('Anorm'))
+                    self.cnorm.value = np.ravel(np.asarray(kwargs.get('cnorm')))
 
                 self.xk.value = xk
                 self.x0.value = np.asarray(x0)
@@ -169,6 +183,10 @@ class LOCP:
             if self.nonlinear_observer:
                 self.Hd = np.asarray(kwargs.get('Hd'))
                 self.cd = np.asarray(kwargs.get('cd'))
+
+            if self.robust:
+                self.Anorm.value = np.asarray(kwargs.get('Anorm'))
+                self.cnorm.value = np.asarray(kwargs.get('cnorm'))
 
             self.problem_setup()
 
@@ -246,6 +264,14 @@ class LOCP:
             Hfull = block_diag(*[self.H for j in range(self.N + 1)])
             J += cp.quad_form(Hfull @ self.x - self.z, Qzfull)
 
+        # TODO: Add cost on tube dynamics (only on initial state)
+        if self.robust:
+            Qtube = np.zeros((self.x.shape[0], self.x.shape[0]))
+            Qtube[self.n_x - 1, self.n_x - 1] = 1.
+            Qtube[self.n_x - 2, self.n_x - 2] = 1.
+            J += cp.quad_form(self.x, Qtube)
+            J += cp.quad_form(self.sl_robust, np.eye((self.sl_robust.shape[0])))
+
         # Add optional terminal cost
         if self.Qzf is not None:
             J += cp.quad_form(self.H @ self.x[self.N * self.n_z:] - self.zf, self.Qzf)
@@ -322,10 +348,26 @@ class LOCP:
                     Hfull = block_diag(*[self.Hd[j + 1] for j in range(self.N)])
 
                 # Take only last N of cdfull
-                cdfull = cdfull[self.n_z:]
-                XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
-                Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
-                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+                if self.robust:
+                    # TODO: Robust constraints. Need to put in lipschitz constant and account for s.
+                    # TODO: Currenly hardcoded as 0.09
+                    s = self.x[(self.n_x + 6)::8]
+                    delta = self.x[(self.n_x + 7)::8]
+                    sfull = cp.hstack(np.repeat(s, self.X.A.shape[0]))
+                    deltafull = cp.hstack(np.repeat(delta, self.X.A.shape[0]))
+                    cdfull = cdfull[self.n_z:]
+                    XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
+                    Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
+
+                    constr += [XAfull @ self.x[self.n_x:] + 0.09 * deltafull + sfull <= Xbfull]
+                    # TODO: Add positivity constraints
+                    constr += [sfull >= 0.]
+                    constr += [deltafull[0:self.X.A.shape[0]] >= 0.]
+                else:
+                    cdfull = cdfull[self.n_z:]
+                    XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
+                    Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
+                    constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
             else:
                 XAfull = block_diag(*[self.X.A for j in range(self.N)])
                 Xbfull = np.tile(self.X.b, self.N)
@@ -335,7 +377,25 @@ class LOCP:
         if self.Xf is not None:
             constr += [self.Xf.A @ self.x[-self.n_x:] <= self.Xf.b]
 
-        # Initial condition
-        constr += [self.x[:self.n_x] == self.x0]
+        # Initial condition on reduced state
+        # TODO: Convention is n_x include tube dynamics and that self.x[self.n_x - 2] := s, self.x[self.n_x] := \delta
+        if self.robust:
+            # TODO: Initial condition on off-manifold error state
+            # constr += [self.x[:(self.n_x - 2)] == self.x0[:(self.n_x - 2)]]
+            constr += [self.x[self.n_x - 2] == self.x0[self.n_x - 2]]
+
+            # Initial condition of reduced state
+            constr += [self.x[:(self.n_x - 2)] == self.x0[:(self.n_x - 2)]]
+
+            # Positivity constraint on slack
+            # constr += [self.sl_robust >= 0]
+
+            # TODO: Initial condition on on-manifold error state
+            # TODO: Need to solve using linearization (along self.x_k[0]). SOCP for Gurobi can't solve this
+            # Anorm, cnorm = norm2Linearize(self.xk[0], self.x0[:(self.n_x - 2)])
+            # constr += [self.x[self.n_x - 1] >= cp.norm2(self.x0[:(self.n_x - 2)] - self.x[:(self.n_x - 2)])]
+            constr += [self.x[self.n_x - 1] == self.Anorm @ self.x[:(self.n_x - 2)] + self.cnorm]
+        else:
+            constr += [self.x[:self.n_x] == self.x0]
 
         return constr

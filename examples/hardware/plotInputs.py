@@ -45,6 +45,8 @@ name = 'figure8_inputs'
 
 # Load SCP data
 scp_simdata_file = join(path, 'scp_CL_sim.pkl')
+# scp_simdata_file = join(path, 'scp_OL_SSM_sim.pkl')
+
 scp_data = load_data(scp_simdata_file)
 idx = np.argwhere(scp_data['t'] >= 3)[0][0]
 u_scp = scp_data['u'][idx:, :]
@@ -53,11 +55,11 @@ u_scp = scp_data['u'][idx:, :]
 t_scp = scp_data['t'][idx:] - scp_data['t'][idx]
 z_scp = scp_data['z'][idx:, :]
 #zhat = scp_data['z_hat'][idx:, :]
-solve_times_ssm = scp_data['info']['solve_times']
-real_time_limit_ssm = scp_data['info']['rollout_time']
+# solve_times_ssm = scp_data['info']['solve_times']
+# real_time_limit_ssm = scp_data['info']['rollout_time']
 
-z_opt_rollout = scp_data['info']['z_rollout']
-t_opt_rollout = scp_data['info']['t_rollout']
+# z_opt_rollout = scp_data['info']['z_rollout']
+# t_opt_rollout = scp_data['info']['t_rollout']
 
 # Load iLQR data
 ilqr_simdata_file = join(path, 'scp_sim.pkl')
@@ -90,41 +92,47 @@ m_w = 30
 fig2 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
 ax2 = fig2.add_subplot(411)
 
-ax2.plot(t_ilqr, u_ilqr[:, 0], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
-ax2.plot(t_koop, u_koop[:, 0], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+# ax2.plot(t_ilqr, u_ilqr[:, 0], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+# ax2.plot(t_koop, u_koop[:, 0], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
 ax2.plot(t_scp, u_scp[:, 0], 'tab:blue', label='SSM CL', linewidth=3)
 plt.ylabel(r'$u_1$', fontsize=14)
 
-ax2.set_xlim([0, 10])
+ax2.set_xlim([0, 30])
 plt.legend(loc='best', prop={'size': 14})
 
 ax3 = fig2.add_subplot(412)
-ax3.plot(t_ilqr, u_ilqr[:, 1], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
-ax3.plot(t_koop, u_koop[:, 1], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+# ax3.plot(t_ilqr, u_ilqr[:, 1], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+# ax3.plot(t_koop, u_koop[:, 1], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
 ax3.plot(t_scp, u_scp[:, 1], 'tab:blue', label='SSM CL', linewidth=3)
 plt.ylabel(r'$u_2$', fontsize=14)
-ax3.set_xlim([0, 10])
+ax3.set_xlim([0, 30])
 
 ax4 = fig2.add_subplot(413)
-ax4.plot(t_ilqr, u_ilqr[:, 2], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
-ax4.plot(t_koop, u_koop[:, 2], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+# ax4.plot(t_ilqr, u_ilqr[:, 2], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+# ax4.plot(t_koop, u_koop[:, 2], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
 ax4.plot(t_scp, u_scp[:, 2], 'tab:blue', label='SSM CL', linewidth=3)
 plt.ylabel(r'$u_3$', fontsize=14)
-ax4.set_xlim([0, 10])
+ax4.set_xlim([0, 30])
 
 
 ax5 = fig2.add_subplot(414)
-ax5.plot(t_ilqr, u_ilqr[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
-ax5.plot(t_koop, u_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
+# ax5.plot(t_ilqr, u_ilqr[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL CL', linewidth=1)
+# ax5.plot(t_koop, u_koop[:, 3], 'tab:orange', marker='^', markevery=m_w, label='Koopman CL', linewidth=1)
 ax5.plot(t_scp, u_scp[:, 3], 'tab:blue', label='SSM CL', linewidth=3)
 plt.ylabel(r'$u_4$', fontsize=14)
 
-ax5.set_xlim([0, 10])
+ax5.set_xlim([0, 30])
 
 plt.xlabel(r'$t$ [s]', fontsize=14)
 figure_file = join(path, name + '.png')
 plt.savefig(figure_file, dpi=300, bbox_inches='tight')
 
+# Plot absolute values
+fig6 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
+ax6 = fig6.add_subplot(111)
+ax6.plot(t_scp, np.linalg.norm(u_scp, axis=1), 'tab:blue', label='SSM CL', linewidth=3)
+
+plt.show()
 
 # MSE calculations
 # Calculation of desired trajectory
@@ -158,14 +166,12 @@ print('Ours (SSM CL): {}'.format(mse_scp))
 print('Koopman CL: {}'.format(mse_koop))
 print('TPWL CL: {}'.format(mse_rompc))
 
-print('-------------Solve times ---------------')
-print('TPWL: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_tpwl), np.mean(solve_times_tpwl),
-                                                     np.max(solve_times_tpwl)))
-
-print('Koopman: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_koop), np.mean(solve_times_koop),
-                                                        np.max(solve_times_koop)))
-
-print('Ours (SSM): Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_ssm), np.mean(solve_times_ssm),
-                                                     np.max(solve_times_ssm)))
-
-plt.show()
+# print('-------------Solve times ---------------')
+# print('TPWL: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_tpwl), np.mean(solve_times_tpwl),
+#                                                      np.max(solve_times_tpwl)))
+#
+# print('Koopman: Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_koop), np.mean(solve_times_koop),
+#                                                         np.max(solve_times_koop)))
+#
+# print('Ours (SSM): Min: {}, Mean: {} ms, Max: {} s'.format(np.min(solve_times_ssm), np.mean(solve_times_ssm),
+#                                                      np.max(solve_times_ssm)))

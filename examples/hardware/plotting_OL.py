@@ -10,7 +10,7 @@ from sofacontrol.utils import load_data
 
 path = dirname(abspath(__file__))
 
-sim_time = 20
+sim_time = 10
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
@@ -21,8 +21,8 @@ t_target = np.linspace(0, M*T, M*N)
 th = np.linspace(0, M * 2 * np.pi, M*N)
 zf_target = np.zeros((M*N, 6))
 
-zf_target[:, 3] = -25. * np.sin(th)
-zf_target[:, 4] = 25. * np.sin(2 * th)
+zf_target[:, 3] = -25. * np.sin(5 * th)
+zf_target[:, 4] = 25. * np.sin(10 * th)
 
 # zf_target[:, 3] = -15. * np.sin(2 * th) - 7.1
 # zf_target[:, 4] = 15. * np.sin(4 * th)
@@ -66,6 +66,7 @@ z_tpwl = tpwl_data['z'][idx:, :]
 
 # Load SSM data
 ssm_simdata_file = join(path, 'scp_OL_SSM_sim.pkl')
+# ssm_simdata_file = join(path, 'scp_CL_sim.pkl')
 ssm_data = load_data(ssm_simdata_file)
 idx = np.argwhere(ssm_data['t'] >= 3)[0][0]
 u_ssm = ssm_data['u'][idx:, :]
@@ -87,7 +88,7 @@ fig2 = plt.figure(figsize=(14, 12), facecolor='w', edgecolor='k')
 ax2 = fig2.add_subplot(211)
 
 if name == 'figure8':
-    ax2.plot(t_ssm, z_ssm[:, 3], 'tab:blue', label='SSM Open Loop', linewidth=3)
+    ax2.plot(t_ssm, z_ssm[:, 3], 'tab:blue', label='SSM Closed Loop', linewidth=3)
     #ax2.plot(t_tpwl, z_tpwl[:, 3], 'tab:green', marker='x', markevery=m_w, label='TPWL Open Loop', linewidth=1)
     #ax2.plot(t_koop, z_koop[:, 0], 'tab:orange', marker='^', markevery=m_w, label='Koopman Open Loop', linewidth=1)
     ax2.plot(t_target, zf_target[:, 3], '--k', alpha=1, linewidth=1, label='Target')
@@ -106,7 +107,7 @@ plt.legend(loc='best', prop={'size': 14})
 
 ax3 = fig2.add_subplot(212)
 if name == 'figure8':
-    ax3.plot(t_ssm, z_ssm[:, 4], 'tab:blue', label='SSM Open Loop', linewidth=3)
+    ax3.plot(t_ssm, z_ssm[:, 4], 'tab:blue', label='SSM Closed Loop', linewidth=3)
     #ax3.plot(t_tpwl, z_tpwl[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL Open Loop', linewidth=1)
     #ax3.plot(t_koop, z_koop[:, 1], 'tab:orange', marker='^', markevery=m_w, label='Koopman Open Loop', linewidth=1)
     ax3.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
