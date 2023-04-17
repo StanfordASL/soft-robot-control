@@ -181,12 +181,13 @@ def run_scp():
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
-    useTimeDelay = True
+    useTimeDelay = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
     rest_data = load_data(rest_file)
     qv_equilibrium = np.array(rest_data['rest'])
+    print(qv_equilibrium)
 
     # Set directory for SSM Models
     pathToModel = path + '/SSMmodels/'
@@ -260,10 +261,10 @@ def run_scp():
     # cost.R = .003 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=3, feedback=False, EKF=observer)
+    prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
 
     # Saving paths
-    prob.opt['sim_duration'] = 8
+    prob.opt['sim_duration'] = 6
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'ssmr'
 
@@ -282,7 +283,7 @@ def run_gusto_solver():
     from scipy.io import loadmat
     import pickle
 
-    useTimeDelay = True
+    useTimeDelay = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')
@@ -441,7 +442,7 @@ def run_scp_OL():
     prob.ControllerClass = OpenLoopController
     Sequences = DiamondRobotSequences(t0=3.0, dt=dt) # t0 is delay before real inputs
 
-    useTimeDelay = True
+    useTimeDelay = False
 
     # Load equilibrium point
     rest_file = join(path, 'rest_qv.pkl')

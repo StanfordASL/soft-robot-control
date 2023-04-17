@@ -1,9 +1,13 @@
+robot: "trunk"
+save_dir: "plots/"
+file_format: "png"
+
 show: {
-    'ssmr_delay_step_inputs': True,
-    'ssmr_delay_smooth_inputs': True,
+    'ssmr_delay_step_inputs': False,
+    'ssmr_delay_smooth_inputs': False,
     'ssmr': True,
-    'ssmr_delay_my_data': True,
-    'ssmr_full': True,
+    'ssmr_delay_my_data': False,
+    'ssmr_full': False,
     'tpwl': False,
     'koopman': False,
     'rompc': False
@@ -23,7 +27,7 @@ color: {
     'ssmr_delay_smooth_inputs': 'tab:orange',
     'ssmr_delay_my_data': 'tab:purple',
     'ssmr_full': 'tab:green',
-    'ssmr': 'tab:brown',
+    'ssmr': 'tab:blue',
     'tpwl': 'tab:orange',
     'koopman': 'tab:green',
     'rompc': 'tab:purple',
@@ -51,16 +55,29 @@ linewidth: {
     'rompc': 2,
     'target': 1
 }
+
+select_target: "circle"
 # Figure8 target
-target: {
-  target_name: "figure8",
-  M: 1,
-  T: 5,
-  N: 1000,
-  radius: 15,
-  # state constraints
-  z_lb: null, # [-16, -16],
-  z_ub: null  # [16, 5]
+define_targets: {
+    figure8: {
+        M: 1,
+        T: 10,
+        N: 1000,
+        radius: 10,
+        # state constraints
+        z_lb: null, # [-16, -16],
+        z_ub: null  # [16, 5]
+    },
+    circle: {
+        M: 1,
+        T: 10,
+        N: 1000,
+        radius: 40,
+        z_const: -1,
+        # state constraints
+        z_lb: null, # [-16, -16],
+        z_ub: null  # [16, 5]
+    }
 }
 
 plot_mpc_rollouts: False

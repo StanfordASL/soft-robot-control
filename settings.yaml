@@ -1,0 +1,24 @@
+# collect decay data
+# run "./launch_sofa_collectDecayTrajectories.py"
+collectDecayData: {
+  robot: "diamond",
+  u_dim: 4,
+  save_dir: "examples/diamond/dataCollection/pre-tensioned_2",
+  pre_tensioning: [150, 400, 0, 0],
+  combine_inputs: [0, 1000, 3000],
+  n_traj: 50
+}
+
+collectInputData: {
+  robot: "trunk",
+  u_dim: 8,
+  u_max: 100,
+  save_dir: "examples/trunk/dataCollection/open-loop_slow",
+  pre_tensioning: [0, 0, 0, 0, 0, 0, 0, 0],
+  # spline_lhs: False,
+  # n_samples: 100
+  # n_interp_points: 20
+}
+
+# collect open-loop controlled data
+# run "./launch_sofa_collectInputTrajectories.py"

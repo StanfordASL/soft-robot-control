@@ -40,8 +40,9 @@ class SSM:
         self.obs_dim = self.params['obs_dim'] # [0, 0][0, 0]
 
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
-        self.ssm_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
-        self.control_phi = self.get_poly_basis(self.input_dim + self.state_dim, 2)
+        self.ssm_map_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
+        self.ssm_chart_phi = self.get_poly_basis(self.obs_dim, self.SSM_order)
+        self.control_phi = self.get_poly_basis(self.input_dim, self.params['u_order'])
 
         # Observation model
         if C is not None:
@@ -171,6 +172,7 @@ class SSM:
         # Simulate
         for i in range(N):
             x[i+1,:] = self.update_state(x[i,:], u[i,:], dt)
+            # print(x[i, :].shape, self.update_observer_state(x[i, :]).shape)
             z_lin[i,:] = self.update_observer_state(x[i, :])
 
         z = self.x_to_zfyf(x)
@@ -187,21 +189,21 @@ class SSM:
 
     # Continuous maps
     def reduced_dynamics(self, x, u):
-        return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u) # jnp.dot(self.B_r, jnp.asarray(self.control_phi(*jnp.hstack([u, x]))))
+        return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, jnp.asarray(self.control_phi(*u))) # jnp.dot(self.B_r, u) # 
 
     def reduced_to_output(self, x):
-        return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_phi(*x))))
+        return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_map_phi(*x))))
 
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
         if self.v_coeff is not None:
-            return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
+            return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_chart_phi(*y)))
         else:
             return jnp.dot(np.transpose(self.V), y)
 
     def observed_to_reduced_nojit(self, y):
         if self.v_coeff is not None:
-            return np.dot(self.v_coeff, np.asarray(self.ssm_phi(*y)))
+            return np.dot(self.v_coeff, np.asarray(self.ssm_chart_phi(*y)))
         else:
             return np.dot(np.transpose(self.V), y)
 

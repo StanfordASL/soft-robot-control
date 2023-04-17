@@ -5,6 +5,7 @@ from scipy.sparse import linalg, coo_matrix
 import osqp
 import jax
 import jax.numpy as jnp
+import lzma
 
 class QuadraticCost:
     """
@@ -149,7 +150,6 @@ def vq2qv(x):
 def save_data(filename, data):
     if not os.path.isdir(os.path.split(filename)[0]):
         os.mkdir(os.path.split(filename)[0])
-
     with open(filename, 'wb') as file:
         pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
 

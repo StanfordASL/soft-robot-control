@@ -1,5 +1,5 @@
 import sys
-from os.path import dirname, abspath, join
+from os.path import dirname, abspath, join, split
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -15,11 +15,11 @@ from sofacontrol.open_loop_sequences import TrunkRobotSequences
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
 
 
-def apply_constant_input(input=np.ones(8)*500, q0=None, save_data=False, t0=0.0, filename=None, scale_mode=1000):
+def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
     """
     In problem_specification add:
 
-    import examples.diamond as diamond
+    import examples.trunk as trunk
     problem = diamond.apply_constant_input():
 
     then run:
@@ -28,48 +28,78 @@ def apply_constant_input(input=np.ones(8)*500, q0=None, save_data=False, t0=0.0,
 
     or
 
-    python3 launch_sofa.py
+    python3 launch_sofa_collectDecayTrajectories.py
 
     This function runs a Sofa simulation with an open loop controller to collect decaying
     trajectory data
     """
-    from robots import environments
+    from examples.trunk.model import trunkRobot
     from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
     from sofacontrol.utils import SnapshotData
 
     prob = Problem()
-    prob.Robot = environments.Trunk()
+    prob.Robot = trunkRobot(q0=q0)
     prob.ControllerClass = OpenLoopController
 
-    # Setting this to zero for now (t0 is when force is actually applied and when data is saved)
+    # t0 is when force is actually applied and when data is saved
     Sequences = TrunkRobotSequences(t0=t0, dt=0.01)
 
     # 1) Wind up the robot
     t_duration1 = 1.0
-    u_const = input
-    u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=save_data)
-
+    u_const = input + pre_tensioning
+    u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
+    u1 *= np.concatenate([np.linspace(0.5, 1, int(0.8*len(t1))), np.ones(len(t1) - int(0.8*len(t1)))])
     # 2) Remove force (how long to settle down before stopping simulation)
-    t_duration2 = 4.0
-    u_const = np.array([0., 0., 0., 0., 0., 0., 0., 0.])
+    t_duration2 = 3.0
+    u_const = pre_tensioning
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration2, save_data=save_data)
-
-    # Smooth infinity symbol
-    #u2, save2, t2 = Sequences.traj_tracking(amplitude=200, period=2.5, repetitions=4)
-
+    # combine the two sequences
     u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+
     prob.controller = OpenLoop(u.shape[0], t, u, save)
-
     prob.snapshots = SnapshotData(save_dynamics=False)
-
-    prob.snapshots_dir = path + "/dataCollection/"
-
-    if filename is None:
-        prob.opt['save_prefix'] = 'decay'
-    else:
-        prob.opt['save_prefix'] = filename
+    prob.snapshots_dir, prob.opt['save_prefix'] = split(filepath)[0], split(filepath)[1]
     prob.opt['sim_duration'] = t_duration1 + t_duration2
 
+    return prob
+
+
+def collect_open_loop_data(u_max=None, pre_tensioning=None, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
+
+    from examples.trunk.model import trunkRobot
+    from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
+    from sofacontrol.utils import SnapshotData
+    from scipy.interpolate import CubicSpline
+
+    prob = Problem()
+    prob.Robot = trunkRobot(q0=q0)
+    prob.ControllerClass = OpenLoopController
+
+    dt = 0.01
+    Sequences = TrunkRobotSequences(t0=t0, dt=dt, umax=u_max)
+    # u, save, t = Sequences.lhs_sequence(nbr_samples=200, interp_pts=20, seed=1234, add_base=True)  # ramp inputs between lhs samples
+
+    n_steps = 100
+    n_interp = 250
+    u_dim = 8
+    t_sparse = np.linspace(0, dt * n_steps * n_interp, n_steps)
+    u_sparse = np.random.uniform(0, u_max, size=u_dim*n_steps).reshape((u_dim, n_steps))
+    u = np.zeros((u_dim, n_steps * n_interp + 1))
+    t = np.linspace(0, dt * n_steps * n_interp, n_steps * n_interp + 1)
+    for i in range(u_dim):
+        u_interpolator = CubicSpline(t_sparse, u_sparse[i, :])
+        u[i, :] = u_interpolator(t)
+    u = np.clip(u, 0, u_max)
+    save = np.tile(True, len(t))
+    assert len(t) == len(save) == u.shape[1]
+
+    # u2, save2, t2 = Sequences.lhs_sequence(nbr_samples=50, t_step=0.5, seed=4321)  # step inputs of 0.5 seconds
+    # u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+
+    prob.controller = OpenLoop(u.shape[0], t, u, save)
+    prob.snapshots = SnapshotData(save_dynamics=False)
+    prob.snapshots_dir, prob.opt['save_prefix'] = split(filepath)[0], split(filepath)[1]
+    
     return prob
 
 

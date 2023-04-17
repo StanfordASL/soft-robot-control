@@ -276,11 +276,11 @@ class FingerRobotSequences(BaseRobotSequences):
 
 
 class TrunkRobotSequences(BaseRobotSequences):
-    def __init__(self, dt=0.01, t0=0., max_amplitude=800):
+    def __init__(self, dt=0.01, t0=0., umax=800):
         # Definition of the robot
         m = 8
         u0 = np.array([0, 0, 0, 0, 0, 0, 0, 0]) * 100
-        umax = np.ones(m) * max_amplitude
+        umax = np.ones(m) * umax
         umin = 0 * np.ones(m) * 100
 
         # Initialize the object
@@ -339,13 +339,14 @@ class TrunkRobotLongCablesOnlySequences(BaseRobotSequences):
 
 
 class DiamondRobotSequences(BaseRobotSequences):
-    def __init__(self, dt=0.01, t0=0.):
+    def __init__(self, umin=None, umax=None, dt=0.01, t0=0.):
         # Definition of the robot
         m = 4
         u0 = np.array([0., 0., 0., 0.])
-        #umax = np.array([6000., 6000., 6000., 6000.])
-        umax = np.array([1500., 1500., 1500., 1500.])
-        umin = np.array([0., 0., 0., 0.])
+        if umax is None:
+            umax = np.array([1500., 1500., 1500., 1500.])
+        if umin is None:
+            umin = np.array([0., 0., 0., 0.])
 
         # Initialize the object
         super(DiamondRobotSequences, self).__init__(m, u0=u0, umax=umax, umin=umin, dt=dt, t0=t0)

@@ -63,8 +63,7 @@ class linearModel:
         else:
             Cv = buildCv(nodes, num_nodes)
             Cq = buildCq(nodes, num_nodes)
-            self.C = vstack((Cv, Cq))
-
+            self.C = vstack((Cv, Cq)) # vstack((Cq, Cv)) # 
     def evaluate(self, x, qv=False):
         z = self.C @ x
         if qv:
