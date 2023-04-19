@@ -204,8 +204,8 @@ def run_scp():
         with open(join(pathToModel, 'SSM_model_delayEmbedding.pkl'), 'rb') as f:
             SSM_data = pickle.load(f)        
         prob.measurement_model = MeasurementModel(nodes=[1354], num_nodes=1628, pos=True, vel=False, S_q=cov_q)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
+        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)
@@ -299,8 +299,8 @@ def run_gusto_solver():
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
         with open(join(pathToModel, 'SSM_model_delayEmbedding.pkl'), 'rb') as f:
             SSM_data = pickle.load(f)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
+        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], 1628)

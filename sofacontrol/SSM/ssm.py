@@ -195,7 +195,7 @@ class SSM:
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
         if self.v_coeff is not None:
-            return jnp.dot(self.v_coeff, jnp.asarray(self.ssm_phi(*y)))
+            return jnp.dot(jnp.asarray(self.v_coeff), jnp.asarray(self.ssm_phi(*y)))
         else:
             return jnp.dot(np.transpose(self.V), y)
 
