@@ -63,7 +63,7 @@ define_targets: {
         M: 1,
         T: 10,
         N: 1000,
-        radius: 10,
+        radius: 40,
         # state constraints
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
@@ -72,8 +72,8 @@ define_targets: {
         M: 1,
         T: 10,
         N: 1000,
-        radius: 40,
-        z_const: -1,
+        radius: 20,
+        z_const: -10,
         # state constraints
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]

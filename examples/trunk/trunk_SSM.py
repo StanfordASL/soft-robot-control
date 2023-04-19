@@ -19,144 +19,6 @@ TIP_NODE = 51
 N_NODES = 709
 
 
-def module_test_continuous():
-    from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.SSM import ssm
-    from sofacontrol.utils import load_data, qv2x, x2qv
-    from sofacontrol.measurement_models import linearModel, OutputModel
-    from scipy.io import loadmat
-
-    dt = 0.01
-
-    # 1) Setup model: Grab equilibrium point (x then z)
-    rest_file = join(path, 'rest.pkl')
-    rest_data = load_data(rest_file)
-    q_equilibrium = np.array(rest_data['q'][0])
-
-    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
-    #outputModel = linearModel([TIP_NODE], 1628)
-    outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
-
-    # TODO: This evaluation is a mess - qv option fails terribly if observation is only position (i.e., 3 dim)
-    z_eq_point = outputModel.evaluate(x_eq, qv=False)
-
-    # load SSM model as computed using SSMLearn (.mat file)
-    pathToModel = path + '/SSMmodels/'
-    #SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    # SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
-    SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    outputSSMModel = OutputModel(6, 3)
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=None)
-    n = raw_params['state_dim'][0, 0][0, 0]
-
-    # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
-    # with true response of system (need to extract z from simulation and load here). Plot comparison
-
-    # Load files to run tests
-    pathToTraj = path + '/checkModel/'
-    z_true_file = join(pathToTraj, 'z_big.csv')
-    z_true = np.genfromtxt(z_true_file, delimiter=',')
-    zq_true, zv_true = x2qv(z_true)
-    u_true_file = join(pathToTraj, 'u_big.csv')
-    u_true = np.genfromtxt(u_true_file, delimiter=',')
-
-    T = 10.01
-    N = int(T / dt)
-    t_original = np.linspace(0, T, int(T/0.01)+1)
-    t_interp = np.linspace(0, T, N+1)
-    u_interp = interp1d(t_original, u_true, axis=0)(t_interp)
-    p0 = np.zeros((n,))
-    p_traj, z_traj = model.rollout(p0, u_interp, dt)
-
-    xbar_traj = np.zeros(np.shape(p_traj))
-    zbar_traj = np.zeros(np.shape(z_traj))
-    for idx in range(np.shape(xbar_traj)[0]):
-        xbar_traj[idx, :] = model.V_map(model.zfyf_to_zy(z_traj)[idx])
-        zbar_traj[idx, :] = model.x_to_zfyf(xbar_traj[idx])
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot3D(z_traj[:, 3], z_traj[:, 4], z_traj[:, 5], label='Predicted Trajectory')
-    ax.plot3D(zq_true[:, 0], zq_true[:, 1], zq_true[:, 2], label='Actual Trajectory')
-    ax.plot3D(zbar_traj[:, 3], zbar_traj[:, 4], zbar_traj[:, 5], label='Manifold Projected Trajectory')
-    plt.legend()
-    plt.title('SSM Open Loop Trajectory')
-
-    z_true_qv = interp1d(t_original, np.hstack((zq_true, zv_true)), axis=0)(t_interp)
-    #err_SSM = z_true_qv - z_traj[:-1]
-    err_SSM = z_true_qv[:, 0:3] - z_traj[:-1, 3:]
-    SSM_RMSE = np.linalg.norm(np.linalg.norm(err_SSM, axis=1))**2 / err_SSM.shape[0]
-    print('------ Mean Squared Errors (MSEs)----------')
-    print('Ours (SSM): {}'.format(SSM_RMSE))
-    plt.show()
-
-    print('Testing rollout functions')
-
-def module_test():
-    from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.SSM import ssm
-    from sofacontrol.utils import load_data, qv2x, x2qv
-    from sofacontrol.measurement_models import linearModel
-    from scipy.io import loadmat
-
-    # 1) Setup model
-    rest_file = join(path, 'rest.pkl')
-    rest_data = load_data(rest_file)
-    q_equilibrium = np.array(rest_data['q'][0])
-
-    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
-
-    outputModel = linearModel([TIP_NODE], N_NODES)
-    z_eq_point = outputModel.evaluate(x_eq, qv=True)
-
-    pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    n = raw_params['state_dim'][0, 0][0, 0]
-    model = ssm.SSMDynamics(z_eq_point, discrete=True, discr_method='be',
-                            model=raw_model, params=raw_params)
-    dt = 0.01
-
-    # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
-    # with true response of system (need to extract z from simulation and load here). Plot comparison
-
-    # Load files to run tests
-    pathToTraj = path + '/checkModel/'
-    z_true_file = join(pathToTraj, 'z_big.csv')
-    z_true = np.genfromtxt(z_true_file, delimiter=',')
-    zq_true, zv_true = x2qv(z_true)
-    u_true_file = join(pathToTraj, 'u_big.csv')
-    u_true = np.genfromtxt(u_true_file, delimiter=',')
-
-    T = 10.01
-    N = int(T / dt)
-    t_original = np.linspace(0, T, int(T/0.01)+1)
-    t_interp = np.linspace(0, T, N+1)
-    u_interp = interp1d(t_original, u_true, axis=0)(t_interp)
-    p0 = np.zeros((n,))
-    p_traj, z_traj = model.rollout(p0, u_interp, dt)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot3D(z_traj[:, 0], z_traj[:, 1], z_traj[:, 2], label='Predicted Trajectory')
-    ax.plot3D(zq_true[:, 0], zq_true[:, 1], zq_true[:, 2], label='Actual Trajectory')
-    plt.legend()
-
-    z_true_qv = interp1d(t_original, np.hstack((zq_true, zv_true)), axis=0)(t_interp)
-    err_SSM = z_true_qv - z_traj[:-1]
-    SSM_RMSE = np.linalg.norm(np.linalg.norm(err_SSM, axis=1))**2 / err_SSM.shape[0]
-    print('------ Mean Squared Errors (MSEs)----------')
-    print('Ours (SSM): {}'.format(SSM_RMSE))
-    plt.show()
-
-
-
 def run_scp():
     """
      In problem_specification add:
@@ -192,7 +54,7 @@ def run_scp():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = path + '/SSMmodels/'
+    pathToModel = join(path, "SSMmodels", "model_004")
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3)
@@ -232,9 +94,9 @@ def run_scp():
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.  # corresponding to x position of end effector
     Qz[1, 1] = 100.  # corresponding to y position of end effector
-    Qz[2, 2] = 0. # 100.  # corresponding to z position of end effector
+    Qz[2, 2] = 100.  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
-    cost.R = 0.001 * np.eye(model.input_dim)
+    cost.R = 0.0001 * np.eye(model.input_dim)
 
     # Define controller (wait 3 seconds of simulation time to start)
     prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
@@ -269,7 +131,7 @@ def run_gusto_solver():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = path + '/SSMmodels/'
+    pathToModel = join(path, "SSMmodels", "model_004")
 
     # load SSM model
     with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
@@ -298,9 +160,9 @@ def run_gusto_solver():
     # Define target trajectory for optimization
     # === figure8 ===
     # M = 1
-    # T = 5
+    # T = 10
     # N = 1000
-    # radius = 10.
+    # radius = 40.
     # t = np.linspace(0, M * T, M * N + 1)
     # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
     # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
@@ -312,31 +174,32 @@ def run_gusto_solver():
     M = 1
     T = 10
     N = 1000
-    radius = 40.
+    radius = 20.
     t = np.linspace(0, M * T, M * N + 1)
     th = np.linspace(0, M * 2 * np.pi, M * N + 1)
     zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
     # zf_target = np.zeros((M*N+1, 6))
     zf_target[:, 0] += radius * np.cos(th)
     zf_target[:, 1] += radius * np.sin(th)
-    zf_target[:, 2] += -np.ones(len(t))
+    zf_target[:, 2] += -np.ones(len(t)) * 10
 
     z = model.zfyf_to_zy(zf=zf_target)
 
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.   # corresponding to x position of end effector
     Qz[1, 1] = 100.   # corresponding to y position of end effector
-    Qz[2, 2] = 0. # 100.   # corresponding to z position of end effector
-    R = 0.001 * np.eye(model.input_dim)
+    Qz[2, 2] = 100.   # corresponding to z position of end effector
+    R = 0.0001 * np.eye(model.input_dim)
 
     dt = 0.02
     N = 3
 
     # Control constraints
-    low = 0.0
-    high = 1000.0
-    U = HyperRectangle([high] * model.input_dim, [low] * model.input_dim)
-    dU = None
+    u_min, u_max = 0.0, 1000.0
+    U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
+    # input rate constraints
+    dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 
+    # dU = None
 
     # State constraints
     X = None

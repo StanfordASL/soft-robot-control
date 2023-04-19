@@ -105,7 +105,7 @@ def collectInputTrajectories():
 
     print(f"Simulating open-loop input trajectories")
         
-    save_filepath = f"{save_dir}/controlled_traj"
+    save_filepath = f"{save_dir}/circle_2"
 
     root = Sofa.Core.Node()
     rootNode = createScene(root, q0=None, save_filepath=save_filepath)

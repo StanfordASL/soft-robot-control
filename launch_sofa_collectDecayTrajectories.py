@@ -21,13 +21,14 @@ from pathlib import Path
 import numpy as np
 import itertools
 import yaml
+import pickle
 
 path = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path, "settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)['collectDecayData']
 
 
-def createScene(rootNode, q0=None, save_filepath="", input=np.ones(4)*1000, pre_tensioning=np.array([900, 1200, 0, 0])):
+def createScene(rootNode, q0=None, save_filepath="", input=None, pre_tensioning=None):
     # Start building scene
     rootNode.addObject("RequiredPlugin", name="SoftRobots", printLog=False)
     rootNode.addObject("RequiredPlugin", name="SofaPython3", printLog=False)
@@ -56,6 +57,7 @@ def createScene(rootNode, q0=None, save_filepath="", input=np.ones(4)*1000, pre_
         save_data = True
     else:
         save_data = False
+    
     prob = platform.apply_constant_input(input, pre_tensioning, q0=q0, save_data=save_data, filepath=save_filepath)
     prob.checkDefinition()
 
@@ -105,29 +107,41 @@ def collectDecayTrajectories(nTrajs):
 
     # global _runAsPythonScript
     # _runAsPythonScript = True
-    # pre_tensioning = np.zeros(4)
     pre_tensioning = np.array(SETTINGS['pre_tensioning'])
     combine_inputs = SETTINGS['combine_inputs']
     u_dim = SETTINGS['u_dim']
-    
-    # inputs = [np.array(i) for i in itertools.product(combine_inputs, repeat=u_dim)][1:]
 
-    inputs = []
-    while len(inputs) < nTrajs:
-        sampled_input = np.random.choice(combine_inputs, size=u_dim)
-        if not np.any([np.allclose(input, sampled_input) for input in inputs]):
-            inputs.append(sampled_input.astype(float))
-    
-    # # sample {nTraj} random inputs from the hyper-rectangle [0, u_max]^u_dim
-    # for i in range(nTraj-1):
-    #     u_sample = np.random.uniform(0.8, 1.0, size=u_dim) * u_max
-    #     inputs.append(u_sample)
 
-    # print(inputs)
+
+    if os.path.exists(os.path.join(save_dir, "inputs.pkl")):
+        with open(os.path.join(save_dir, "inputs.pkl"), "rb") as f:
+            inputs = pickle.load(f)
+    else:
+        # raise RuntimeError("expected to use old inputs but cannot find file")
+        rng = np.random.default_rng(seed=42)
+        inputs = []
+        while len(inputs) < nTrajs:
+            sampled_input = np.random.choice(combine_inputs, size=u_dim)
+            sampled_input = np.clip(sampled_input, SETTINGS['u_min'], SETTINGS['u_max'])
+            if not np.any([np.allclose(input, sampled_input) for input in inputs]) and np.any(sampled_input > 0):
+                inputs.append(sampled_input.astype(float))
+        with open(os.path.join(save_dir, "inputs.pkl"), "wb") as f:
+            pickle.dump(inputs, f)
+    
+    # save info dict into trajectory folder for future reference
+    info = {
+        'pre_tensioning': SETTINGS['pre_tensioning'],
+        'combine_inputs': SETTINGS['combine_inputs'],
+        'n_traj': nTrajs
+    }
+    with open(os.path.join(save_dir, "info.yaml"), "w") as f:
+        yaml.dump(info, f)
+
+    keep_trajs_up_to = 0
+    inputs = inputs[keep_trajs_up_to:]
 
     # Simulate different modes, amplitudes, and directions
     print(f"Simulating and saving {len(inputs)} different decay trajectories with pre-tensioning {pre_tensioning}")
-    keep_trajs_up_to = 0
     for i, input in enumerate(tqdm(inputs)):
         
         save_filepath = f"{save_dir}/decayTraj_{i+keep_trajs_up_to:02d}"

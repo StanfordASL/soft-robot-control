@@ -4,6 +4,8 @@ from os.path import dirname, abspath, join, split
 import numpy as np
 from matplotlib import pyplot as plt
 
+import pickle
+
 path = dirname(abspath(__file__))
 root = dirname(path)
 sys.path.append(root)
@@ -50,7 +52,7 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
     u1 *= np.concatenate([np.linspace(0.5, 1, int(0.8*len(t1))), np.ones(len(t1) - int(0.8*len(t1)))])
     # 2) Remove force (how long to settle down before stopping simulation)
-    t_duration2 = 3.0
+    t_duration2 = 4.0
     u_const = pre_tensioning
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration2, save_data=save_data)
     # combine the two sequences
@@ -79,23 +81,26 @@ def collect_open_loop_data(u_max=None, pre_tensioning=None, q0=None, t0=0.0, sav
     Sequences = TrunkRobotSequences(t0=t0, dt=dt, umax=u_max)
     # u, save, t = Sequences.lhs_sequence(nbr_samples=200, interp_pts=20, seed=1234, add_base=True)  # ramp inputs between lhs samples
 
-    n_steps = 100
-    n_interp = 250
-    u_dim = 8
-    t_sparse = np.linspace(0, dt * n_steps * n_interp, n_steps)
-    u_sparse = np.random.uniform(0, u_max, size=u_dim*n_steps).reshape((u_dim, n_steps))
-    u = np.zeros((u_dim, n_steps * n_interp + 1))
-    t = np.linspace(0, dt * n_steps * n_interp, n_steps * n_interp + 1)
-    for i in range(u_dim):
-        u_interpolator = CubicSpline(t_sparse, u_sparse[i, :])
-        u[i, :] = u_interpolator(t)
-    u = np.clip(u, 0, u_max)
-    save = np.tile(True, len(t))
-    assert len(t) == len(save) == u.shape[1]
+    # n_steps = 200
+    # n_interp = 100
+    # u_dim = 8
+    # t_sparse = np.linspace(0, dt * n_steps * n_interp, n_steps)
+    # u_sparse = np.random.uniform(0, u_max, size=u_dim*n_steps).reshape((u_dim, n_steps))
+    # u = np.zeros((u_dim, n_steps * n_interp + 1))
+    # t = np.linspace(0, dt * n_steps * n_interp, n_steps * n_interp + 1)
+    # for i in range(u_dim):
+    #     u_interpolator = CubicSpline(t_sparse, u_sparse[i, :])
+    #     u[i, :] = u_interpolator(t)
+    # u = np.clip(u, 0, u_max)
+    # save = np.tile(True, len(t))
+    # assert len(t) == len(save) == u.shape[1]
 
-    # u2, save2, t2 = Sequences.lhs_sequence(nbr_samples=50, t_step=0.5, seed=4321)  # step inputs of 0.5 seconds
-    # u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
-
+    with open(join("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/dataCollection/open-loop_circle", f'u.pkl'), 'rb') as f:
+        u = pickle.load(f).T * 2
+    t = np.arange(0, u.shape[1]) * dt
+    print(t)
+    save = [True] * len(t)
+    
     prob.controller = OpenLoop(u.shape[0], t, u, save)
     prob.snapshots = SnapshotData(save_dynamics=False)
     prob.snapshots_dir, prob.opt['save_prefix'] = split(filepath)[0], split(filepath)[1]
