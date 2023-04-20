@@ -1,0 +1,28 @@
+# collect decay data
+# run "./launch_sofa_collectDecayTrajectories.py"
+collectDecayData: {
+  robot: "trunk",
+  u_dim: 8,
+  # save_dir: "examples/diamond/dataCollection/pre-tensioned",
+  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/north",
+  u_min: 0,
+  u_max: 1000,
+  pre_tensioning: [200, 0, 0, 0, 200, 0, 0, 0],
+  combine_inputs: [0, 800],
+  n_traj: 40
+}
+
+collectInputData: {
+  robot: "trunk",
+  u_dim: 8,
+  u_max: 500,
+  # save_dir: "examples/trunk/dataCollection/open-loop_500",
+  save_dir: "/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/dataCollection/open-loop_circle",
+  pre_tensioning: [0, 0, 0, 0, 0, 0, 0, 0],
+  # spline_lhs: False,
+  # n_samples: 100
+  # n_interp_points: 20
+}
+
+# collect open-loop controlled data
+# run "./launch_sofa_collectInputTrajectories.py"

@@ -1,4 +1,5 @@
-from os.path import dirname, abspath, join
+from os.path import dirname, abspath, join, exists
+import os
 import numpy as np
 from matplotlib import patches
 from matplotlib import pyplot as plt
@@ -10,6 +11,7 @@ import pickle
 
 from sofacontrol.measurement_models import linearModel
 from sofacontrol.utils import qv2x
+
 
 path = dirname(abspath(__file__))
 np.set_printoptions(linewidth=300)
@@ -34,42 +36,56 @@ plt.rc('figure', autolayout=True)
 with open(join(path, "plotting_settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)
 
+if SETTINGS['robot'] == "trunk":
+    from trunk import model
+elif SETTINGS['robot'] == "hardware":
+    from hardware import model
+else:
+    raise RuntimeError("could not find model for robot specified in plotting_settings.yaml")
+
 CONTROLS = [control for control in SETTINGS['show'] if SETTINGS['show'][control]]
 SIM_DATA = {control: {'info': {}} for control in CONTROLS}
 
-t_in = 1
-t_out = 7
-t0 = 3
+t0 = 1
 for control in CONTROLS:
-    with open(join(path, f'{control}_sim.pkl'), 'rb') as f:
+    with open(join(path, SETTINGS['robot'], f'{control}_sim.pkl'), 'rb') as f:
         control_data = pickle.load(f)
     idx = np.argwhere(control_data['t'] >= t0)[0][0]
     SIM_DATA[control]['t'] = control_data['t'][idx:] - control_data['t'][idx]
-    SIM_DATA[control]['z'] = control_data['z'][idx:, :]
+    SIM_DATA[control]['z'] = control_data['z'][idx:, 3:]
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
     SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
     SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
 
 print("=== SOFA equilibrium point ===")
 # Load equilibrium point
-TIP_NODE = 1354
-with open(join(path, 'rest_qv.pkl'), 'rb') as f:
-    qv_equilibrium = pickle.load(f)['rest']
-x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-outputModel = linearModel([TIP_NODE], 1628, vel=False)
-z_eq_point = outputModel.evaluate(x_eq, qv=False)# print(rest_data.keys())
-print(z_eq_point)
+print(model.QV_EQUILIBRIUM[0].shape, model.QV_EQUILIBRIUM[1].shape)
+x_eq = qv2x(q=model.QV_EQUILIBRIUM[0], v=model.QV_EQUILIBRIUM[1])
+outputModel = linearModel([model.TIP_NODE], model.N_NODES, vel=False)
+Z_EQ = outputModel.evaluate(x_eq, qv=False)
+print(Z_EQ)
 
 # Load reference/target trajectory as defined in plotting_settings.py
-M, T, N, radius = (SETTINGS['target'][key] for key in ['M', 'T', 'N', 'radius'])
+TARGET = SETTINGS['select_target']
+target_settings = SETTINGS['define_targets'][TARGET]
+M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
 t_target = np.linspace(0, M*T, M*N+1)
 th = np.linspace(0, M*2*np.pi, M*N+1)
-zf_target = np.tile(z_eq_point, (M*N+1, 1))
-zf_target[:, 0] += -radius * np.sin(th)
-zf_target[:, 1] += radius * np.sin(2 * th)
-z_lb = SETTINGS['target']['z_lb']
-z_ub = SETTINGS['target']['z_ub']
-# print(t_target)
+# zf_target = np.tile(z_eq_point, (M*N+1, 1))
+zf_target = np.zeros((M*N+1, len(Z_EQ)))
+if TARGET == "circle":
+    zf_target[:, 0] += radius * np.cos(th)
+    zf_target[:, 1] += radius * np.sin(th)
+    zf_target[:, 2] += np.ones(len(t_target)) * target_settings['z_const']
+elif TARGET == "figure8":
+    zf_target[:, 0] += -radius * np.sin(th)
+    zf_target[:, 1] += radius * np.sin(2 * th)
+z_lb = target_settings['z_lb']
+z_ub = target_settings['z_ub']
+
+SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
+if not exists(SAVE_DIR):
+    os.makedirs(SAVE_DIR)
 
 # constrained = True
 # plot_rompc = False
@@ -84,8 +100,8 @@ z_ub = SETTINGS['target']['z_ub']
 # m_w = 30
 
 
-def diamond_figure8_x_vs_y():
-    """Plot Figure8 via x vs. y"""
+def traj_x_vs_y():
+    """Plot trajectory via x vs. y"""
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 6), facecolor='w', edgecolor='k')
 
@@ -100,7 +116,8 @@ def diamond_figure8_x_vs_y():
                 fill=False))
     
     for control in CONTROLS: # + ['target']:
-        ax.plot(SIM_DATA[control]['z'][:, 3], SIM_DATA[control]['z'][:, 4],
+        z_centered = SIM_DATA[control]['z'] - Z_EQ
+        ax.plot(z_centered[:, 0], z_centered[:, 1],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'][control],
@@ -117,54 +134,49 @@ def diamond_figure8_x_vs_y():
     ax.get_yaxis().tick_left()
 
     ax.legend()
+    ax.set_aspect('equal', 'box')
+
     # plt.axis('off')
     # plt.legend(loc='upper left', prop={'size': 14}, borderaxespad=0, bbox_to_anchor=(0.25, 0.12))
     ax.tick_params(axis='both')
 
-    plt.savefig(join(path, 'diamond_x_vs_y.pdf'), bbox_inches='tight')
-
-# else:
-#     ax1 = fig1.add_subplot(111, projection='3d')
-#     # z_lb = np.array([-30 - 0, -30 + 127.])
-#     # z_ub = np.array([30 - 0, 30 + 127.])
-
-#     # ax1.add_patch(
-#     #     patches.Rectangle(
-#     #         xy=(z_lb[0], z_lb[1]),  # point of origin.
-#     #         width=z_ub[0] - z_lb[0],
-#     #         height=z_ub[1] - z_lb[1],
-#     #         linewidth=2,
-#     #         color='tab:red',
-#     #         fill=False,
-#     #     )
-#     # )
-
-#     ax1.plot3D(z_tpwl[:, 3], z_tpwl[:, 4], z_tpwl[:, 5], 'tab:green', marker='x', markevery=20, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
-#     ax1.plot3D(z_koop[:, 3], z_koop[:, 4], z_koop[:, 5], 'tab:orange', marker='^', markevery=20, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
-#     ax1.plot3D(z_scp[:, 3], z_scp[:, 4], z_scp[:, 5], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
-#     ax1.plot3D(zf_target[:, 3], zf_target[:, 4], zf_target[:, 5], '--k', alpha=1, linewidth=1, label='Target')
-#     if plot_rompc:
-#         ax1.plot3D(z_rompc[:, 3], z_rompc[:, 4], z_rompc[:, 5], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
-
-#     ax1.set_xlabel(r'$x_{ee}$ [mm]', fontsize=14)
-#     ax1.set_ylabel(r'$y_{ee}$ [mm]', fontsize=14)
-#     ax1.set_zlabel(r'$z_{ee}$ [mm]', fontsize=14)
-#     set_axes_equal(ax1)
-
-#     # startx, endx = ax1.get_xlim()
-#     # starty, endy = ax1.get_ylim()
-#     # startz, endz = ax1.get_zlim()
-#     # ax1.xaxis.set_ticks(np.arange(int(startx),int(endx),10))
-#     # ax1.yaxis.set_ticks(np.arange(int(starty),int(endy),10))
-#     # ax1.zaxis.set_ticks(np.arange(int(startz),int(endz),10))
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_x_vs_y.{SETTINGS['file_format']}"), bbox_inches='tight')
 
 
-def diamond_figure8_xy_vs_t():
+def traj_3D():
+
+    fig = plt.figure(figsize=(8, 6))
+    ax = plt.axes(projection='3d')
+    
+    for control in CONTROLS: # + ['target']:
+        z_centered = SIM_DATA[control]['z'] - Z_EQ
+        ax.plot(z_centered[:, 0], z_centered[:, 1], z_centered[:, 2],
+                color=SETTINGS['color'][control],
+                label=SETTINGS['display_name'][control],
+                linewidth=SETTINGS['linewidth'][control],
+                ls=SETTINGS['linestyle'][control], markevery=20)
+    ax.plot(zf_target[:, 0], zf_target[:, 1], zf_target[:, 2],
+            color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+
+    ax.set_xlabel(r'$x_{ee}$ [mm]')
+    ax.set_ylabel(r'$y_{ee}$ [mm]')
+    ax.set_zlabel(r'$z_{ee}$ [mm]')
+
+    ax.legend()
+    ax.set_aspect('equal', 'box')
+
+    ax.tick_params(axis='both')
+
+    plt.savefig(join(SAVE_DIR, f"figure8_3D.{SETTINGS['file_format']}"), bbox_inches='tight')
+    plt.show()
+
+
+def traj_xy_vs_t():
     """Plot controlled trajectories as function of time"""
     
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
 
-    for ax, coord in [(ax1, 3), (ax2, 4)]:
+    for ax, coord in [(ax1, 0), (ax2, 1)]:
         for control in CONTROLS: # + ['target']:
                 ax.plot(SIM_DATA[control]['t'], SIM_DATA[control]['z'][:, coord],
                         color=SETTINGS['color'][control],
@@ -187,39 +199,26 @@ def diamond_figure8_xy_vs_t():
                 ax2.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
     
     ax2.legend()
-    plt.savefig(join(path, 'diamond_xy_vs_t.pdf'), bbox_inches='tight')
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_xy_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight')
     # plt.show()
 
-    # else:
-    #     ax2.plot(t_tpwl, z_tpwl[:, 4], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
-    #     ax2.plot(t_koop, z_koop[:, 4], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
-    #     ax2.plot(t_scp, z_scp[:, 4], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
-    #     ax2.plot(t_target, zf_target[:, 4], '--k', alpha=1, linewidth=1, label='Target')
-    #     if plot_rompc:
-    #         ax2.plot(t_rompc, z_rompc[:, 4], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
 
-    #     plt.ylabel(r'$y_{ee}$ [mm]', fontsize=14)
-    # ax2.set_xlim([0, 10])
-    # ax2.tick_params(axis='both', labelsize=18)
-    # plt.xlabel(r'$t$ [s]', fontsize=14)
-    # #plt.legend(loc='upper left', prop={'size': 12})
+def traj_inputs_vs_t():
+    """Plot inputs applied by controller as function of time"""
+    fig, axs = plt.subplots(1, len(CONTROLS), figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+    if len(CONTROLS) == 1:
+        axs = [axs]
 
-    # if constrained:
-    #     ax3.plot(t_target, y_ub * np.ones_like(t_target), 'r', label='Constraint')
-
-    # else:
-    #     ax3.plot(t_tpwl, z_tpwl[:, 5], 'tab:green', marker='x', markevery=m_w, label='TPWL ($N_r = 3$, $dt = 0.1$ s)', linewidth=1)
-    #     ax3.plot(t_koop, z_koop[:, 5], 'tab:orange', marker='^', markevery=m_w, label='Koopman ($N_r = 1$, $dt = 0.05$ s)', linewidth=1)
-    #     ax3.plot(t_scp, z_scp[:, 5], 'tab:blue', label='SSMR (Ours) ($N_r = 2$, $dt = 0.03$ s)', linewidth=3)
-    #     ax3.plot(t_target, zf_target[:, 5], '--k', alpha=1, linewidth=1, label='Target')
-    #     if plot_rompc:
-    #         ax3.plot(t_rompc, z_rompc[:, 5], 'tab:red', marker='d', markevery=20, label='ROMPC CL', linewidth=1)
-
-    #     plt.ylabel(r'$z_{ee}$ [mm]', fontsize=14)
-    # ax3.set_xlim([0, 10])
-    # ax3.tick_params(axis='both', labelsize=18)
-    # plt.xlabel(r'$t$ [s]', fontsize=14)
-    # #plt.legend(loc='upper left', prop={'size': 14}, borderaxespad=0, bbox_to_anchor=(0, 1.2))
+    for i, control in enumerate(CONTROLS):
+        axs[i].plot(SIM_DATA[control]['t'], SIM_DATA[control]['u'],
+                    label=SETTINGS['display_name'][control],
+                    linewidth=SETTINGS['linewidth'][control],
+                    ls=SETTINGS['linestyle'][control], markevery=20)
+        axs[i].legend([rf"$u_{i}$" for i in range(1, SIM_DATA[control]['u'].shape[1]+1)])
+        axs[i].set_ylabel(rf'$u$ ({control})')
+    
+    axs[-1].set_xlabel(r'$t$ [s]')
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_inputs_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight')
 
 
 def mse_calculations():
@@ -361,5 +360,7 @@ def mse_calculations():
 
 
 if __name__ == "__main__":
-    diamond_figure8_x_vs_y()
-    diamond_figure8_xy_vs_t()
+    traj_3D()
+    traj_inputs_vs_t()
+    traj_x_vs_y()
+    traj_xy_vs_t()

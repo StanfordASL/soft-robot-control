@@ -36,13 +36,15 @@
 # problem = diamond_koopman.run_koopman
 # problem = diamond_koopman.run_MPC_OL
 
-from examples.hardware import diamond_SSM
-problem = diamond_SSM.run_scp
+# from examples.hardware import diamond_SSM
+# problem = diamond_SSM.run_scp
 # problem = diamond_SSM.run_scp_OL
 # problem = diamond_SSM.module_test
 # problem = diamond_SSM.module_test_continuous
 
 ### TRUNK ROBOT PROBLEM SPECIFICATION ###
+# from examples.trunk import calibration
+# problem = calibration.rest_calibration
 # from examples.trunk import trunk
 # problem = trunk.apply_constant_input
 # problem = trunk.collect_POD_data
@@ -52,3 +54,6 @@ problem = diamond_SSM.run_scp
 
 #from examples.trunk import trunk_koopman
 #problem = trunk_koopman.run_koopman
+
+from examples.trunk import trunk_SSM
+problem = trunk_SSM.run_scp

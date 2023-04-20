@@ -1,6 +1,14 @@
 import os
 from datetime import datetime
+"""
+Provides direct interface with SOFA and is either opened from sofa gui or run in the following command style:
+$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.py
+Imports problem_specification to add specified robot (FEM model) and specific controller.
 
+Automatically:
+    - collects decay trajectories based on a given input sequence
+    - saves the collected trajectories to the directory specified in settings.yaml
+"""
 import Sofa.Core
 import Sofa.Simulation
 import SofaRuntime
@@ -12,19 +20,15 @@ from pathlib import Path
 
 import numpy as np
 import itertools
+import yaml
+import pickle
+
+path = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(path, "settings.yaml"), "rb") as f:
+    SETTINGS = yaml.safe_load(f)['collectDecayData']
 
 
-"""
-Provides direct interface with SOFA and is either opened from sofa gui or run in the following command style:
-$SOFA_BLD/bin/runSofa -l $SP3_BLD/lib/libSofaPython3.so $REPO_ROOT/launch_sofa.py
-Imports problem_specification to add specified robot (FEM model) and specific controller.
-
-Automatically:
-    - collects decay trajectories based on a given inpute sequence (see arguments of main())
-    - saves the collected trajectories to "./snapshots/decayData/"
-"""
-
-def createScene(rootNode, q0=None, save_filepath="", input=np.ones(4)*1000, pre_tensioning=np.array([900, 1200, 0, 0])):
+def createScene(rootNode, q0=None, save_filepath="", input=None, pre_tensioning=None):
     # Start building scene
     rootNode.addObject("RequiredPlugin", name="SoftRobots", printLog=False)
     rootNode.addObject("RequiredPlugin", name="SofaPython3", printLog=False)
@@ -42,13 +46,19 @@ def createScene(rootNode, q0=None, save_filepath="", input=np.ones(4)*1000, pre_
     rootNode.addObject('OglSceneFrame', style="Arrows", alignment="TopRight")
     rootNode.addObject('DefaultVisualManagerLoop')
 
-    from examples.diamond import diamond
-
+    if SETTINGS['robot'] == 'diamond':
+        from examples.diamond import diamond as platform
+    elif SETTINGS['robot'] == 'trunk':
+        from examples.trunk import trunk as platform
+    else:
+        raise RuntimeError("Please specify a valid platform to be used in settings.yaml / ['diamond', 'trunk']")
+    
     if save_filepath:
         save_data = True
     else:
         save_data = False
-    prob = diamond.apply_constant_input(input, pre_tensioning, q0=q0, save_data=save_data, filepath=save_filepath)
+    
+    prob = platform.apply_constant_input(input, pre_tensioning, q0=q0, save_data=save_data, filepath=save_filepath)
     prob.checkDefinition()
 
     # Set the gravity and simulation time step
@@ -78,13 +88,12 @@ def createScene(rootNode, q0=None, save_filepath="", input=np.ones(4)*1000, pre_
     return rootNode
 
 
-def collectDecayTrajectories():
+def collectDecayTrajectories(nTrajs):
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
     sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
-    path = os.path.dirname(os.path.abspath(__file__))
 
-    save_dir = os.path.join(path, "examples/diamond/dataCollection/pre-tensioned") # origin"
+    save_dir = os.path.join(path, SETTINGS['save_dir'])
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -98,24 +107,41 @@ def collectDecayTrajectories():
 
     # global _runAsPythonScript
     # _runAsPythonScript = True
-    # pre_tensioning = np.zeros(4)
-    pre_tensioning = np.array([900, 1200, 0, 0])
-    # u_max = [1000, 2000, 3000] # , 4000]
-    u_dim = 4
-    # inputs = []
-    # for u in u_max:
-    #     inputs += [np.array(i) for i in itertools.product([0, u], repeat=u_dim)][1:]
-    inputs = [np.array(i) for i in itertools.product([0, 1500, 3000], repeat=u_dim)][1:]
-    # # sample {nTraj} random inputs from the hyper-rectangle [0, u_max]^u_dim
-    # for i in range(nTraj-1):
-    #     u_sample = np.random.uniform(0.8, 1.0, size=u_dim) * u_max
-    #     inputs.append(u_sample)
+    pre_tensioning = np.array(SETTINGS['pre_tensioning'])
+    combine_inputs = SETTINGS['combine_inputs']
+    u_dim = SETTINGS['u_dim']
 
-    # print(inputs)
+
+
+    if os.path.exists(os.path.join(save_dir, "inputs.pkl")):
+        with open(os.path.join(save_dir, "inputs.pkl"), "rb") as f:
+            inputs = pickle.load(f)
+    else:
+        # raise RuntimeError("expected to use old inputs but cannot find file")
+        rng = np.random.default_rng(seed=42)
+        inputs = []
+        while len(inputs) < nTrajs:
+            sampled_input = np.random.choice(combine_inputs, size=u_dim)
+            sampled_input = np.clip(sampled_input, SETTINGS['u_min'], SETTINGS['u_max'])
+            if not np.any([np.allclose(input, sampled_input) for input in inputs]) and np.any(sampled_input > 0):
+                inputs.append(sampled_input.astype(float))
+        with open(os.path.join(save_dir, "inputs.pkl"), "wb") as f:
+            pickle.dump(inputs, f)
+    
+    # save info dict into trajectory folder for future reference
+    info = {
+        'pre_tensioning': SETTINGS['pre_tensioning'],
+        'combine_inputs': SETTINGS['combine_inputs'],
+        'n_traj': nTrajs
+    }
+    with open(os.path.join(save_dir, "info.yaml"), "w") as f:
+        yaml.dump(info, f)
+
+    keep_trajs_up_to = 0
+    inputs = inputs[keep_trajs_up_to:]
 
     # Simulate different modes, amplitudes, and directions
     print(f"Simulating and saving {len(inputs)} different decay trajectories with pre-tensioning {pre_tensioning}")
-    keep_trajs_up_to = 0
     for i, input in enumerate(tqdm(inputs)):
         
         save_filepath = f"{save_dir}/decayTraj_{i+keep_trajs_up_to:02d}"
@@ -133,4 +159,4 @@ def collectDecayTrajectories():
 
 
 if __name__ == '__main__':
-    collectDecayTrajectories()
+    collectDecayTrajectories(SETTINGS['n_traj'])

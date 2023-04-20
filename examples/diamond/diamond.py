@@ -14,6 +14,7 @@ from sofacontrol.open_loop_sequences import DiamondRobotSequences
 # Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
+
 def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
     """
     In problem_specification add:
@@ -41,21 +42,18 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     prob.ControllerClass = OpenLoopController
 
     # t0 is when force is actually applied and when data is saved
-    Sequences = DiamondRobotSequences(t0=t0, dt=0.01)
+    Sequences = DiamondRobotSequences(t0=t0, dt=0.001)
 
     # 1) Wind up the robot
-    t_duration1 = 2.0
+    t_duration1 = 1.0
     u_const = input + pre_tensioning
-    u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=save_data)
-    # print(u1.shape, save1.shape, t1.shape)
-    # print(u1[:, :2], save1[:2], t1[:2])
-    u1 *= np.concatenate([np.linspace(0, 1, int(0.8*len(t1))), np.ones(len(t1) - int(0.8*len(t1)))])
-
+    u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
+    u1 *= np.concatenate([np.linspace(0, 1, int(0.6*len(t1))), np.ones(len(t1) - int(0.6*len(t1)))])
     # 2) Remove force (how long to settle down before stopping simulation)
     t_duration2 = 3.0
     u_const = pre_tensioning
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration2, save_data=save_data)
-
+    # combine the two sequences
     u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
 
     prob.controller = OpenLoop(u.shape[0], t, u, save)
@@ -64,6 +62,46 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     prob.opt['sim_duration'] = t_duration1 + t_duration2
 
     return prob
+
+
+def collect_open_loop_data(u_max, pre_tensioning, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
+
+    from examples.hardware.model import diamondRobot
+    from robots import environments
+    from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
+    from sofacontrol.utils import SnapshotData
+    from scipy.interpolate import CubicSpline
+
+    prob = Problem()
+    prob.Robot = diamondRobot(q0=q0)
+    prob.ControllerClass = OpenLoopController
+
+    dt = 0.01
+    Sequences = DiamondRobotSequences(t0=t0, dt=dt, umax=u_max)
+    u, save, t = Sequences.lhs_sequence(nbr_samples=200, interp_pts=20, seed=1234, add_base=True)  # ramp inputs between lhs samples
+
+    # n_steps = 100
+    # n_interp = 20
+    # u_dim = 4
+    # t_sparse = np.linspace(0, dt * n_steps * n_interp, n_steps)
+    # u_sparse = np.random.uniform(0, u_max[0], size=u_dim*n_steps).reshape((4, n_steps))
+    # u = np.zeros((4, n_steps * n_interp + 1))
+    # t = np.linspace(0, dt * n_steps * n_interp, n_steps * n_interp + 1)
+    # for i in range(u_dim):
+    #     u_interpolator = CubicSpline(t_sparse, u_sparse[i, :])
+    #     u[i, :] = u_interpolator(t)
+    # save = np.tile(True, len(t))
+    # assert len(t) == len(save) == u.shape[1]
+
+    # u2, save2, t2 = Sequences.lhs_sequence(nbr_samples=50, t_step=0.5, seed=4321)  # step inputs of 0.5 seconds
+    # u, save, t = Sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
+
+    prob.controller = OpenLoop(u.shape[0], t, u, save)
+    prob.snapshots = SnapshotData(save_dynamics=False)
+    prob.snapshots_dir, prob.opt['save_prefix'] = split(filepath)[0], split(filepath)[1]
+    
+    return prob
+
 
 def collect_POD_data():
     """
@@ -309,6 +347,7 @@ def run_gusto_solver():
     gusto_model.pre_discretize(dt)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI')
+
 
 def run_ilqr():
     """

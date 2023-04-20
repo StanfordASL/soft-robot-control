@@ -18,7 +18,7 @@ def createScene(rootNode, prob=None):
     rootNode.addObject("RequiredPlugin", name="SofaPreconditioner")
     rootNode.addObject('RequiredPlugin', pluginName='SofaOpenglVisual')
     rootNode.addObject("VisualStyle", displayFlags="showBehavior")
-    # rootNode.addObject('RequiredPlugin', pluginName='SofaMatrix')
+    rootNode.addObject('RequiredPlugin', pluginName='SofaMatrix')
 
     rootNode.addObject("FreeMotionAnimationLoop")
     # rootNode.addObject('DefaultAnimationLoop', name='loop')
@@ -31,9 +31,6 @@ def createScene(rootNode, prob=None):
     if prob is None:
         import problem_specification
         prob = problem_specification.problem()
-        # input = np.array([1400, 1400, 0, 0])
-        # input = np.array([1400, 1400, 1400, 1400])
-        # prob = problem_specification.problem(input=input)
     prob.checkDefinition()
 
     # Set the gravity and simulation time step

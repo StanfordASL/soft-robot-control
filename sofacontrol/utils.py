@@ -5,6 +5,7 @@ from scipy.sparse import linalg, coo_matrix
 import osqp
 import jax
 import jax.numpy as jnp
+import lzma
 
 class QuadraticCost:
     """
@@ -149,12 +150,18 @@ def vq2qv(x):
 def save_data(filename, data):
     if not os.path.isdir(os.path.split(filename)[0]):
         os.mkdir(os.path.split(filename)[0])
-
+    # with lzma.open(filename, 'wb') as file:
     with open(filename, 'wb') as file:
         pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def load_data(filename):
+    # try:
+    #     # recently collected data should now be compressed using lzma
+    #     with lzma.open(filename, 'rb') as file:
+    #         data = pickle.load(file)
+    # except:
+    #     # backwards compatibility with uncompressed data
     with open(filename, 'rb') as file:
         data = pickle.load(file)
     return data
