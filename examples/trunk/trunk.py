@@ -78,28 +78,31 @@ def collect_open_loop_data(u_max=None, pre_tensioning=None, q0=None, t0=0.0, sav
     prob.ControllerClass = OpenLoopController
 
     dt = 0.01
-    Sequences = TrunkRobotSequences(t0=t0, dt=dt, umax=u_max)
+    # Sequences = TrunkRobotSequences(t0=t0, dt=dt, umax=u_max)
     # u, save, t = Sequences.lhs_sequence(nbr_samples=200, interp_pts=20, seed=1234, add_base=True)  # ramp inputs between lhs samples
 
-    # n_steps = 200
-    # n_interp = 100
-    # u_dim = 8
-    # t_sparse = np.linspace(0, dt * n_steps * n_interp, n_steps)
-    # u_sparse = np.random.uniform(0, u_max, size=u_dim*n_steps).reshape((u_dim, n_steps))
+    n_steps = 200
+    n_interp = 100
+    u_dim = 8
+    t_sparse = np.linspace(0, dt * n_steps * n_interp, n_steps)
+    u_sparse = np.random.uniform(0, u_max, size=u_dim*n_steps).reshape((u_dim, n_steps))
     # u = np.zeros((u_dim, n_steps * n_interp + 1))
-    # t = np.linspace(0, dt * n_steps * n_interp, n_steps * n_interp + 1)
-    # for i in range(u_dim):
-    #     u_interpolator = CubicSpline(t_sparse, u_sparse[i, :])
-    #     u[i, :] = u_interpolator(t)
+    u_eq = np.atleast_2d(pre_tensioning).astype(float).T
+    u = np.tile(u_eq, (1, n_steps * n_interp + 1))
+    t = np.linspace(0, dt * n_steps * n_interp, n_steps * n_interp + 1)
+    for i in range(u_dim):
+        u_interpolator = CubicSpline(t_sparse, u_sparse[i, :])
+        u[i, :] += u_interpolator(t)
     # u = np.clip(u, 0, u_max)
-    # save = np.tile(True, len(t))
-    # assert len(t) == len(save) == u.shape[1]
+    save = np.tile(True, len(t))
+    assert len(t) == len(save) == u.shape[1]
 
-    with open(join("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/dataCollection/open-loop_circle", f'u.pkl'), 'rb') as f:
-        u = pickle.load(f).T * 2
-    t = np.arange(0, u.shape[1]) * dt
-    print(t)
-    save = [True] * len(t)
+    # # use smooth circle inputs to track a circle using the open-loop controller
+    # with open(join("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/dataCollection/open-loop_circle", f'u.pkl'), 'rb') as f:
+    #     u = pickle.load(f).T * 2
+    # t = np.arange(0, u.shape[1]) * dt
+    # print(t)
+    # save = [True] * len(t)
     
     prob.controller = OpenLoop(u.shape[0], t, u, save)
     prob.snapshots = SnapshotData(save_dynamics=False)

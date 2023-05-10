@@ -3,60 +3,50 @@ save_dir: "plots/"
 file_format: "png"
 
 show: {
-    'ssmr_delay_step_inputs': False,
-    'ssmr_delay_smooth_inputs': False,
-    'ssmr': True,
-    'ssmr_delay_my_data': False,
-    'ssmr_full': False,
+    'ssmr_origin': False,
+    'ssmr_nnssm': False,
+    'ssmr_nnssm_fail1': True,
     'tpwl': False,
     'koopman': False,
     'rompc': False
 }
 display_name: {
-    'ssmr_delay_step_inputs': "SSMR (delay embeddings, step inputs)",
-    'ssmr_delay_smooth_inputs': "SSMR (delay embeddings, smooth inputs)",
-    'ssmr_delay_my_data': "SSMR (delay embeddings, my data)",
-    'ssmr_full': "SSMR (full state SSM)",
-    'ssmr': "SSMR (current model)",
+    'ssmr_origin': "SSMR (origin)",
+    'ssmr_nnssm': "NNSSM (n=9)",
+    'ssmr_nnssm_fail1': "NNSSM (fail 1)",
     'tpwl': "TPWL",
     'koopman': "Koopman",
     'rompc': "ROMPC",
 }
 color: {
-    'ssmr_delay_step_inputs': 'tab:blue',
-    'ssmr_delay_smooth_inputs': 'tab:orange',
-    'ssmr_delay_my_data': 'tab:purple',
-    'ssmr_full': 'tab:green',
-    'ssmr': 'tab:blue',
-    'tpwl': 'tab:orange',
+    'ssmr_origin': 'tab:blue',
+    'ssmr_nnssm': 'tab:orange',
+    'ssmr_nnssm_fail1': 'tab:red',
+    'tpwl': 'tab:red',
     'koopman': 'tab:green',
     'rompc': 'tab:purple',
     'target': 'black'
 }
 linestyle: {
-    'ssmr_delay_step_inputs': '-',
-    'ssmr_delay_smooth_inputs': '-',
-    'ssmr_delay_my_data': '-',
-    'ssmr_full': '-',
-    'ssmr': '-',
+    'ssmr_origin': '-',
+    'ssmr_nnssm': '-',
+    'ssmr_nnssm_fail1': '-',
     'tpwl': '-',
     'koopman': '-',
     'rompc': '-',
     'target': '--'
 }
 linewidth: {
-    'ssmr_delay_step_inputs': 2,
-    'ssmr_delay_smooth_inputs': 2,
-    'ssmr_delay_my_data': 2,
-    'ssmr_full': 2,
-    'ssmr': 2,
+    'ssmr_origin': 2,
+    'ssmr_nnssm': 2,
+    'ssmr_nnssm_fail1': 2,
     'tpwl': 2,
     'koopman': 2,
     'rompc': 2,
     'target': 1
 }
 
-select_target: "circle"
+select_target: "figure8"
 # Figure8 target
 define_targets: {
     figure8: {
@@ -72,7 +62,7 @@ define_targets: {
         M: 1,
         T: 10,
         N: 1000,
-        radius: 20,
+        radius: 30,
         z_const: -10,
         # state constraints
         z_lb: null, # [-16, -16],

@@ -17,7 +17,7 @@ class SSMGuSTO(TemplateModel):
     def __init__(self, dyn_sys):
         super(SSMGuSTO, self).__init__()
         self.dyn_sys = dyn_sys
-
+        self.dyn_sys.debug = False
         # Define reduced order performance variable matrix.
         if self.dyn_sys.H is not None:
             self.H = self.dyn_sys.H

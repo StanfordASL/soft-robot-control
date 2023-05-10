@@ -26,7 +26,7 @@ with open(os.path.join(path, "settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)['collectInputData']
 
 
-def createScene(rootNode, q0=None, save_filepath=""):
+def createScene(rootNode, q0=None, save_filepath="", u_max=None, pre_tensioning=None):
     # Start building scene
     rootNode.addObject("RequiredPlugin", name="SoftRobots", printLog=False)
     rootNode.addObject("RequiredPlugin", name="SofaPython3", printLog=False)
@@ -55,7 +55,7 @@ def createScene(rootNode, q0=None, save_filepath=""):
         save_data = True
     else:
         save_data = False
-    prob = platform.collect_open_loop_data(u_max=SETTINGS['u_max'], pre_tensioning=SETTINGS['pre_tensioning'], q0=q0, save_data=save_data, filepath=save_filepath)
+    prob = platform.collect_open_loop_data(u_max=u_max, pre_tensioning=pre_tensioning, q0=q0, save_data=save_data, filepath=save_filepath)
     prob.checkDefinition()
 
     # Set the gravity and simulation time step
@@ -91,10 +91,6 @@ def collectInputTrajectories():
     sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
     path = os.path.dirname(os.path.abspath(__file__))
 
-    save_dir = os.path.join(path, SETTINGS['save_dir']) # origin"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'
                            'in main() in launch_sofa.py')
@@ -104,18 +100,29 @@ def collectInputTrajectories():
     SofaRuntime.importPlugin("SofaOpenglVisual")
 
     print(f"Simulating open-loop input trajectories")
-        
-    save_filepath = f"{save_dir}/circle_2"
 
-    root = Sofa.Core.Node()
-    rootNode = createScene(root, q0=None, save_filepath=save_filepath)
-    Sofa.Simulation.init(root)
+    pre_tensionings = SETTINGS['pre_tensioning']
+    save_dirs = SETTINGS['save_dir']
+    assert len(pre_tensionings) == len(save_dirs), "Must specify one save_dir per pre_tensioning!"
     
-    while True:
-        Sofa.Simulation.animate(root, root.dt.value)
-        if rootNode.autopaused == True:
-            break
-    print('Simulation finished, exiting...')
+    for save_dir, pre_tensioning in zip(save_dirs, pre_tensionings):
+        pre_tensioning = np.array(pre_tensioning)
+        save_dir = os.path.join(path, save_dir)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        save_filepath = f"{save_dir}/open-loop"
+
+        root = Sofa.Core.Node()
+        rootNode = createScene(root, q0=None, save_filepath=save_filepath, u_max=SETTINGS['u_max'], pre_tensioning=pre_tensioning)
+        Sofa.Simulation.init(root)
+    
+        while True:
+            Sofa.Simulation.animate(root, root.dt.value)
+            if rootNode.autopaused == True:
+                break
+    
+    print('All simulations finished, exiting...')
 
 
 if __name__ == '__main__':

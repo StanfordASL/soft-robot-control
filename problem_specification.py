@@ -55,5 +55,8 @@
 #from examples.trunk import trunk_koopman
 #problem = trunk_koopman.run_koopman
 
-from examples.trunk import trunk_SSM
-problem = trunk_SSM.run_scp
+# from examples.trunk import trunk_SSM
+# problem = trunk_SSM.run_scp
+
+from examples.trunk import trunk_adiabaticSSM
+problem = trunk_adiabaticSSM.run_scp

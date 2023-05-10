@@ -7,6 +7,8 @@ from soft_robot_control_ros.srv import GuSTOsrv
 from sofacontrol.scp.gusto import GuSTO
 from sofacontrol.utils import arr2np, np2arr
 
+import pickle
+
 
 def runGuSTOSolverNode(model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None, zf=None,
                        U=None, X=None, Xf=None, dU=None, verbose=0, warm_start=True, **kwargs):
@@ -106,6 +108,10 @@ class GuSTOSolverNode(Node):
         # Get target values at proper times by interpolating
         z, zf, u = self.get_target(t0)
 
+        with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "rb") as f:
+            y = pickle.load(f)
+        self.model.dyn_sys.last_observation_y = y
+
         # Get initial guess
         idx0 = np.argwhere(self.topt >= t0)[0, 0]
         u_init = self.uopt[-1, :].reshape(1, -1).repeat(self.N, axis=0)
@@ -120,7 +126,7 @@ class GuSTOSolverNode(Node):
         self.topt = t0 + self.dt * np.arange(self.N + 1)
         response.t = np2arr(self.topt)
         response.xopt = np2arr(self.xopt)
-        response.uopt = np2arr(self.uopt)
+        response.uopt = np2arr(self.uopt) # + self.model.dyn_sys.interpolate_coeffs('u_bar'))
         response.zopt = np2arr(zopt)
         response.solve_time = t_solve
 

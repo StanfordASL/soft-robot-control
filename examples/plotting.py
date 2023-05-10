@@ -33,6 +33,8 @@ suptitlesize = 20*FONTSCALE
 
 plt.rc('figure', autolayout=True)
 
+SHOW_PLOTS = True
+
 with open(join(path, "plotting_settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)
 
@@ -70,7 +72,7 @@ TARGET = SETTINGS['select_target']
 target_settings = SETTINGS['define_targets'][TARGET]
 M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
 t_target = np.linspace(0, M*T, M*N+1)
-th = np.linspace(0, M*2*np.pi, M*N+1)
+th = np.linspace(0, M*2*np.pi, M*N+1) # + np.pi/2
 # zf_target = np.tile(z_eq_point, (M*N+1, 1))
 zf_target = np.zeros((M*N+1, len(Z_EQ)))
 if TARGET == "circle":
@@ -141,7 +143,8 @@ def traj_x_vs_y():
     ax.tick_params(axis='both')
 
     plt.savefig(join(SAVE_DIR, f"{TARGET}_x_vs_y.{SETTINGS['file_format']}"), bbox_inches='tight')
-
+    if SHOW_PLOTS:
+        plt.show()
 
 def traj_3D():
 
@@ -168,8 +171,8 @@ def traj_3D():
     ax.tick_params(axis='both')
 
     plt.savefig(join(SAVE_DIR, f"figure8_3D.{SETTINGS['file_format']}"), bbox_inches='tight')
-    plt.show()
-
+    if SHOW_PLOTS:
+        plt.show()
 
 def traj_xy_vs_t():
     """Plot controlled trajectories as function of time"""
@@ -178,7 +181,8 @@ def traj_xy_vs_t():
 
     for ax, coord in [(ax1, 0), (ax2, 1)]:
         for control in CONTROLS: # + ['target']:
-                ax.plot(SIM_DATA[control]['t'], SIM_DATA[control]['z'][:, coord],
+                z_centered = SIM_DATA[control]['z'] - Z_EQ
+                ax.plot(SIM_DATA[control]['t'], z_centered[:, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],
@@ -200,7 +204,8 @@ def traj_xy_vs_t():
     
     ax2.legend()
     plt.savefig(join(SAVE_DIR, f"{TARGET}_xy_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight')
-    # plt.show()
+    if SHOW_PLOTS:
+        plt.show()
 
 
 def traj_inputs_vs_t():
@@ -219,6 +224,8 @@ def traj_inputs_vs_t():
     
     axs[-1].set_xlabel(r'$t$ [s]')
     plt.savefig(join(SAVE_DIR, f"{TARGET}_inputs_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight')
+    if SHOW_PLOTS:
+        plt.show()
 
 
 def mse_calculations():

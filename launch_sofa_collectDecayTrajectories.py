@@ -93,9 +93,7 @@ def collectDecayTrajectories(nTrajs):
     #  Requires adjusting to own path
     sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
 
-    save_dir = os.path.join(path, SETTINGS['save_dir'])
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+
 
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'
@@ -107,55 +105,62 @@ def collectDecayTrajectories(nTrajs):
 
     # global _runAsPythonScript
     # _runAsPythonScript = True
-    pre_tensioning = np.array(SETTINGS['pre_tensioning'])
-    combine_inputs = SETTINGS['combine_inputs']
-    u_dim = SETTINGS['u_dim']
-
-
-
-    if os.path.exists(os.path.join(save_dir, "inputs.pkl")):
-        with open(os.path.join(save_dir, "inputs.pkl"), "rb") as f:
-            inputs = pickle.load(f)
-    else:
-        # raise RuntimeError("expected to use old inputs but cannot find file")
-        rng = np.random.default_rng(seed=42)
-        inputs = []
-        while len(inputs) < nTrajs:
-            sampled_input = np.random.choice(combine_inputs, size=u_dim)
-            sampled_input = np.clip(sampled_input, SETTINGS['u_min'], SETTINGS['u_max'])
-            if not np.any([np.allclose(input, sampled_input) for input in inputs]) and np.any(sampled_input > 0):
-                inputs.append(sampled_input.astype(float))
-        with open(os.path.join(save_dir, "inputs.pkl"), "wb") as f:
-            pickle.dump(inputs, f)
+    pre_tensionings = SETTINGS['pre_tensioning']
+    save_dirs = SETTINGS['save_dir']
+    assert len(pre_tensionings) == len(save_dirs), "Must specify one save_dir per pre_tensioning!"
     
-    # save info dict into trajectory folder for future reference
-    info = {
-        'pre_tensioning': SETTINGS['pre_tensioning'],
-        'combine_inputs': SETTINGS['combine_inputs'],
-        'n_traj': nTrajs
-    }
-    with open(os.path.join(save_dir, "info.yaml"), "w") as f:
-        yaml.dump(info, f)
+    for save_dir, pre_tensioning in zip(save_dirs, pre_tensionings):
+        pre_tensioning = np.array(pre_tensioning)
+        save_dir = os.path.join(path, save_dir)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
 
-    keep_trajs_up_to = 0
-    inputs = inputs[keep_trajs_up_to:]
+        combine_inputs = SETTINGS['combine_inputs']
+        u_dim = SETTINGS['u_dim']
 
-    # Simulate different modes, amplitudes, and directions
-    print(f"Simulating and saving {len(inputs)} different decay trajectories with pre-tensioning {pre_tensioning}")
-    for i, input in enumerate(tqdm(inputs)):
+        if os.path.exists(os.path.join(save_dir, "inputs.pkl")):
+            with open(os.path.join(save_dir, "inputs.pkl"), "rb") as f:
+                inputs = pickle.load(f)
+        else:
+            # raise RuntimeError("expected to use old inputs but cannot find file")
+            rng = np.random.default_rng(seed=42)
+            inputs = []
+            while len(inputs) < nTrajs:
+                sampled_input = np.random.choice(combine_inputs, size=u_dim)
+                sampled_input = np.clip(sampled_input, SETTINGS['u_min'], SETTINGS['u_max'])
+                if not np.any([np.allclose(input, sampled_input) for input in inputs]) and np.any(sampled_input > 0):
+                    inputs.append(sampled_input.astype(float))
+            with open(os.path.join(save_dir, "inputs.pkl"), "wb") as f:
+                pickle.dump(inputs, f)
         
-        save_filepath = f"{save_dir}/decayTraj_{i+keep_trajs_up_to:02d}"
+        # save info dict into trajectory folder for future reference
+        info = {
+            'pre_tensioning': pre_tensioning,
+            'combine_inputs': SETTINGS['combine_inputs'],
+            'n_traj': nTrajs
+        }
+        with open(os.path.join(save_dir, "info.yaml"), "w") as f:
+            yaml.dump(info, f)
 
-        root = Sofa.Core.Node()
-        rootNode = createScene(root, q0=None, save_filepath=save_filepath, input=input, pre_tensioning=pre_tensioning)
-        Sofa.Simulation.init(root)
-        
-        while True:
-            Sofa.Simulation.animate(root, root.dt.value)
-            if rootNode.autopaused == True:
-                break
+        keep_trajs_up_to = 0
+        inputs = inputs[keep_trajs_up_to:]
 
-    print('Simulation finished, exiting...')
+        # Simulate different modes, amplitudes, and directions
+        print(f"Simulating and saving {len(inputs)} different decay trajectories with pre-tensioning {pre_tensioning}")
+        for i, input in enumerate(tqdm(inputs)):
+            
+            save_filepath = f"{save_dir}/decayTraj_{i+keep_trajs_up_to:02d}"
+
+            root = Sofa.Core.Node()
+            rootNode = createScene(root, q0=None, save_filepath=save_filepath, input=input, pre_tensioning=pre_tensioning)
+            Sofa.Simulation.init(root)
+            
+            while True:
+                Sofa.Simulation.animate(root, root.dt.value)
+                if rootNode.autopaused == True:
+                    break
+
+    print('All simulations finished, exiting...')
 
 
 if __name__ == '__main__':
