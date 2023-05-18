@@ -60,3 +60,6 @@
 
 from examples.trunk import trunk_adiabaticSSM
 problem = trunk_adiabaticSSM.run_scp
+
+# from examples.trunk import trunk
+# problem = trunk.sim_OL

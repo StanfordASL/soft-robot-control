@@ -94,11 +94,11 @@ def run_scp():
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.  # corresponding to x position of end effector
     Qz[1, 1] = 100.  # corresponding to y position of end effector
-    Qz[2, 2] = 100.  # corresponding to z position of end effector
+    Qz[2, 2] = 0.  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
-    cost.R = 0.0001 * np.eye(model.input_dim)
+    cost.R = 0.001 * np.eye(model.input_dim)
 
-    # Define controller (wait 3 seconds of simulation time to start)
+    # Define controller (wait 1 second of simulation time to start)
     prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
 
     # Saving paths
@@ -159,43 +159,50 @@ def run_gusto_solver():
     
     # Define target trajectory for optimization
     # === figure8 ===
-    M = 1
-    T = 10
-    N = 1000
-    radius = 40.
-    t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # zf_target = np.zeros((M*N+1, 6))
-    zf_target[:, 0] += -radius * np.sin(th)
-    zf_target[:, 1] += radius * np.sin(2 * th)
-
-    # === circle (with constant z) ===
     # M = 1
     # T = 10
     # N = 1000
-    # radius = 20.
+    # radius = 30.
     # t = np.linspace(0, M * T, M * N + 1)
     # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
     # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
     # # zf_target = np.zeros((M*N+1, 6))
-    # zf_target[:, 0] += radius * np.cos(th)
-    # zf_target[:, 1] += radius * np.sin(th)
-    # # zf_target[:, 2] += -np.ones(len(t)) * 10
+    # zf_target[:, 0] += -radius * np.sin(th)
+    # zf_target[:, 1] += radius * np.sin(2 * th)
+    # zf_target[:, 2] += -np.ones(len(t)) * 20
+
+    # === circle (with constant z) ===
+    M = 1
+    T = 9 # 10
+    N = 900 # 1000
+    radius = 30.
+    t = np.linspace(0, M * T, M * N + 1)
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
+    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # zf_target = np.zeros((M*N+1, 6))
+    zf_target[:, 0] += radius * np.cos(th)
+    zf_target[:, 1] += radius * np.sin(th)
+    # zf_target[:, 2] += -np.ones(len(t)) * 20
+    print(zf_target[0, :].shape)
+    idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
+    print(idle.shape)
+    zf_target = np.vstack([idle, zf_target])
+    print(zf_target.shape)
+    t = np.linspace(0, M * 10, M * 1000 + 1)
 
     z = model.zfyf_to_zy(zf=zf_target)
 
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.   # corresponding to x position of end effector
     Qz[1, 1] = 100.   # corresponding to y position of end effector
-    Qz[2, 2] = 0 # 100.   # corresponding to z position of end effector
+    Qz[2, 2] = 0.   # corresponding to z position of end effector
     R = 0.001 * np.eye(model.input_dim)
 
     dt = 0.02
     N = 3
 
     # Control constraints
-    u_min, u_max = 0.0, 500.0
+    u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
     dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 

@@ -146,7 +146,6 @@ class GuSTO:
         self.max_gusto_iters = kwargs.get('max_gusto_iters', MAX_ITERS)
         kwargs.pop('max_gusto_iters', None)
 
-
     def is_converged(self, x, u):
         """
         Sequential problem is converged when current state input pair is same as previous state input pair
@@ -260,7 +259,7 @@ class GuSTO:
 
         return H_d, c_d
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def get_traj_dynamics_jit(self, x, u):
         """
         Return the affine dynamics of each point along trajectory in a list
@@ -276,7 +275,7 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def get_observer_linearizations_jit(self, x, u):
         """
         Return the affine observer mappings at each point along trajectory in a list
@@ -325,7 +324,6 @@ class GuSTO:
         # TODO: Timing computations
         print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
 
-
         new_solution = True
         Jstar_prev = np.inf
         delta_prev = np.inf
@@ -370,7 +368,7 @@ class GuSTO:
                 self.xopt = np.copy(self.x_k)
                 self.uopt = np.copy(self.u_k)
                 if self.nonlinear_observer:
-                    self.zopt = self.model.dyn_sys.W_map(self.xopt.T)
+                    self.zopt = self.model.dyn_sys.x_to_zfyf(self.xopt).T
                 else:
                     self.zopt = np.transpose(self.model.H @ self.xopt.T)
                 return

@@ -108,9 +108,17 @@ class GuSTOSolverNode(Node):
         # Get target values at proper times by interpolating
         z, zf, u = self.get_target(t0)
 
-        with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "rb") as f:
-            y = pickle.load(f)
-        self.model.dyn_sys.last_observation_y = y
+        if hasattr(self.model.dyn_sys, "adiabatic") and self.model.dyn_sys.adiabatic:
+            # Load latest observation
+            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "rb") as f:
+                y = pickle.load(f)
+            self.model.dyn_sys.last_observation_y = y
+            self.model.dyn_sys.y_bar_current = np.tile(self.model.dyn_sys.interpolate_coeffs('q_bar', y[-3:-1]), 5)
+            self.model.dyn_sys.u_bar_current = self.model.dyn_sys.interpolate_coeffs('u_bar', y[-3:-1])
+            self.model.dyn_sys.B_r_current = self.model.dyn_sys.interpolate_coeffs('B_r', y[-3:-1])
+            self.model.dyn_sys.R_current = self.model.dyn_sys.interpolate_coeffs('r_coeff', y[-3:-1])
+            self.model.dyn_sys.V_current = self.model.dyn_sys.interpolate_coeffs('V', y[-3:-1])
+            self.model.dyn_sys.W_current = self.model.dyn_sys.interpolate_coeffs('w_coeff', y[-3:-1])
 
         # Get initial guess
         idx0 = np.argwhere(self.topt >= t0)[0, 0]
@@ -126,7 +134,7 @@ class GuSTOSolverNode(Node):
         self.topt = t0 + self.dt * np.arange(self.N + 1)
         response.t = np2arr(self.topt)
         response.xopt = np2arr(self.xopt)
-        response.uopt = np2arr(self.uopt) # + self.model.dyn_sys.interpolate_coeffs('u_bar'))
+        response.uopt = np2arr(self.uopt)
         response.zopt = np2arr(zopt)
         response.solve_time = t_solve
 

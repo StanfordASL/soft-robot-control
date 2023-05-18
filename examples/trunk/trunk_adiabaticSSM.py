@@ -30,7 +30,7 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 
-MODEL_NAMES = ["north", "west", "origin", "east", "south", "northwest", "northeast", "southwest", "southeast"] # ["north", "west", "origin", "east", "south"] # 
+MODEL_NAMES = ["north", "west", "origin", "east", "south", "northwest", "northeast", "southwest", "southeast"] # 
 
 useTimeDelay = True
 
@@ -80,7 +80,7 @@ cost = QuadraticCost()
 Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
-Qz[2, 2] = 0 # 100.  # corresponding to z position of end effector
+Qz[2, 2] = 100.  # corresponding to z position of end effector
 R = 0.001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
@@ -90,26 +90,27 @@ cost.Q = model.H.T @ Qz @ model.H
 M = 1
 T = 10
 N = 1000
-radius = 40.
+radius = 25.
 t = np.linspace(0, M * T, M * N + 1)
 th = np.linspace(0, M * 2 * np.pi, M * N + 1)
 zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
 # zf_target = np.zeros((M*N+1, 6))
 zf_target[:, 0] += -radius * np.sin(th)
 zf_target[:, 1] += radius * np.sin(2 * th)
+zf_target[:, 2] += -np.ones(len(t)) * 20
 
 # === circle with constant z ===
 # M = 1
 # T = 10
 # N = 1000
-# radius = 30.
+# radius = 20.
 # t = np.linspace(0, M * T, M * N + 1)
-# th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi / 2
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi / 2
 # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
 # # zf_target = np.zeros((M*N+1, 6))
 # zf_target[:, 0] += radius * np.cos(th)
 # zf_target[:, 1] += radius * np.sin(th)
-# # zf_target[:, 2] += -np.ones(len(t)) * 10
+# zf_target[:, 2] += -np.ones(len(t)) * 20
 
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 
@@ -174,7 +175,7 @@ def run_gusto_solver():
     N = 3
 
     # Control constraints
-    u_min, u_max = 0.0, 500.0
+    u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
     dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 

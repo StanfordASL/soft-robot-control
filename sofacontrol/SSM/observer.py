@@ -43,7 +43,10 @@ class SSMObserver:
         #self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
 
         # Assumes y has been centered
-        self.x = self.dyn_sys.V_map(y)
+        if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:
+            self.x = self.dyn_sys.V_map(self.dyn_sys.V_current, y, self.dyn_sys.y_bar_current)
+        else:
+            self.x = self.dyn_sys.V_map(y)
 
 class DiscreteEKFObserver:
     """

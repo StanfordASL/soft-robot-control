@@ -49,7 +49,10 @@ class SSMGuSTO(TemplateModel):
 
         """
         # TODO: Checking jax capes
-        A, B, d = self.dyn_sys.get_continuous_jacobians(x, u=u)
+        if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:
+            A, B, d = self.dyn_sys.get_continuous_jacobians(x, u, self.dyn_sys.R_current, self.dyn_sys.B_r_current, self.dyn_sys.u_bar_current)
+        else:
+            A, B, d = self.dyn_sys.get_continuous_jacobians(x, u=u)
         # A, B, d = self.dyn_sys.get_jacobians(x, u=u, dt=None)
         f = A @ x + B @ u + d
         return f, A, B
@@ -60,15 +63,21 @@ class SSMGuSTO(TemplateModel):
         :u: Input u0 (n_u)
         :dt: time step for discretization (seconds)
         """
-        return self.dyn_sys.get_jacobians(x, dt=dt, u=u)
+        if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:
+            return self.dyn_sys.get_jacobians(x, u, dt, self.dyn_sys.R_current, self.dyn_sys.B_r_current, self.dyn_sys.u_bar_current)
+        else:
+            return self.dyn_sys.get_jacobians(x, dt=dt, u=u)
 
-    def get_observer_jacobians(self, x, u, dt):
+    def get_observer_jacobians(self, x, u=None, dt=None):
         """
         :x: State x0 (n_x)
         :u: Input u0 (n_u)
         :dt: time step for discretization (seconds)
         """
-        return self.dyn_sys.get_observer_jacobians(x)
+        if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:
+            return self.dyn_sys.get_observer_jacobians(x, self.dyn_sys.W_current, self.dyn_sys.y_bar_current)
+        else:
+            return self.dyn_sys.get_observer_jacobians(x)
 
     def get_characteristic_vals(self):
         """

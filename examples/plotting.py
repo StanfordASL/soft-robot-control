@@ -50,11 +50,12 @@ SIM_DATA = {control: {'info': {}} for control in CONTROLS}
 
 t0 = 1
 for control in CONTROLS:
-    with open(join(path, SETTINGS['robot'], f'{control}_sim.pkl'), 'rb') as f:
+    with open(join(path, SETTINGS['robot'], SETTINGS['traj_dir'], f'{control}_sim.pkl'), 'rb') as f:
         control_data = pickle.load(f)
     idx = np.argwhere(control_data['t'] >= t0)[0][0]
     SIM_DATA[control]['t'] = control_data['t'][idx:] - control_data['t'][idx]
     SIM_DATA[control]['z'] = control_data['z'][idx:, 3:]
+    SIM_DATA[control]['z'][:, 2] *= -1
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
     SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
     SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
@@ -65,6 +66,7 @@ print(model.QV_EQUILIBRIUM[0].shape, model.QV_EQUILIBRIUM[1].shape)
 x_eq = qv2x(q=model.QV_EQUILIBRIUM[0], v=model.QV_EQUILIBRIUM[1])
 outputModel = linearModel([model.TIP_NODE], model.N_NODES, vel=False)
 Z_EQ = outputModel.evaluate(x_eq, qv=False)
+Z_EQ[2] *= -1
 print(Z_EQ)
 
 # Load reference/target trajectory as defined in plotting_settings.py
@@ -78,10 +80,11 @@ zf_target = np.zeros((M*N+1, len(Z_EQ)))
 if TARGET == "circle":
     zf_target[:, 0] += radius * np.cos(th)
     zf_target[:, 1] += radius * np.sin(th)
-    zf_target[:, 2] += np.ones(len(t_target)) * target_settings['z_const']
+    zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
 elif TARGET == "figure8":
     zf_target[:, 0] += -radius * np.sin(th)
     zf_target[:, 1] += radius * np.sin(2 * th)
+    zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
 
@@ -123,7 +126,8 @@ def traj_x_vs_y():
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'][control],
-                ls=SETTINGS['linestyle'][control], markevery=20)
+                ls=SETTINGS['linestyle'][control], markevery=20,
+                alpha=0.8)
     ax.plot(zf_target[:, 0], zf_target[:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
@@ -167,10 +171,12 @@ def traj_3D():
 
     ax.legend()
     ax.set_aspect('equal', 'box')
+    ax.grid(False)
+    ax.view_init(5, -90)
 
     ax.tick_params(axis='both')
 
-    plt.savefig(join(SAVE_DIR, f"figure8_3D.{SETTINGS['file_format']}"), bbox_inches='tight')
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_3D.{SETTINGS['file_format']}"), bbox_inches='tight')
     if SHOW_PLOTS:
         plt.show()
 
@@ -208,9 +214,44 @@ def traj_xy_vs_t():
         plt.show()
 
 
+def traj_xyz_vs_t():
+    """Plot trajectories (x,y,z) as function of time"""
+    
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+
+    for ax, coord in [(ax1, 0), (ax2, 1), (ax3, 2)]:
+        for control in CONTROLS: # + ['target']:
+                z_centered = SIM_DATA[control]['z'] - Z_EQ
+                ax.plot(SIM_DATA[control]['t'], z_centered[:, coord],
+                        color=SETTINGS['color'][control],
+                        label=SETTINGS['display_name'][control],
+                        linewidth=SETTINGS['linewidth'][control],
+                        ls=SETTINGS['linestyle'][control], markevery=20)
+        ax.plot(t_target, zf_target[:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+    ax1.set_ylabel(r'$x_{ee}$ [mm]')
+    ax2.set_ylabel(r'$y_{ee}$ [mm]')
+    ax3.set_ylabel(r'$z_{ee}$ [mm]')
+    ax3.set_xlabel(r'$t$ [s]')
+
+
+    if SETTINGS['plot_mpc_rollouts']:
+        idx = 0
+        for idx in range(np.shape(z_opt_rollout)[0]):
+            if idx % 2 == 0:
+                z_horizon = z_opt_rollout[idx]
+                t_horizon = t_opt_rollout[idx]
+                ax1.plot(t_horizon, z_horizon[:, 0], 'tab:red', marker='o', markevery=2)
+                ax2.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
+    
+    ax3.legend()
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_xyz_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight')
+    if SHOW_PLOTS:
+        plt.show()
+
+
 def traj_inputs_vs_t():
     """Plot inputs applied by controller as function of time"""
-    fig, axs = plt.subplots(1, len(CONTROLS), figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+    fig, axs = plt.subplots(1, len(CONTROLS), figsize=(18, 6), facecolor='w', edgecolor='k', sharey=True, )
     if len(CONTROLS) == 1:
         axs = [axs]
 
@@ -220,9 +261,9 @@ def traj_inputs_vs_t():
                     linewidth=SETTINGS['linewidth'][control],
                     ls=SETTINGS['linestyle'][control], markevery=20)
         axs[i].legend([rf"$u_{i}$" for i in range(1, SIM_DATA[control]['u'].shape[1]+1)])
-        axs[i].set_ylabel(rf'$u$ ({control})')
-    
-    axs[-1].set_xlabel(r'$t$ [s]')
+        axs[i].set_xlabel(r'$t$ [s]')
+        axs[i].set_title(SETTINGS['display_name'][control])
+    axs[0].set_ylabel(rf'$u$')
     plt.savefig(join(SAVE_DIR, f"{TARGET}_inputs_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight')
     if SHOW_PLOTS:
         plt.show()
@@ -371,3 +412,4 @@ if __name__ == "__main__":
     traj_inputs_vs_t()
     traj_x_vs_y()
     traj_xy_vs_t()
+    traj_xyz_vs_t()

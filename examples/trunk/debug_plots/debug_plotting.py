@@ -58,6 +58,14 @@ def ybar():
     plt.suptitle(r"$\bar{y}$")
     plt.show()
 
+def ubar():
+    """plot the content of ubar.pkl"""
+    with open(join(path, "ubar.pkl"), 'rb') as f:
+        ubar = pickle.load(f)
+    plt.plot(ubar)
+    plt.suptitle(r"$\bar{u}$")
+    plt.show()
+
 def xdot():
     """plot the content of xdot.pkl"""
     with open(join(path, "xdot.pkl"), 'rb') as f:
@@ -68,7 +76,7 @@ def xdot():
 
 
 if __name__ == '__main__':
-    # u()
+    ubar()
     ybar()
     x()
     y()

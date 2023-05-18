@@ -15,6 +15,52 @@ from sofacontrol.open_loop_sequences import TrunkRobotSequences
 
 # Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
+TIP_NODE = 51
+
+
+def sim_OL():
+    """
+     In problem_specification add:
+
+     from examples.hardware import diamond
+     problem = diamond.sim_OL
+
+     then run:
+
+     python3 launch_sofa.py
+     """
+    from examples.trunk.model import trunkRobot
+    from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
+    from sofacontrol.measurement_models import MeasurementModel
+    from sofacontrol.utils import SnapshotData
+
+    path = "/media/jonas/Backup Plus/jonas_soft_robot_data/autonomous_ASSM_tests"
+    with open(join(path, 'u_perturbed.pkl'), 'rb') as f:
+        u = pickle.load(f)
+    
+    # t0 = 3.0
+    dt = 0.01
+    prob = Problem()
+    prob.Robot = trunkRobot()
+    prob.ControllerClass = OpenLoopController
+    Sequences = TrunkRobotSequences(dt=dt)
+
+    # Specify a measurement and output model
+    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
+
+    # Open loop
+    u, save, t = Sequences.augment_input_with_base(u, save_data=True)
+    prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt)
+    prob.snapshots = SnapshotData(save_dynamics=False)
+    prob.opt['sim_duration'] = 11.
+    prob.snapshots_dir = path
+    prob.opt['save_prefix'] = 'OL_sim'
+
+    return prob
+
 
 
 def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):

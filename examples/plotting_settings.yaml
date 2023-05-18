@@ -2,44 +2,56 @@ robot: "trunk"
 save_dir: "plots/"
 file_format: "png"
 
+traj_dir: "sim_trajs/figure8_z=-20"
+
 show: {
-    'ssmr_origin': False,
+    'ssmr': False,
+    'ssmr_origin': True,
     'ssmr_nnssm': False,
-    'ssmr_nnssm_fail1': True,
+    'ssmr_ctssm': True,
+    'ssmr_linssm': False,
     'tpwl': False,
     'koopman': False,
     'rompc': False
 }
 display_name: {
+    'ssmr': "ASSMR (current model)",
     'ssmr_origin': "SSMR (origin)",
-    'ssmr_nnssm': "NNSSM (n=9)",
-    'ssmr_nnssm_fail1': "NNSSM (fail 1)",
+    'ssmr_nnssm': "ASSMR (NN, n=9)",
+    'ssmr_ctssm': "ASSMR (CT, n=9)",
+    'ssmr_linssm': "ASSMR (linear, n=9)",
     'tpwl': "TPWL",
     'koopman': "Koopman",
     'rompc': "ROMPC",
 }
 color: {
+    'ssmr': 'tab:green',
     'ssmr_origin': 'tab:blue',
-    'ssmr_nnssm': 'tab:orange',
-    'ssmr_nnssm_fail1': 'tab:red',
+    'ssmr_nnssm': 'tab:red',
+    'ssmr_ctssm': 'tab:orange',
+    'ssmr_linssm': 'tab:purple',
     'tpwl': 'tab:red',
     'koopman': 'tab:green',
     'rompc': 'tab:purple',
     'target': 'black'
 }
 linestyle: {
+    'ssmr': '-',
     'ssmr_origin': '-',
     'ssmr_nnssm': '-',
-    'ssmr_nnssm_fail1': '-',
+    'ssmr_ctssm': '-',
+    'ssmr_linssm': '-',
     'tpwl': '-',
     'koopman': '-',
     'rompc': '-',
     'target': '--'
 }
 linewidth: {
+    'ssmr': 2,
     'ssmr_origin': 2,
     'ssmr_nnssm': 2,
-    'ssmr_nnssm_fail1': 2,
+    'ssmr_ctssm': 2,
+    'ssmr_linssm': 2,
     'tpwl': 2,
     'koopman': 2,
     'rompc': 2,
@@ -53,7 +65,8 @@ define_targets: {
         M: 1,
         T: 10,
         N: 1000,
-        radius: 40,
+        radius: 25, # 30, # 
+        z_const: -20, # 0, # 
         # state constraints
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
@@ -62,8 +75,8 @@ define_targets: {
         M: 1,
         T: 10,
         N: 1000,
-        radius: 30,
-        z_const: -10,
+        radius: 20,
+        z_const: -20,
         # state constraints
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
