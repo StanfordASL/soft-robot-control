@@ -1,5 +1,4 @@
 import numpy as np
-import sofacontrol.utils as scutils
 from sympy.polys.monomials import itermonomials
 from sympy.polys.orderings import monomial_key
 import sympy as sp
@@ -7,17 +6,13 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import jax
 from functools import partial
-
 import time
-
-from scipy.interpolate import NearestNDInterpolator
-from scipy.interpolate import LinearNDInterpolator
-from scipy.interpolate import CloughTocher2DInterpolator
-from scipy.spatial import Delaunay
-
 import pickle
 
-INTERPOLATION_METHOD = 'ct'  # default: "nn", other options: "linear", "ct". Nearest neighbor,  scattered linear interpolation or scattered clough-tocher interpolation
+from .interpolators import InterpolatorFactory
+
+
+INTERPOLATION_METHOD = "origin_only" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg"
 
 DISCR_DICT = {'fe': 'forward Euler', 'be': 'implicit Euler', 'bil': 'bilinear transform', 'zoh': 'zero-order hold'}
 
@@ -43,9 +38,6 @@ class AdiabaticSSM:
         self.debug = debug
         self.adiabatic = True
 
-        # self.z_target = self.zfyf_to_zy(zf_target)
-        # self.target_idx = 0
-        # self.t = 0
         if self.debug:
             self.xdot = []
             self.x = []
@@ -88,7 +80,8 @@ class AdiabaticSSM:
         else:
             # When we learn mappings to output variables directly (no time-delays)
             self.C = np.eye(self.obs_dim, self.obs_dim)
-
+        
+        # adiabatic SSM interpolation
         self.V, self.w_coeff, self.v_coeff, self.r_coeff, self.B_r, self.q_bar, self.u_bar = [], [], [], [], [], [], []
         for model in self.models:
             # Continuous-time model
@@ -99,22 +92,15 @@ class AdiabaticSSM:
             self.B_r.append(model['B'])             # reduced control matrix
             self.q_bar.append(model['q_eq'])
             self.u_bar.append(model['u_eq'])
-
-        # adiabatic SSM interpolation
-        if INTERPOLATION_METHOD == "nn":
-            self.interpolator = NearestNDInterpolator
-        elif INTERPOLATION_METHOD == "linear":
-            self.interpolator = LinearNDInterpolator
-        elif INTERPOLATION_METHOD == "ct":
-            self.interpolator = CloughTocher2DInterpolator
-        else:
-            raise RuntimeError(f"The desired interpolation method is not implemented: {INTERPOLATION_METHOD}")
-        # compute delaunay triangulation attached to the pre-tensioned equilibria
-        tri = Delaunay([q[:2] for q in self.q_bar])
-        # create interpolants for the different coefficient matrices
-        self.interpolation = {}
-        for name, coeffs in [('w_coeff', self.w_coeff), ('V', self.V), ('r_coeff', self.r_coeff), ('B_r', self.B_r), ('u_bar', self.u_bar), ('q_bar', self.q_bar)]:
-            self.interpolation[name] = self.interpolator(tri, coeffs)
+        self.coeff_dict = {
+                    'w_coeff': self.w_coeff,
+                    'V': self.V,
+                    'r_coeff': self.r_coeff,
+                    'B_r': self.B_r,
+                    'u_bar': self.u_bar,
+                    'q_bar': self.q_bar
+                }
+        self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:2] for q in self.q_bar], self.coeff_dict).get_interpolator()
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
@@ -123,7 +109,7 @@ class AdiabaticSSM:
         # Continuous reduced dynamics
         self.maps['f_nl'] = self.reduced_dynamics
 
-        # remember last observation for interpolation
+        # Remember last observation for interpolation
         self.last_observation_y = np.zeros(self.obs_dim)
         with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "wb") as f:
             pickle.dump(self.last_observation_y, f)
@@ -271,14 +257,14 @@ class AdiabaticSSM:
         if not jnp.allclose(y, self.last_observation_y):
             with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "wb") as f:
                 pickle.dump(y, f)
-            xy = y[-3:-1]
-            print("xy:", xy)
-            self.u_bar_current = self.interpolate_coeffs('u_bar', xy)
-            self.B_r_current = self.interpolate_coeffs('B_r', xy)
-            self.R_current = self.interpolate_coeffs('r_coeff', xy)
-            self.V_current = self.interpolate_coeffs('V', xy)
-            self.W_current = self.interpolate_coeffs('w_coeff', xy)
-            self.y_bar_current = np.tile(self.interpolate_coeffs('q_bar', xy), 5)
+            xy = y[:2]
+            # print("xy:", xy)
+            self.y_bar_current = np.tile(self.interpolator.transform(xy, 'q_bar'), 5)
+            self.u_bar_current = self.interpolator.transform(xy, 'u_bar')
+            self.B_r_current = self.interpolator.transform(xy, 'B_r')
+            self.R_current = self.interpolator.transform(xy, 'r_coeff')
+            self.V_current = self.interpolator.transform(xy, 'V')
+            self.W_current = self.interpolator.transform(xy, 'w_coeff')
 
         if self.debug:
             self.y.append(y)
@@ -291,33 +277,7 @@ class AdiabaticSSM:
             with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/ubar.pkl", "wb") as f:
                 pickle.dump(self.ubar, f)
 
-        if self.v_coeff[0] is not None:
-            return np.dot(self.interpolate_coeffs('v_coeff'), np.asarray(self.ssm_chart_phi(*(y - self.y_bar))))
-        else:
-            return jnp.dot(jnp.transpose(V), y - y_bar)
-
-    def interpolate_coeffs(self, coeff_name, xy):
-        if USE_ORIGIN_ONLY:
-            if coeff_name == "w_coeff":
-                return self.w_coeff[ORIGIN_IDX]
-            elif coeff_name == "r_coeff":
-                return self.r_coeff[ORIGIN_IDX]
-            elif coeff_name == "V":
-                return self.V[ORIGIN_IDX]
-            elif coeff_name == "B_r":
-                return self.B_r[ORIGIN_IDX]
-            elif coeff_name == "u_bar":
-                return self.u_bar[ORIGIN_IDX]
-            elif coeff_name == "q_bar":
-                return self.q_bar[ORIGIN_IDX]
-            else:
-                raise RuntimeError(f"No interpolation available for these coefficents: {coeff_name}")
-        else:
-            # print("xy:", xy)
-            if coeff_name not in self.interpolation.keys():
-                raise RuntimeError(f"No interpolation available for these coefficents: {coeff_name}")
-            else:
-                return np.squeeze(self.interpolation[coeff_name](xy))
+        return jnp.dot(jnp.transpose(V), y - y_bar)
 
 
 class AdiabaticSSMDynamics(AdiabaticSSM):

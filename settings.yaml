@@ -3,33 +3,40 @@
 collectDecayData: {
   robot: "trunk",
   u_dim: 8,
-  # must specify one save_dir per pre_tensioning and in matching order!
-  save_dir: [
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/west/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/south/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/east/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northwest/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southwest/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southeast/decay",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northeast/decay",
-  ],
+  # settings for overall data collection
+  n_samples: 100,
+  max_pre_tensioning: 500,
+  n_grid: 7,
+  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_N=100/",
+  # settings for single decay trajectories
+  combine_inputs: [0, 800],
+  n_traj: 40,
   u_min: 0,
   u_max: 1000,
-  pre_tensioning: [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [200, 0, 0, 0, 200, 0, 0, 0],
-    [0, 200, 0, 0, 0, 200, 0, 0],
-    [0, 0, 200, 0, 0, 0, 200, 0],
-    [0, 0, 0, 200, 0, 0, 0, 200],
-    [200, 200, 0, 0, 200, 200, 0, 0],
-    [0, 200, 200, 0, 0, 200, 200, 0],
-    [0, 0, 200, 200, 0, 0, 200, 200],
-    [200, 0, 0, 200, 200, 0, 0, 200],
-  ],
-  combine_inputs: [0, 800],
-  n_traj: 40
+  # must specify one save_dir per pre_tensioning and in matching order!
+  # save_dir: [
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/west/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/south/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/east/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northwest/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southwest/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southeast/decay",
+  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northeast/decay",
+  # ],
+  # pre_tensioning: [
+  #   [0, 0, 0, 0, 0, 0, 0, 0],
+  #   [200, 0, 0, 0, 200, 0, 0, 0],
+  #   [0, 200, 0, 0, 0, 200, 0, 0],
+  #   [0, 0, 200, 0, 0, 0, 200, 0],
+  #   [0, 0, 0, 200, 0, 0, 0, 200],
+  #   [200, 200, 0, 0, 200, 200, 0, 0],
+  #   [0, 200, 200, 0, 0, 200, 200, 0],
+  #   [0, 0, 200, 200, 0, 0, 200, 200],
+  #   [200, 0, 0, 200, 200, 0, 0, 200],
+  # ],
+
 }
 
 # collect open-loop controlled data
@@ -37,30 +44,29 @@ collectDecayData: {
 collectInputData: {
   robot: "trunk",
   u_dim: 8,
-  u_max: 100,
-  save_dir: [
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/west/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/south/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/east/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northwest/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southwest/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southeast/open-loop",
-    "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northeast/open-loop",
-  ],
-  pre_tensioning: [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [200, 0, 0, 0, 200, 0, 0, 0],
-    [0, 200, 0, 0, 0, 200, 0, 0],
-    [0, 0, 200, 0, 0, 0, 200, 0],
-    [0, 0, 0, 200, 0, 0, 0, 200],
-    [200, 200, 0, 0, 200, 200, 0, 0],
-    [0, 200, 200, 0, 0, 200, 200, 0],
-    [0, 0, 200, 200, 0, 0, 200, 200],
-    [200, 0, 0, 200, 200, 0, 0, 200],
-  ],
-  # spline_lhs: False,
-  # n_samples: 100
-  # n_interp_points: 20
+  u_max: 200,
+  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_N=100/",
+  # save_dir: [
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/west/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/south/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/east/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northwest/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southwest/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southeast/open-loop",
+  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northeast/open-loop",
+  #   # "/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/dataCollection/open-loop_500"
+  # ],
+  # pre_tensioning: [
+  #   # [0, 0, 0, 0, 0, 0, 0, 0],
+  #   # [200, 0, 0, 0, 200, 0, 0, 0],
+  #   # [0, 200, 0, 0, 0, 200, 0, 0],
+  #   # [0, 0, 200, 0, 0, 0, 200, 0],
+  #   # [0, 0, 0, 200, 0, 0, 0, 200],
+  #   # [200, 200, 0, 0, 200, 200, 0, 0],
+  #   # [0, 200, 200, 0, 0, 200, 200, 0],
+  #   # [0, 0, 200, 200, 0, 0, 200, 200],
+  #   # [200, 0, 0, 200, 200, 0, 0, 200],
+  # ]
 }

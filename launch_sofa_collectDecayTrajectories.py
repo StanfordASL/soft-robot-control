@@ -23,6 +23,9 @@ import itertools
 import yaml
 import pickle
 
+from psutil import virtual_memory
+import sys
+
 path = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path, "settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)['collectDecayData']
@@ -88,12 +91,10 @@ def createScene(rootNode, q0=None, save_filepath="", input=None, pre_tensioning=
     return rootNode
 
 
-def collectDecayTrajectories(nTrajs):
+def collectDecayTrajectories():
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
     sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
-
-
 
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'
@@ -103,53 +104,62 @@ def collectDecayTrajectories(nTrajs):
     SofaRuntime.importPlugin("SofaComponentAll")
     SofaRuntime.importPlugin("SofaOpenglVisual")
 
-    # global _runAsPythonScript
-    # _runAsPythonScript = True
-    pre_tensionings = SETTINGS['pre_tensioning']
-    save_dirs = SETTINGS['save_dir']
-    assert len(pre_tensionings) == len(save_dirs), "Must specify one save_dir per pre_tensioning!"
+    save_dir = SETTINGS['save_dir']
+    max_pre_tensioning = SETTINGS['max_pre_tensioning']
+    n_grid = SETTINGS['n_grid']
+    combine_pre_tensionings = np.linspace(-max_pre_tensioning, max_pre_tensioning, n_grid)
+    n_samples = SETTINGS['n_samples']
+    u_dim = SETTINGS['u_dim']
+    n_trajs = SETTINGS['n_traj']
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    if os.path.exists(os.path.join(save_dir, "pre_tensionings.pkl")):
+        with open(os.path.join(save_dir, "pre_tensionings.pkl"), "rb") as f:
+            pre_tensionings = pickle.load(f)
+    else:
+        rng = np.random.default_rng(seed=42)
+        pre_tensionings = [np.zeros(u_dim)]
+        while len(pre_tensionings) < n_samples:
+            sampled_pre_tensioning = np.random.choice(combine_pre_tensionings, size=u_dim)
+            if not np.any([np.allclose(pre_tensioning, sampled_pre_tensioning) for pre_tensioning in pre_tensionings]):
+                pre_tensionings.append(sampled_pre_tensioning.astype(float))
+        with open(os.path.join(save_dir, "pre_tensionings.pkl"), "wb") as f:
+            pickle.dump(pre_tensionings, f)
+    assert len(pre_tensionings) == n_samples
     
-    for save_dir, pre_tensioning in zip(save_dirs, pre_tensionings):
-        pre_tensioning = np.array(pre_tensioning)
-        save_dir = os.path.join(path, save_dir)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
+    for i, pre_tensioning in enumerate(tqdm(pre_tensionings)):
+        model_dir = os.path.join(save_dir, f"{i:03}/decay/")
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)
+        with open(os.path.join(model_dir, "pre_tensioning.pkl"), "wb") as f:
+            pickle.dump(pre_tensioning, f)
         combine_inputs = SETTINGS['combine_inputs']
-        u_dim = SETTINGS['u_dim']
-
-        if os.path.exists(os.path.join(save_dir, "inputs.pkl")):
-            with open(os.path.join(save_dir, "inputs.pkl"), "rb") as f:
+        if os.path.exists(os.path.join(model_dir, "inputs.pkl")):
+            with open(os.path.join(model_dir, "inputs.pkl"), "rb") as f:
                 inputs = pickle.load(f)
         else:
-            # raise RuntimeError("expected to use old inputs but cannot find file")
             rng = np.random.default_rng(seed=42)
             inputs = []
-            while len(inputs) < nTrajs:
+            while len(inputs) < n_trajs:
                 sampled_input = np.random.choice(combine_inputs, size=u_dim)
                 sampled_input = np.clip(sampled_input, SETTINGS['u_min'], SETTINGS['u_max'])
                 if not np.any([np.allclose(input, sampled_input) for input in inputs]) and np.any(sampled_input > 0):
                     inputs.append(sampled_input.astype(float))
-            with open(os.path.join(save_dir, "inputs.pkl"), "wb") as f:
+            with open(os.path.join(model_dir, "inputs.pkl"), "wb") as f:
                 pickle.dump(inputs, f)
-        
-        # save info dict into trajectory folder for future reference
-        info = {
-            'pre_tensioning': pre_tensioning,
-            'combine_inputs': SETTINGS['combine_inputs'],
-            'n_traj': nTrajs
-        }
-        with open(os.path.join(save_dir, "info.yaml"), "w") as f:
-            yaml.dump(info, f)
-
-        keep_trajs_up_to = 0
-        inputs = inputs[keep_trajs_up_to:]
-
-        # Simulate different modes, amplitudes, and directions
+        already_simulated_files = sorted([fname for fname in os.listdir(model_dir) if "decayTraj" in fname])
+        if already_simulated_files:
+            collect_from = int(already_simulated_files[-1].split('_')[1]) + 1
+            print("Collecting data starting at trajectory index:", collect_from)
+            inputs = inputs[collect_from:]
+        else:
+            collect_from = 0
+        # Simulate different amplitudes and directions
         print(f"Simulating and saving {len(inputs)} different decay trajectories with pre-tensioning {pre_tensioning}")
-        for i, input in enumerate(tqdm(inputs)):
-            
-            save_filepath = f"{save_dir}/decayTraj_{i+keep_trajs_up_to:02d}"
+        for j, input in enumerate(tqdm(inputs)):
+            save_filepath = f"{model_dir}/decayTraj_{j+collect_from:02d}"
 
             root = Sofa.Core.Node()
             rootNode = createScene(root, q0=None, save_filepath=save_filepath, input=input, pre_tensioning=pre_tensioning)
@@ -158,10 +168,15 @@ def collectDecayTrajectories(nTrajs):
             while True:
                 Sofa.Simulation.animate(root, root.dt.value)
                 if rootNode.autopaused == True:
-                    break
+                    break    
+            # Restart if RAM usage is too high (there is a memory leak somewhere, can't find it)
+            ram_usage_percent = virtual_memory()[2]
+            print("RAM usage:", ram_usage_percent)
+            if ram_usage_percent > 80:
+                os.execv(sys.executable, ['python'] + sys.argv)
 
     print('All simulations finished, exiting...')
 
 
 if __name__ == '__main__':
-    collectDecayTrajectories(SETTINGS['n_traj'])
+    collectDecayTrajectories()

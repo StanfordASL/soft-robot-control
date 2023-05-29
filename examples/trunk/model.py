@@ -21,7 +21,7 @@ with open(join(PATH, 'rest_qv.pkl'), 'rb') as file:
 
 def trunkRobot(q0=None, scale_mode=1000, dt=DT):
     from robots import environments
-    robot = environments.Trunk()
+    robot = environments.Trunk(dt=dt)
     # Add open loop input sequences
     from sofacontrol.open_loop_sequences import TrunkRobotSequences
     import numpy as np

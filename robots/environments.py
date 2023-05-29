@@ -37,12 +37,12 @@ class TemplateEnvironment:
 
 
 class Trunk(TemplateEnvironment):
-    def __init__(self, name='Trunk', youngModulus=450, poissonRatio=0.45, totalMass=0.042, inverseMode=False, all_cables=True):
-        super(Trunk, self).__init__(name=name)
+    def __init__(self, name='Trunk', youngModulus=450, poissonRatio=0.45, totalMass=0.042, inverseMode=False, all_cables=True, dt=0.01):
+        super(Trunk, self).__init__(name=name, dt=dt)
 
         self.nb_nodes = 709
         self.gravity = [0., 0., 9810.]
-
+        
         self.inverseMode = inverseMode
         self.robot.addObject('MeshVTKLoader', name='loader', filename=path + '/mesh/trunk.vtk')
         self.robot.addObject('MeshTopology', src='@loader', name='container')

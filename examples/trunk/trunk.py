@@ -90,10 +90,13 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     prob.ControllerClass = OpenLoopController
 
     # t0 is when force is actually applied and when data is saved
-    Sequences = TrunkRobotSequences(t0=t0, dt=0.01)
+    print("DT:", prob.Robot.dt)
+    Sequences = TrunkRobotSequences(t0=t0, dt=prob.Robot.dt)
 
     # 1) Wind up the robot
     t_duration1 = 1.0
+    print("input", input)
+    print("pre_tensioning", pre_tensioning)
     u_const = input + pre_tensioning
     u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
     u1 *= np.concatenate([np.linspace(0.5, 1, int(0.8*len(t1))), np.ones(len(t1) - int(0.8*len(t1)))])
@@ -123,7 +126,7 @@ def collect_open_loop_data(u_max=None, pre_tensioning=None, q0=None, t0=0.0, sav
     prob.Robot = trunkRobot(q0=q0)
     prob.ControllerClass = OpenLoopController
 
-    dt = 0.01
+    dt = prob.Robot.dt
     # Sequences = TrunkRobotSequences(t0=t0, dt=dt, umax=u_max)
     # u, save, t = Sequences.lhs_sequence(nbr_samples=200, interp_pts=20, seed=1234, add_base=True)  # ramp inputs between lhs samples
 
