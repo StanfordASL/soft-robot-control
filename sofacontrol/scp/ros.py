@@ -113,13 +113,16 @@ class GuSTOSolverNode(Node):
             with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "rb") as f:
                 y = pickle.load(f)
             self.model.dyn_sys.last_observation_y = y
-            xy = y[:2]
-            self.model.dyn_sys.y_bar_current = np.tile(self.model.dyn_sys.interpolator.transform(xy, 'q_bar'), 5)
-            self.model.dyn_sys.u_bar_current = self.model.dyn_sys.interpolator.transform(xy, 'u_bar')
-            self.model.dyn_sys.B_r_current = self.model.dyn_sys.interpolator.transform(xy, 'B_r')
-            self.model.dyn_sys.R_current = self.model.dyn_sys.interpolator.transform(xy, 'r_coeff')
-            self.model.dyn_sys.V_current = self.model.dyn_sys.interpolator.transform(xy, 'V')
-            self.model.dyn_sys.W_current = self.model.dyn_sys.interpolator.transform(xy, 'w_coeff')
+            if self.model.dyn_sys.interp_3d:
+                xy_z = y[:3]
+            else:
+                xy_z = y[:2]
+            self.model.dyn_sys.y_bar_current = np.tile(self.model.dyn_sys.interpolator.transform(xy_z, 'q_bar'), 5) # np.concatenate([self.model.dyn_sys.interpolator.transform(xy_z, 'q_bar'), np.zeros(3)]) # 
+            self.model.dyn_sys.u_bar_current = self.model.dyn_sys.interpolator.transform(xy_z, 'u_bar')
+            self.model.dyn_sys.B_r_current = self.model.dyn_sys.interpolator.transform(xy_z, 'B_r')
+            self.model.dyn_sys.R_current = self.model.dyn_sys.interpolator.transform(xy_z, 'r_coeff')
+            self.model.dyn_sys.V_current = self.model.dyn_sys.interpolator.transform(xy_z, 'V')
+            self.model.dyn_sys.W_current = self.model.dyn_sys.interpolator.transform(xy_z, 'w_coeff')
 
         # Get initial guess
         idx0 = np.argwhere(self.topt >= t0)[0, 0]

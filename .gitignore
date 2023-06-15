@@ -12,3 +12,4 @@ launch_sofa.py.qglviewer.view
 launch_sofa_modal_analysis.py.qglviewer.view
 robots/data/old_modes/
 examples/*/SSMmodels/
+random_stuff.ipynb

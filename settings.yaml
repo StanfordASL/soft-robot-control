@@ -4,10 +4,19 @@ collectDecayData: {
   robot: "trunk",
   u_dim: 8,
   # settings for overall data collection
-  n_samples: 100,
-  max_pre_tensioning: 500,
-  n_grid: 7,
-  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_N=100/",
+  # define grid and use closed-loop controller to find the right pre-tensionings
+  x_range: [-45, 45],
+  y_range: [-45, 45],
+  z_range: [0, -20],
+  n_grid: {
+    x: 7,
+    y: 7,
+    z: 3,
+  },
+  # n_samples: 100,
+  # combine_pre_tensionings: [0, 150, 300],
+  # sparsity: 0.95,
+  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=147",
   # settings for single decay trajectories
   combine_inputs: [0, 800],
   n_traj: 40,
@@ -36,7 +45,6 @@ collectDecayData: {
   #   [0, 0, 200, 200, 0, 0, 200, 200],
   #   [200, 0, 0, 200, 200, 0, 0, 200],
   # ],
-
 }
 
 # collect open-loop controlled data
@@ -44,8 +52,8 @@ collectDecayData: {
 collectInputData: {
   robot: "trunk",
   u_dim: 8,
-  u_max: 200,
-  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_N=100/",
+  u_max: 100,
+  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=147",
   # save_dir: [
   #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/open-loop",
   #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/open-loop",

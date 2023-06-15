@@ -12,12 +12,10 @@ import pickle
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "origin_only" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg"
+INTERPOLATION_METHOD = "idw" # "natural_neighbor" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg", "qp"
+ORIGIN_IDX = 0
 
 DISCR_DICT = {'fe': 'forward Euler', 'be': 'implicit Euler', 'bil': 'bilinear transform', 'zoh': 'zero-order hold'}
-
-USE_ORIGIN_ONLY = False     # set this to True to recover the basic SSMR case
-ORIGIN_IDX = 2 # model_names.index("origin")
 
 
 class AdiabaticSSM:
@@ -26,7 +24,7 @@ class AdiabaticSSM:
     forward simulate the dynamics (i.e. perform rollout)
     """
 
-    def __init__(self, eq_point, models, params, discrete=False, discr_method='fe', C=None, zf_target=None, debug=False, **kwargs):
+    def __init__(self, eq_point, models, params, discrete=False, discr_method='fe', C=None, zf_target=None, **kwargs):
         self.maps = {}
 
         self.discrete = discrete
@@ -35,28 +33,8 @@ class AdiabaticSSM:
         self.models = models
         self.params = params
 
-        self.debug = debug
         self.adiabatic = True
-
-        if self.debug:
-            self.xdot = []
-            self.x = []
-            self.y = []
-            self.u = []
-            self.ybar = []
-            self.ubar = []
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/xdot.pkl", "wb") as f:
-                pickle.dump(self.xdot, f)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/x.pkl", "wb") as f:
-                pickle.dump(self.x, f)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/y.pkl", "wb") as f:
-                pickle.dump(self.y, f)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/u.pkl", "wb") as f:
-                pickle.dump(self.u, f)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/ybar.pkl", "wb") as f:
-                pickle.dump(self.ybar, f)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/ubar.pkl", "wb") as f:
-                pickle.dump(self.ubar, f)
+        self.interp_3d = True
         
         # Model dimensions
         self.state_dim = self.params['state_dim']
@@ -100,7 +78,13 @@ class AdiabaticSSM:
                     'u_bar': self.u_bar,
                     'q_bar': self.q_bar
                 }
-        self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:2] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        if self.v_coeff[0] is not None:
+            self.coeff_dict['V'] = self.v_coeff
+        
+        if self.interp_3d:
+            self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:3] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        else:
+            self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:2] for q in self.q_bar], self.coeff_dict).get_interpolator()
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
@@ -114,7 +98,7 @@ class AdiabaticSSM:
         with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "wb") as f:
             pickle.dump(self.last_observation_y, f)
         self.u_bar_current = self.u_bar[ORIGIN_IDX]
-        self.y_bar_current = np.tile(self.q_bar[ORIGIN_IDX], 5)
+        self.y_bar_current = np.tile(self.q_bar[ORIGIN_IDX], 5) # np.zeros(6) # 
         self.B_r_current = self.B_r[ORIGIN_IDX]
         self.R_current = self.r_coeff[ORIGIN_IDX]
         self.V_current = self.V[ORIGIN_IDX]
@@ -142,9 +126,7 @@ class AdiabaticSSM:
         :yf: (N, n_y) or (n_y,) array
         """
         if self.y_ref is not None:
-            print("self.yref:", self.y_ref)
             zy = zf - self.y_ref
-            print("zy:", zy)
             return zy
         else:
             raise RuntimeError('Need to specify equilibrium point')
@@ -156,7 +138,6 @@ class AdiabaticSSM:
         """
         if self.y_ref is not None:
             zfyf = y + self.y_ref
-            print("zfyf:", zfyf)
             return zfyf
         else:
             raise RuntimeError('Need to specify equilibrium point')
@@ -210,12 +191,9 @@ class AdiabaticSSM:
         # Simulate
         for i in range(N):
             x[i+1,:] = self.update_state(x[i,:], u[i,:], dt)
-            # print(x[i, :].shape, self.update_observer_state(x[i, :]).shape)
             z_lin[i,:] = self.update_observer_state(x[i, :])
 
         z = self.x_to_zfyf(x)
-        print("rollout z:", z)
-
         return x, z
 
     def get_poly_basis(self, dim, order):
@@ -228,17 +206,10 @@ class AdiabaticSSM:
 
     # Continuous maps
     def reduced_dynamics(self, R, B, x, u, u_bar):
-        print("compile reduced_dynamics")
         xdot = jnp.dot(R, jnp.asarray(self.rom_phi(*x))) + jnp.dot(B, jnp.asarray(self.control_phi(*(u - u_bar))))
         return xdot
 
     def reduced_to_output(self, W, x, y_bar):
-        print("compile reduced_to_output")
-        if self.debug:
-            print(x)
-            self.x.append(x)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/x.pkl", "wb") as f:
-                pickle.dump(self.x, f)
         output = jnp.dot(jnp.asarray(self.C), (jnp.dot(jnp.asarray(W), jnp.asarray(self.ssm_map_phi(*x))).T + y_bar).T)
         return output
 
@@ -253,31 +224,20 @@ class AdiabaticSSM:
     
     # no jit
     def observed_to_reduced(self, V, y, y_bar):
-        # print("compile observed_to_reduced")
         if not jnp.allclose(y, self.last_observation_y):
             with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "wb") as f:
                 pickle.dump(y, f)
-            xy = y[:2]
-            # print("xy:", xy)
-            self.y_bar_current = np.tile(self.interpolator.transform(xy, 'q_bar'), 5)
-            self.u_bar_current = self.interpolator.transform(xy, 'u_bar')
-            self.B_r_current = self.interpolator.transform(xy, 'B_r')
-            self.R_current = self.interpolator.transform(xy, 'r_coeff')
-            self.V_current = self.interpolator.transform(xy, 'V')
-            self.W_current = self.interpolator.transform(xy, 'w_coeff')
-
-        if self.debug:
-            self.y.append(y)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/y.pkl", "wb") as f:
-                pickle.dump(self.y, f)
-            self.ybar.append(self.y_bar_current)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/ybar.pkl", "wb") as f:
-                pickle.dump(self.ybar, f)
-            self.ubar.append(self.u_bar_current)
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/debug_plots/ubar.pkl", "wb") as f:
-                pickle.dump(self.ubar, f)
-
-        return jnp.dot(jnp.transpose(V), y - y_bar)
+            if self.interp_3d:
+                xy_z = y[:3]
+            else:
+                xy_z = y[:2]
+            self.y_bar_current = np.tile(self.interpolator.transform(xy_z, 'q_bar'), 5) # np.concatenate([self.interpolator.transform(xy_z, 'q_bar'), np.zeros(3)]) # 
+            self.u_bar_current = self.interpolator.transform(xy_z, 'u_bar')
+            self.B_r_current = self.interpolator.transform(xy_z, 'B_r')
+            self.R_current = self.interpolator.transform(xy_z, 'r_coeff')
+            self.V_current = self.interpolator.transform(xy_z, 'V')
+            self.W_current = self.interpolator.transform(xy_z, 'w_coeff')
+        return jnp.dot(jnp.transpose(V), y - y_bar) # jnp.dot(V, jnp.asarray(self.ssm_chart_phi(*(y - y_bar)))) # 
 
 
 class AdiabaticSSMDynamics(AdiabaticSSM):
@@ -302,14 +262,8 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
             R: jnp.ndarray,
             B_r: jnp.ndarray,
             u_bar: jnp.ndarray):
-        t0 = time.time()
         A, B = jax.jacobian(self.maps['f_nl'], (2, 3))(R, B_r, x, u, u_bar)
-        # A = np.eye(6)
-        # B = self.B_r_current
-        t1 = time.time()
-        # print(f"computed Jacobians in {t1-t0} seconds")
         d = self.maps['f_nl'](R, B_r, x, u, u_bar) - jnp.dot(A, x) - jnp.dot(B, u)
-        # print(f"Evaluated f_nl in {time.time()-t1} seconds")
         return A, B, d
 
     # @partial(jax.jit, static_argnums=(0,))
@@ -322,9 +276,6 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
 
     @partial(jax.jit, static_argnums=(0,))
     def get_jacobians(self, x, u, dt, R, B_r, u_bar):
-        # x = x.reshape(self.state_dim, 1)
-        # u = u.reshape(self.input_dim, 1)
-        # print("compile get_jacobians")
         # if not self.discrete:
         Ac, Bc, dc = self.get_continuous_jacobians(jnp.asarray(x), jnp.asarray(u), R, B_r, u_bar)
         A, B, d = self.discretize_dynamics(Ac, Bc, dc, dt)
@@ -345,11 +296,7 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
                             x: jnp.ndarray,
                             W: jnp.ndarray,
                             y_bar: jnp.ndarray):
-        # print("compile get_observer_jacobians")
         H = jax.jacobian(self.W_map, 1)(W, x, y_bar)
-        # print("C.shape:", self.C.shape)
-        # print("W_current.shape:", self.W_current.shape)
-        # H = np.ones((3, 6)) # self.C @ self.W_current
         c_res = self.W_map(W, x, y_bar) - jnp.dot(H, x)
         return H, c_res
 
