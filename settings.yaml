@@ -1,10 +1,36 @@
 # collect decay data
 # run "./launch_sofa_collectDecayTrajectories.py"
 collectDecayData: {
-  robot: "trunk",
-  u_dim: 8,
-  # settings for overall data collection
-  # define grid and use closed-loop controller to find the right pre-tensionings
+  robot: "diamond",
+  u_dim: 4,
+  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/diamond_adiabatic_test_origin",
+
+  # settings for single decay trajectories
+  combine_inputs: [0, 1000, 3000],
+  n_traj: 40,
+  u_min: 0,
+  u_max: 4000,
+
+  # define how the pre-tensionings are found:
+  # "specified": use the list of pre_tensionings specified below
+  # "grid": use an existing controller to find the right mean control forces which achieve a fixed grid in the workspace
+  # "random": use n_samples random pre-tensionings 
+  find_pre_tensionings: "specified", # "grid" # "random"
+
+  # settings for find_pre_tensionings = "specified"
+  pre_tensionings: [
+    [0, 0, 0, 0],
+    # [200, 0, 0, 0, 200, 0, 0, 0],
+    # [0, 200, 0, 0, 0, 200, 0, 0],
+    # [0, 0, 200, 0, 0, 0, 200, 0],
+    # [0, 0, 0, 200, 0, 0, 0, 200],
+    # [200, 200, 0, 0, 200, 200, 0, 0],
+    # [0, 200, 200, 0, 0, 200, 200, 0],
+    # [0, 0, 200, 200, 0, 0, 200, 200],
+    # [200, 0, 0, 200, 200, 0, 0, 200],
+  ],
+
+  # settings for find_pre_tensionings = "grid"
   x_range: [-45, 45],
   y_range: [-45, 45],
   z_range: [0, -20],
@@ -13,68 +39,19 @@ collectDecayData: {
     y: 7,
     z: 3,
   },
-  # n_samples: 100,
-  # combine_pre_tensionings: [0, 150, 300],
-  # sparsity: 0.95,
-  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=147",
-  # settings for single decay trajectories
-  combine_inputs: [0, 800],
-  n_traj: 40,
-  u_min: 0,
-  u_max: 1000,
-  # must specify one save_dir per pre_tensioning and in matching order!
-  # save_dir: [
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/west/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/south/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/east/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northwest/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southwest/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southeast/decay",
-  #   "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northeast/decay",
-  # ],
-  # pre_tensioning: [
-  #   [0, 0, 0, 0, 0, 0, 0, 0],
-  #   [200, 0, 0, 0, 200, 0, 0, 0],
-  #   [0, 200, 0, 0, 0, 200, 0, 0],
-  #   [0, 0, 200, 0, 0, 0, 200, 0],
-  #   [0, 0, 0, 200, 0, 0, 0, 200],
-  #   [200, 200, 0, 0, 200, 200, 0, 0],
-  #   [0, 200, 200, 0, 0, 200, 200, 0],
-  #   [0, 0, 200, 200, 0, 0, 200, 200],
-  #   [200, 0, 0, 200, 200, 0, 0, 200],
-  # ],
+
+  # settings for find_pre_tensionings = "random"
+  n_samples: 100,
+  combine_pre_tensionings: [0, 150, 300],
+  sparsity: 0.95,
 }
 
 # collect open-loop controlled data
 # run "./launch_sofa_collectInputTrajectories.py"
 collectInputData: {
+  # need to run collection of decay trajectories first (at least the early stages), to get the pre-tensionings
   robot: "trunk",
   u_dim: 8,
   u_max: 100,
   save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=147",
-  # save_dir: [
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/origin/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/north/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/west/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/south/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/east/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northwest/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southwest/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/southeast/open-loop",
-  #   # "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_1ms/northeast/open-loop",
-  #   # "/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/dataCollection/open-loop_500"
-  # ],
-  # pre_tensioning: [
-  #   # [0, 0, 0, 0, 0, 0, 0, 0],
-  #   # [200, 0, 0, 0, 200, 0, 0, 0],
-  #   # [0, 200, 0, 0, 0, 200, 0, 0],
-  #   # [0, 0, 200, 0, 0, 0, 200, 0],
-  #   # [0, 0, 0, 200, 0, 0, 0, 200],
-  #   # [200, 200, 0, 0, 200, 200, 0, 0],
-  #   # [0, 200, 200, 0, 0, 200, 200, 0],
-  #   # [0, 0, 200, 200, 0, 0, 200, 200],
-  #   # [200, 0, 0, 200, 200, 0, 0, 200],
-  # ]
 }

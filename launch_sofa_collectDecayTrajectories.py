@@ -13,24 +13,16 @@ import Sofa.Core
 import Sofa.Simulation
 import SofaRuntime
 import numpy as np
-import scipy.io as spio
-from itertools import combinations, permutations, product
 from tqdm.auto import tqdm
-from pathlib import Path
 
 import numpy as np
-import itertools
 import yaml
 import pickle
-import rclpy
 
 from psutil import virtual_memory
 import sys
 from examples.trunk.trunk_adiabaticSSM import run_scp, run_gusto_solver
 from multiprocessing import Process
-from time import sleep
-
-import matplotlib.pyplot as plt
 
 path = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path, "settings.yaml"), "rb") as f:
@@ -113,13 +105,6 @@ def createScene_CL(rootNode, z, T):
     rootNode.addObject('BackgroundSetting', color='0 0.168627 0.211765')
     rootNode.addObject('OglSceneFrame', style="Arrows", alignment="TopRight")
     rootNode.addObject('DefaultVisualManagerLoop')
-
-    # if SETTINGS['robot'] == 'diamond':
-    #     from examples.diamond import diamond as platform
-    # elif SETTINGS['robot'] == 'trunk':
-    #     from examples.trunk import trunk as platform
-    # else:
-    #     raise RuntimeError("Please specify a valid platform to be used in settings.yaml / ['diamond', 'trunk']")
     
     prob = run_scp(z, T)
     prob.checkDefinition()
@@ -166,8 +151,7 @@ def collectDecayTrajectories():
 
     # Load settings
     save_dir = SETTINGS['save_dir']
-    # combine_pre_tensionings = SETTINGS['combine_pre_tensionings']
-    # n_samples = SETTINGS['n_samples']
+
     u_dim = SETTINGS['u_dim']
     n_trajs = SETTINGS['n_traj']
 
@@ -179,85 +163,86 @@ def collectDecayTrajectories():
     if os.path.exists(os.path.join(save_dir, "pre_tensionings.pkl")):
         with open(os.path.join(save_dir, "pre_tensionings.pkl"), "rb") as f:
             pre_tensionings = pickle.load(f)
+            
     else:
-        # Find the right pre_tensionings by applying closed-loop controller
-        pre_tensionings = []
-        x = np.linspace(SETTINGS['x_range'][0], SETTINGS['x_range'][1], SETTINGS['n_grid']['x'])
-        y = np.linspace(SETTINGS['y_range'][0], SETTINGS['y_range'][1], SETTINGS['n_grid']['y'])
-        z = np.linspace(SETTINGS['z_range'][0], SETTINGS['z_range'][1], SETTINGS['n_grid']['z'])
-        N = 300
-        t = np.linspace(0, N*0.01, N)
-        i = 0
-        for zi in z:
-            for yi in y:
-                for xi in x:
-                    # If pre-tensioning exists
-                    if os.path.exists(os.path.join(save_dir, "tmp_pretensionings", f"pre_tensioning_{i:03}.pkl")):
-                        # Load pre-tensioning
-                        with open(os.path.join(save_dir, "tmp_pretensionings", f"pre_tensioning_{i:03}.pkl"), "rb") as f:
-                            pre_tensioning = pickle.load(f)
-                    else:
-                        zi_constr = -(195 - np.sqrt(195**2 - xi**2 - yi**2)) + zi
-                        z = np.tile(np.hstack([xi, yi, zi_constr]), (N, 1))
-                        # ramp inputs to make trajectory more well-behaved
-                        z *= np.concatenate([np.linspace(0, 1, N//2), np.ones(N//2)])[:, None]
+        if SETTINGS['find_pre_tensionings'] == "grid":
+            # Find the right pre_tensionings by applying closed-loop controller
+            pre_tensionings = []
+            x = np.linspace(SETTINGS['x_range'][0], SETTINGS['x_range'][1], SETTINGS['n_grid']['x'])
+            y = np.linspace(SETTINGS['y_range'][0], SETTINGS['y_range'][1], SETTINGS['n_grid']['y'])
+            z = np.linspace(SETTINGS['z_range'][0], SETTINGS['z_range'][1], SETTINGS['n_grid']['z'])
+            N = 300
+            t = np.linspace(0, N*0.01, N)
+            i = 0
+            for zi in z:
+                for yi in y:
+                    for xi in x:
+                        # If pre-tensioning exists
+                        if os.path.exists(os.path.join(save_dir, "tmp_pretensionings", f"pre_tensioning_{i:03}.pkl")):
+                            # Load pre-tensioning
+                            with open(os.path.join(save_dir, "tmp_pretensionings", f"pre_tensioning_{i:03}.pkl"), "rb") as f:
+                                pre_tensioning = pickle.load(f)
+                        else:
+                            zi_constr = -(195 - np.sqrt(195**2 - xi**2 - yi**2)) + zi
+                            z = np.tile(np.hstack([xi, yi, zi_constr]), (N, 1))
+                            # ramp inputs to make trajectory more well-behaved
+                            z *= np.concatenate([np.linspace(0, 1, N//2), np.ones(N//2)])[:, None]
 
-                        print(z)
-                        # start process running gusto_solver with argument z
-                        p_gusto = Process(target=run_gusto_solver, args=(t, z,))
-                        p_gusto.start()
-                        # start SOFA simulation
-                        root = Sofa.Core.Node()
-                        rootNode = createScene_CL(root, z=z, T=1+N*0.01)
-                        Sofa.Simulation.init(root)
-                        while True:
-                            Sofa.Simulation.animate(root, root.dt.value)
-                            if rootNode.autopaused == True:
-                                break  # Terminates simulation when autopaused
-                        # terminate process running gusto_solver
-                        p_gusto.terminate()
-                        p_gusto.join()
-                        p_gusto.close()
-                        # Load the resulting trajectory data
-                        with open(os.path.join("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk", "ssmr_sim.pkl"), "rb") as f:
-                            # Extract the pre-tensioning
-                            sim_data = pickle.load(f)
-                        pre_tensioning = sim_data['u'][-1]
+                            print(z)
+                            # start process running gusto_solver with argument z
+                            p_gusto = Process(target=run_gusto_solver, args=(t, z,))
+                            p_gusto.start()
+                            # start SOFA simulation
+                            root = Sofa.Core.Node()
+                            rootNode = createScene_CL(root, z=z, T=1+N*0.01)
+                            Sofa.Simulation.init(root)
+                            while True:
+                                Sofa.Simulation.animate(root, root.dt.value)
+                                if rootNode.autopaused == True:
+                                    break  # Terminates simulation when autopaused
+                            # terminate process running gusto_solver
+                            p_gusto.terminate()
+                            p_gusto.join()
+                            p_gusto.close()
+                            # Load the resulting trajectory data
+                            with open(os.path.join("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk", "ssmr_sim.pkl"), "rb") as f:
+                                # Extract the pre-tensioning
+                                sim_data = pickle.load(f)
+                            pre_tensioning = sim_data['u'][-1]
+                            
+                            assert len(pre_tensioning) == u_dim
+                            # Save the pre-tensioning
+                            with open(os.path.join(save_dir, "tmp_pretensionings", f"pre_tensioning_{i:03}.pkl"), "wb") as f:
+                                pickle.dump(pre_tensioning, f)
+                            os.execv(sys.executable, ['python'] + sys.argv)
+                        i += 1
+                        print(f"Pre-tensioning at ({xi}, {yi}, {zi}): {pre_tensioning}")
+                        pre_tensionings.append(pre_tensioning.astype(float))
+        
+        elif SETTINGS['find_pre_tensionings'] == "random":
+            # Sample pre-tensionings randomly
+            combine_pre_tensionings = SETTINGS['combine_pre_tensionings']
+            n_samples = SETTINGS['n_samples']
+            rng = np.random.default_rng(seed=42)
+            pre_tensionings = [np.zeros(u_dim)]
+            while len(pre_tensionings) < n_samples:
+                probs = np.concatenate([[SETTINGS['sparsity']], np.ones(len(combine_pre_tensionings) - 1) * (1 - SETTINGS['sparsity']) / (len(combine_pre_tensionings) - 1)])
+                sampled_pre_tensioning = np.random.choice(combine_pre_tensionings, size=u_dim, p=probs)
+                if not np.any([np.allclose(pre_tensioning, sampled_pre_tensioning) for pre_tensioning in pre_tensionings]):
+                    pre_tensionings.append(sampled_pre_tensioning.astype(float))
 
-                        # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-                        # ax.plot(sim_data['t'], sim_data['u'])
-                        # ax.set_xlabel('Time [s]')
-                        # ax.set_ylabel('Pre-tensioning [N]')
-                        # plt.show()
-                        # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-                        # ax.plot(sim_data['t'], sim_data['z'][:, 3:])
-                        # ax.set_xlabel('Time [s]')
-                        # ax.set_ylabel('Tip position [mm]')
-                        # plt.show()
-                        
-                        assert len(pre_tensioning) == u_dim
-                        # Save the pre-tensioning
-                        with open(os.path.join(save_dir, "tmp_pretensionings", f"pre_tensioning_{i:03}.pkl"), "wb") as f:
-                            pickle.dump(pre_tensioning, f)
-                        os.execv(sys.executable, ['python'] + sys.argv)
-                    i += 1
-                    print(f"Pre-tensioning at ({xi}, {yi}, {zi}): {pre_tensioning}")
-                    pre_tensionings.append(pre_tensioning.astype(float))
+        elif SETTINGS['find_pre_tensionings'] == "specified":
+            # Use pre-tensionings specified in settings.yaml
+            pre_tensionings = np.array(SETTINGS['pre_tensionings'])
+
+        else:
+            raise ValueError(f"Invalid value for find_pre_tensionings: {SETTINGS['find_pre_tensionings']}")
+
         # Save the pre-tensionings for future runs
         with open(os.path.join(save_dir, "pre_tensionings.pkl"), "wb") as f:
             pickle.dump(pre_tensionings, f)
-        
-        # rng = np.random.default_rng(seed=42)
-        # pre_tensionings = [np.zeros(u_dim)]
-        # while len(pre_tensionings) < n_samples:
-        #     probs = np.concatenate([[SETTINGS['sparsity']], np.ones(len(combine_pre_tensionings) - 1) * (1 - SETTINGS['sparsity']) / (len(combine_pre_tensionings) - 1)])
-        #     sampled_pre_tensioning = np.random.choice(combine_pre_tensionings, size=u_dim, p=probs)
-        #     if not np.any([np.allclose(pre_tensioning, sampled_pre_tensioning) for pre_tensioning in pre_tensionings]):
-        #         pre_tensionings.append(sampled_pre_tensioning.astype(float))
-        # with open(os.path.join(save_dir, "pre_tensionings.pkl"), "wb") as f:
-        #     pickle.dump(pre_tensionings, f)
-
-    # Do one simulation per pre-tensioning to collect rest configurations
+    
+    # Do one short simulation per pre-tensioning to collect rest configurations
     if os.path.exists(os.path.join(save_dir, "rest_qs.pkl")):
         with open(os.path.join(save_dir, "rest_qs.pkl"), "rb") as f:
             rest_qs = pickle.load(f)
@@ -266,6 +251,7 @@ def collectDecayTrajectories():
         rest_qs = []
         for pre_tensioning in tqdm(pre_tensionings):
             root = Sofa.Core.Node()
+            print(pre_tensioning)
             rootNode = createScene_OL(root, q0=None, save_filepath=os.path.join(save_dir, "temp_rest_traj"), input=np.zeros(u_dim), pre_tensioning=pre_tensioning)
             Sofa.Simulation.init(root)
             while True:
@@ -280,7 +266,7 @@ def collectDecayTrajectories():
             pickle.dump(rest_qs, f)
         # assert len(rest_qs) == n_samples
 
-    # Do one simulation per pre-tensioning to collect decay trajectories
+    # Do n_trajs simulations per pre-tensioning to collect decay trajectories
     for i, pre_tensioning in enumerate(tqdm(pre_tensionings)):
         model_dir = os.path.join(save_dir, f"{i:03}/decay/")
         if not os.path.exists(model_dir):
@@ -295,7 +281,6 @@ def collectDecayTrajectories():
             with open(os.path.join(model_dir, "inputs.pkl"), "rb") as f:
                 inputs = pickle.load(f)
         else:
-            rng = np.random.default_rng(seed=42)
             inputs = []
             while len(inputs) < n_trajs:
                 sampled_input = np.random.choice(combine_inputs, size=u_dim)
