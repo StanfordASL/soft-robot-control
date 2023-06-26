@@ -278,7 +278,8 @@ def run_gusto_solver():
     from sofacontrol.scp.models.ssm import SSMGuSTO
     from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
-    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron
+    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron, \
+        drawContinuousPath, resample_waypoints
     from sofacontrol.SSM import ssm
     from scipy.io import loadmat
     import pickle
@@ -320,24 +321,44 @@ def run_gusto_solver():
     # V_ortho = np.array([-0.5106, 0.4126, -0.6370, .4041])
 
     #############################################
-    # Problem 1, Figure 8 with constraints
+    # Problem 0, Custom Drawn Trajectory
     #############################################
-    # Define cost functions and trajectory
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100  # corresponding to x position of end effector
     Qz[1, 1] = 100  # corresponding to y position of end effector
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
     R = .00001 * np.eye(model.input_dim)
 
-    M = 1
-    T = 5
-    N = 1000
-    radius = 15
-    t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    zf_target[:, 0] += -radius * np.sin(th)
-    zf_target[:, 1] += radius * np.sin(2 * th)
+    # Draw the desired trajectory
+    points = drawContinuousPath(0.5)
+    resampled_pts = resample_waypoints(points, 0.5)
+
+    # Setup target trajectory
+    t = np.linspace(0, 5, resampled_pts.shape[0])
+    x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
+    zf_target = np.zeros((resampled_pts.shape[0], model.output_dim))
+    zf_target[:, 0] = x_target
+    zf_target[:, 1] = y_target
+
+    #############################################
+    # Problem 1, Figure 8 with constraints
+    #############################################
+    # Define cost functions and trajectory
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100  # corresponding to x position of end effector
+    # Qz[1, 1] = 100  # corresponding to y position of end effector
+    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
+    #
+    # M = 1
+    # T = 5
+    # N = 1000
+    # radius = 15
+    # t = np.linspace(0, M * T, M * N + 1)
+    # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # zf_target[:, 0] += -radius * np.sin(th)
+    # zf_target[:, 1] += radius * np.sin(2 * th)
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)

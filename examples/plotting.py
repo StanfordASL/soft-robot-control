@@ -10,7 +10,7 @@ import yaml
 import pickle
 
 from sofacontrol.measurement_models import linearModel
-from sofacontrol.utils import qv2x
+from sofacontrol.utils import qv2x, load_data
 
 
 path = dirname(abspath(__file__))
@@ -85,8 +85,13 @@ elif TARGET == "figure8":
     zf_target[:, 0] += -radius * np.sin(th)
     zf_target[:, 1] += radius * np.sin(2 * th)
     zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
+else:
+    zf_target = load_data()
+
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
+
+
 
 SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
 if not exists(SAVE_DIR):
@@ -365,7 +370,7 @@ def rmse_calculations():
 
 
 if __name__ == "__main__":
-    rmse_calculations()
+    # rmse_calculations()
     traj_3D()
     traj_inputs_vs_t()
     traj_x_vs_y()

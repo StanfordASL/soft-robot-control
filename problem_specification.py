@@ -36,8 +36,8 @@
 # problem = diamond_koopman.run_koopman
 # problem = diamond_koopman.run_MPC_OL
 
-# from examples.hardware import diamond_SSM
-# problem = diamond_SSM.run_scp
+from examples.hardware import diamond_SSM
+problem = diamond_SSM.run_scp
 # problem = diamond_SSM.run_scp_OL
 # problem = diamond_SSM.module_test
 # problem = diamond_SSM.module_test_continuous
@@ -58,8 +58,8 @@
 # from examples.trunk import trunk_SSM
 # problem = trunk_SSM.run_scp
 
-from examples.trunk import trunk_adiabaticSSM
-problem = trunk_adiabaticSSM.run_scp
+# from examples.trunk import trunk_adiabaticSSM
+# problem = trunk_adiabaticSSM.run_scp
 
 # from examples.trunk import trunk
 # problem = trunk.sim_OL
