@@ -42,24 +42,30 @@
 # problem = diamond_SSM.module_test
 # problem = diamond_SSM.module_test_continuous
 
-### TRUNK ROBOT PROBLEM SPECIFICATION ###
+# @ Jonas
+# =============== TRUNK ROBOT =============== #
+
 # from examples.trunk import calibration
 # problem = calibration.rest_calibration
-# from examples.trunk import trunk
 # problem = trunk.apply_constant_input
-# problem = trunk.collect_POD_data
-#problem = trunk.collect_TPWL_data
-# problem = trunk.run_scp
-#problem = trunk.run_ilqr
+# from examples.trunk import trunk
+# problem = trunk.sim_OL
 
-#from examples.trunk import trunk_koopman
-#problem = trunk_koopman.run_koopman
+# KOOPMAN
+# from examples.trunk import trunk_koopman
+# problem = trunk_koopman.run_koopman
 
+# SSM
 # from examples.trunk import trunk_SSM
 # problem = trunk_SSM.run_scp
 
+# ADIABATIC SSM
 from examples.trunk import trunk_adiabaticSSM
 problem = trunk_adiabaticSSM.run_scp
 
-# from examples.trunk import trunk
-# problem = trunk.sim_OL
+# TPWL
+# from examples.trunk import trunk_tpwl
+# # problem = trunk_tpwl.collect_POD_data
+# # problem = trunk_tpwl.collect_TPWL_data
+# problem = trunk_tpwl.run_scp
+# # problem = trunk_tpwl.run_ilqr

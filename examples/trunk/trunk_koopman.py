@@ -34,10 +34,80 @@ root = dirname(path)
 sys.path.append(root)
 
 from examples import Problem
-from examples.hardware.model import diamondRobot
+from examples.trunk.model import trunkRobot
 
-# Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
+from sofacontrol.utils import QuadraticCost, HyperRectangle, Polyhedron, qv2x, load_data
+from sofacontrol.measurement_models import MeasurementModel
+from scipy.io import loadmat
+
+from sofacontrol.tpwl.tpwl_utils import Target
+
+from sofacontrol.baselines.koopman import koopman_utils
+
+# Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
+TIP_NODE = 51
+N_NODES = 709
+
+# Load equilibrium point
+rest_file = join(path, 'rest_qv.pkl')
+rest_data = load_data(rest_file)
+q_equilibrium = np.array(rest_data['q'][0])
+
+# Setup equilibrium point (no time delay and observed position and velocity of tip)
+x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+
+koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
+raw_model = koopman_data['model']
+raw_params = koopman_data['params']
+model = koopman_utils.KoopmanModel(raw_model, raw_params)
+scaling = koopman_utils.KoopmanScaling(scale=model.scale)
+
+print(scaling.y_offset)
+print(scaling.u_offset)
+print(scaling.y_factor)
+print(scaling.u_factor)
+
+cov_q = 0.0 * np.eye(3)
+outputModel = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
+z_eq_point = outputModel.evaluate(x_eq)
+
+cost = QuadraticCost()
+target = Target()
+
+# Define target trajectory for optimization
+# === figure8 ===
+# M = 1
+# T = 10
+# N = 1000
+# radius = 30.
+# t = np.linspace(0, M * T, M * N)
+# th = np.linspace(0, M * 2 * np.pi, M * N)
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
+# # zf_target = np.zeros((M * N, model.n))
+# zf_target[:, 0] += -radius * np.sin(th)
+# zf_target[:, 1] += radius * np.sin(2 * th)
+# # zf_target[:, 2] += -np.ones(len(t)) * 10
+
+# # === circle with constant z ===
+M = 1
+T = 10
+N = 1000
+radius = 20.
+t = np.linspace(0, M * T, M * N )
+th = np.linspace(0, M * 2 * np.pi, M * N) + np.pi / 2
+zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
+# zf_target = np.zeros((M * N, model.n))
+zf_target[:, 0] += radius * np.cos(th)
+zf_target[:, 1] += radius * np.sin(th)
+zf_target[:, 2] += -np.ones(len(t)) * 10
+
+# Cost
+cost.R = .00001 * np.eye(model.m)
+cost.Q = np.zeros((model.n, model.n))
+cost.Q[0, 0] = 100  # corresponding to x position of end effector
+cost.Q[1, 1] = 100  # corresponding to y position of end effector
+cost.Q[2, 2] = 1000  # corresponding to z position of end effector
 
 
 def generate_koopman_data():
@@ -49,8 +119,8 @@ def generate_koopman_data():
     from sofacontrol.measurement_models import linearModel
 
     koopman_data_name = 'pod_snapshots'
-    num_nodes = 709
-    ee_node = [51]
+    num_nodes = N_NODES
+    ee_node = [TIP_NODE]
     koopman_data = load_data(join(path, '{}.pkl'.format(koopman_data_name)))
 
     state = qv2x(q=koopman_data['q'], v=koopman_data['v'])
@@ -72,42 +142,33 @@ def run_koopman():
     """
     In problem_specification add:
 
-    from examples.diamond import diamond_koopman
-    problem = diamond_koopman.run_koopman
+    from examples.trunk import trunk_koopman
+    problem = trunk_koopman.run_koopman
 
     then run:
 
     python3 launch_sofa.py
     """
-    from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.baselines.koopman import koopman_utils, koopman
+    from sofacontrol.baselines.koopman import koopman
     from robots import environments
-    from scipy.io import loadmat
-    from sofacontrol.measurement_models import MeasurementModel
-    from sofacontrol.utils import Polyhedron
-    koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
-    raw_model = koopman_data['model']
-    raw_params = koopman_data['params']
-    model = koopman_utils.KoopmanModel(raw_model, raw_params)
-    scaling = koopman_utils.KoopmanScaling(scale=model.scale)
+    from sofacontrol.closed_loop_controller import ClosedLoopController
 
     prob = Problem()
     prob.Robot = environments.Trunk()
     prob.ControllerClass = ClosedLoopController
 
     cov_q = 0.0 * np.eye(3)
-    prob.measurement_model = MeasurementModel(nodes=[51], num_nodes=prob.Robot.nb_nodes, pos=True, vel=False, S_q=cov_q)
-    prob.output_model = prob.Robot.get_measurement_model(nodes=[51])
-
+    prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
     # Building A matrix
     Hz = np.zeros((1, 3))
     Hz[0, 1] = 1
     b_z = np.array([5])
     Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
 
-    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=3, rollout_horizon=1, Y=Y)
+    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1, Y=Y)
 
-    prob.opt['sim_duration'] = 13.  # Simulation time, optional
+    prob.opt['sim_duration'] = 11.  # Simulation time, optional
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'koopman'
 
@@ -118,88 +179,8 @@ def run_koopman_solver():
     """
     python3 diamond_koopman.py run_koopman_solver
     """
-    from scipy.io import loadmat
-    from sofacontrol.baselines.koopman import koopman_utils
     from sofacontrol.baselines.ros import runMPCSolverNode
-    from sofacontrol.tpwl.tpwl_utils import Target
-    from sofacontrol.utils import QuadraticCost
-    from sofacontrol.utils import HyperRectangle, Polyhedron
-
-    koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
-    raw_model = koopman_data['model']
-    raw_params = koopman_data['params']
-    model = koopman_utils.KoopmanModel(raw_model, raw_params)
-    scaling = koopman_utils.KoopmanScaling(scale=model.scale)
-
-    cost = QuadraticCost()
-    target = Target()
-    #############################################
-    # Problem 1, Figure 8 with constraints
-    #############################################
-    M = 3
-    T = 10
-    N = 500
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M * 2 * np.pi, M*N)
-    zf_target = np.zeros((M*N, model.n))
-    zf_target[:, 0] = -20. * np.sin(th)
-    zf_target[:, 1] = 20. * np.sin(2 * th)
-
-    # Cost
-    cost.R = .00001 * np.eye(model.m)
-    cost.Q = np.zeros((model.n, model.n))
-    cost.Q[0, 0] = 100  # corresponding to x position of end effector
-    cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
-
-    # Control constraints
-    u_ub = 800. * np.ones(model.m)
-    u_lb = 0. * np.ones(model.m)
-    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-
-    # State constraints
-    # Hz = np.zeros((1, 3))
-    # Hz[0, 1] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
-    # X = Polyhedron(A=H, b=b_z_ub_norm)
-
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
-    # M = 3
-    # T = 5
-    # N = 1000
-    # r = 10
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M*2*np.pi, M*N)
-    # x_target = np.zeros(M*N)
-    # y_target = r * np.sin(th)
-    # z_target = r - r * np.cos(th) + 107.0
-    # zf_target = np.zeros((M*N, 3))
-    # zf_target[:, 0] = x_target
-    # zf_target[:, 1] = y_target
-    # zf_target[:, 2] = z_target
-    #
-    # # Cost
-    # cost.R = .00001 * np.eye(model.m)
-    # cost.Q = np.zeros((3, 3))
-    # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
-    # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
-    # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-    #
-    # # Constraints
-    # u_ub = 1500. * np.ones(model.m)
-    # u_lb = 200. * np.ones(model.m)
-    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-    # X = None
-
-    
+   
     # Define target trajectory for optimization
     target.t = t
     target.z = scaling.scale_down(y=zf_target)
@@ -209,10 +190,19 @@ def run_koopman_solver():
     cost.R *= np.diag(scaling.u_factor[0])
     cost.Q *= np.diag(scaling.y_factor[0])
 
+    # Control constraints
+    u_ub = 800. * np.ones(model.m)
+    u_lb = 0. * np.ones(model.m)
+    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+    print(u_ub_norm)
+    print(u_lb_norm)
+    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+
     N = 3
 
     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
-                     warm_start=True, U=U, solver='GUROBI')
+                     warm_start=True, U=U) # , solver='GUROBI')
 
 
 

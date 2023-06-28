@@ -1,10 +1,9 @@
 import sys
-from os.path import dirname, abspath, join, isdir
+from os.path import dirname, abspath, join, isdir, exists
 from os import listdir
 
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.interpolate import interp1d
 
 path = dirname(abspath(__file__))
 root = dirname(path)
@@ -12,15 +11,12 @@ sys.path.append(root)
 
 from examples import Problem
 from examples.trunk.model import trunkRobot
-from sofacontrol.open_loop_sequences import TrunkRobotSequences
 
 from sofacontrol.scp.models.ssm import SSMGuSTO
 from sofacontrol.measurement_models import linearModel, OutputModel
 from sofacontrol.scp.ros import runGuSTOSolverNode
-from sofacontrol.utils import QuadraticCost, HyperRectangle, load_data, qv2x, Polyhedron
-from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
+from sofacontrol.utils import QuadraticCost, HyperRectangle, load_data, qv2x
 from sofacontrol.SSM import adiabatic_ssm
-from sofacontrol.SSM.controllers import scp
 import pickle
 
 # Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
@@ -28,14 +24,15 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 # Set directory for SSM Models
-pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=33_handcrafted" # 100_sparsity=0.95" # 9" # 
-
-MODEL_NAMES = [name for name in sorted(listdir(pathToModel)) if isdir(join(pathToModel, name))]
-# remove models with opposite side strings and by visually inspection of eigenvalues (autonomous linear part)
-# use_models = [0, 1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 26, 27, 29, 30, 31, 32, 39, 41, 42, 45, 46, 47, 48, 51, 53, 54, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 69, 70, 71, 72, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 85, 86, 87, 89, 91, 93, 94, 96, 97, 98, 99]
-# remove models automatically:
-# use_models = [0, 1, 2, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 19, 21, 22, 23, 25, 26, 27, 31, 33, 36, 42, 43, 45, 47, 48, 49, 50, 53, 59, 60, 61, 62, 63, 65, 66, 67, 68, 69, 70, 71, 76, 77, 80, 81, 87, 89, 91, 93, 96, 98]
-# MODEL_NAMES = [MODEL_NAMES[i] for i in use_models]
+PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 33_handcrafted" # 9" # 
+MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PATH_TO_MODEL, name))]
+if exists(join(PATH_TO_MODEL, "use_models.pkl")):
+    with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
+        USE_MODELS = pickle.load(f)
+else:
+    USE_MODELS = list(range(len(MODEL_NAMES)))
+MODEL_NAMES = [MODEL_NAMES[i] for i in USE_MODELS]
+print("Using models: ", MODEL_NAMES)
 
 useTimeDelay = True
 
@@ -50,12 +47,10 @@ x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 # load local SSM models
 raw_params = {}
 raw_models = []
-model_names = MODEL_NAMES # listdir(pathToModel)
-print(model_names)
-for model_name in model_names:
-    with open(join(pathToModel, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV", "SSM_model.pkl"), 'rb') as f: # 
+for model_name in MODEL_NAMES:
+    with open(join(PATH_TO_MODEL, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV_fixed-delay", "SSM_model.pkl"), 'rb') as f: # _fixed-delay
         SSM_data = pickle.load(f)
-    with open(join(pathToModel, model_name, "rest_q.pkl"), "rb") as f:
+    with open(join(PATH_TO_MODEL, model_name, "rest_q.pkl"), "rb") as f:
         q_eq = pickle.load(f)
     SSM_data['model']['q_eq'] = (q_eq - q_equilibrium)[TIP_NODE*3:(TIP_NODE+1)*3]
     raw_models.append(SSM_data['model'])
@@ -86,12 +81,12 @@ Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
 Qz[2, 2] = 0.  # corresponding to z position of end effector
-R = 0.001 * np.eye(model.input_dim)
+R = 0.0001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
 
 # Define target trajectory for optimization
-# === figure8 ===
+# === figure8 (2D) ===
 M = 1
 T = 10
 N = 1000
@@ -99,23 +94,23 @@ radius = 30.
 tf = np.linspace(0, M * T, M * N + 1)
 th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
 zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# zf_target = np.zeros((M*N+1, 3))
+# zf_target = np.zeros((M * N, model.output_dim))
 zf_target[:, 0] += -radius * np.sin(th)
 zf_target[:, 1] += radius * np.sin(2 * th)
 # zf_target[:, 2] += -np.ones(len(t)) * 10
 
-# === circle with constant z ===
+# === circle with constant z (3D) ===
 # M = 1
 # T = 10
 # N = 1000
 # radius = 20.
-# t = np.linspace(0, M * T, M * N + 1)
-# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi / 2
+# tf = np.linspace(0, M * T, M * N + 1)
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1) + 3 * np.pi / 2
 # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# # zf_target = np.zeros((M*N+1, 6))
+# # zf_target = np.zeros((M * N, model.output_dim))
 # zf_target[:, 0] += radius * np.cos(th)
 # zf_target[:, 1] += radius * np.sin(th)
-# zf_target[:, 2] += -np.ones(len(t)) * 10
+# zf_target[:, 2] += -np.ones(len(tf)) * 10
 
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 
@@ -190,9 +185,8 @@ def run_gusto_solver(t=None, z=None):
     u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
-    dU = HyperRectangle([1] * model.input_dim, [-1] * model.input_dim) # None # 
+    dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 
     # dU = None
-
     # State constraints
     X = None
 

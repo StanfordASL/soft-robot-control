@@ -25,8 +25,8 @@ class TPWL:
             # In case a file location is passed in
             self.tpwl_dict = scutils.load_data(data)
         self.num_points = len(self.tpwl_dict['q'])
-        self.discr_method = kwargs.get('discr_method', 'fe')
 
+        print(self.tpwl_dict.keys())
         # Build ROM object in case it is needed
         if self.tpwl_dict['rom_info']['type'] == 'POD':
             self.rom = pod.POD(self.tpwl_dict['rom_info'])
@@ -35,18 +35,22 @@ class TPWL:
 
         # Get state and input dimensions
         try:
+            print(self.tpwl_dict['q'][0].shape)
             self.state_dim = (self.tpwl_dict['q'][0].shape[-1] * 2) if self.tpwl_dict is not None else None
             self.input_dim = self.tpwl_dict['u'][0].shape[-1] if self.tpwl_dict is not None else None
+            print("TPWL state dim:", self.state_dim)
+            print("TPWL input dim:", self.input_dim)
+            print("TPWL num points", self.num_points)
 
         except IndexError:
             self.state_dim = (self.tpwl_dict['q'].shape[-1] * 2) if self.tpwl_dict is not None else None
             self.input_dim = self.tpwl_dict['u'].shape[-1] if self.tpwl_dict is not None else None
 
+        # Get configuration parameters for the model
         if params is None:
             params = dict()
-        # Get configuration parameters for the model
+        self.discr_method = params.get('discr_method', DISCR_METHOD)
         self.tpwl_method = params.get('tpwl_method', TPWL_METHOD)
-        #self.discr_method = params.get('discr_method', DISCR_METHOD)
         self.beta_weighting = params.get('beta_weighting', None)
         self.dist_weights = params.get('dist_weights')
 

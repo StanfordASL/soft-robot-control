@@ -6,7 +6,6 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import jax
 from functools import partial
-import time
 import pickle
 
 from .interpolators import InterpolatorFactory
@@ -34,7 +33,10 @@ class AdiabaticSSM:
         self.params = params
 
         self.adiabatic = True
-        self.interp_3d = True
+        # if INTERPOLATION_METHOD in ["idw", "modified_idw"]: # "krg", "rbf", "tps", "nn"]:
+        #     self.interp_3d = True
+        # else:
+        #     self.interp_3d = False
         
         # Model dimensions
         self.state_dim = self.params['state_dim']
@@ -81,10 +83,11 @@ class AdiabaticSSM:
         if self.v_coeff[0] is not None:
             self.coeff_dict['V'] = self.v_coeff
         
-        if self.interp_3d:
-            self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:3] for q in self.q_bar], self.coeff_dict).get_interpolator()
-        else:
-            self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:2] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        # if self.interp_3d:
+        #     self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:3] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        # else:
+        #     self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [q[:2] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [self.V[0].T @ np.tile(q, 5) for q in self.q_bar], self.coeff_dict).get_interpolator()
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
@@ -227,10 +230,11 @@ class AdiabaticSSM:
         if not jnp.allclose(y, self.last_observation_y):
             with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "wb") as f:
                 pickle.dump(y, f)
-            if self.interp_3d:
-                xy_z = y[:3]
-            else:
-                xy_z = y[:2]
+            # if self.interp_3d:
+            #     xy_z = y[-3:]
+            # else:
+            #     xy_z = y[-3:-1]
+            xy_z = jnp.dot(jnp.transpose(V), y - y_bar)
             self.y_bar_current = np.tile(self.interpolator.transform(xy_z, 'q_bar'), 5) # np.concatenate([self.interpolator.transform(xy_z, 'q_bar'), np.zeros(3)]) # 
             self.u_bar_current = self.interpolator.transform(xy_z, 'u_bar')
             self.B_r_current = self.interpolator.transform(xy_z, 'B_r')

@@ -42,13 +42,13 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     prob.ControllerClass = OpenLoopController
 
     # t0 is when force is actually applied and when data is saved
-    Sequences = DiamondRobotSequences(t0=t0, dt=0.001)
+    Sequences = DiamondRobotSequences(t0=t0, dt=prob.Robot.dt)
 
     # 1) Wind up the robot
     t_duration1 = 1.0
     u_const = input + pre_tensioning
     u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
-    u1 *= np.concatenate([np.linspace(0, 1, int(0.6*len(t1))), np.ones(len(t1) - int(0.6*len(t1)))])
+    u1 *= np.concatenate([np.linspace(0.5, 1, int(0.8*len(t1))), np.ones(len(t1) - int(0.8*len(t1)))])
     # 2) Remove force (how long to settle down before stopping simulation)
     t_duration2 = 3.0
     u_const = pre_tensioning

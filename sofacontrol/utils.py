@@ -190,8 +190,10 @@ def extract_KDMb(robot, filesInDir, step, dt, dv, point):
     beta = robot.odesolver.rayleighStiffness.value
     node_mass = robot.mass.vertexMass.value
     num_nodes = robot.tetras.size.value
+
     # Load and parse the LDL "global" matrix
     LDL_file = filesInDir[0]
+
     LDL = np.zeros((3 * num_nodes, 3 * num_nodes))
     with open(LDL_file, 'r') as file:
         for (i, line) in enumerate(file):

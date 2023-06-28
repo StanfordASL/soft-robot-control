@@ -35,11 +35,11 @@ def sim_OL():
     from sofacontrol.utils import SnapshotData
 
     path = "/media/jonas/Backup Plus/jonas_soft_robot_data/autonomous_ASSM_tests"
-    with open(join(path, 'u_perturbed.pkl'), 'rb') as f:
+    with open(join(path, 'u_perturbed_1ms.pkl'), 'rb') as f:
         u = pickle.load(f)
     
     # t0 = 3.0
-    dt = 0.01
+    dt = 0.001
     prob = Problem()
     prob.Robot = trunkRobot()
     prob.ControllerClass = OpenLoopController
@@ -68,7 +68,7 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     In problem_specification add:
 
     import examples.trunk as trunk
-    problem = diamond.apply_constant_input():
+    problem = trunk.apply_constant_input():
 
     then run:
 
@@ -158,82 +158,6 @@ def collect_open_loop_data(u_max=None, pre_tensioning=None, q0=None, t0=0.0, sav
     
     return prob
 
-
-def run_ilqr():
-    """
-     In problem_specification add:
-
-     from examples.diamond import diamond
-     problem = diamond.run_scp
-
-     then run:
-
-     python3 launch_sofa.py
-     """
-    from robots import environments
-    from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.measurement_models import MeasurementModel
-    from sofacontrol.tpwl.controllers import ilqr, TrajTracking
-    from sofacontrol.tpwl.observer import DiscreteEKFObserver
-    from sofacontrol.tpwl import tpwl_config, tpwl
-    from sofacontrol.utils import QuadraticCost
-    from sofacontrol.measurement_models import linearModel
-    from sofacontrol.baselines.rompc.rompc_utils import LinearROM
-
-    prob = Problem()
-    prob.Robot = environments.Trunk()
-    prob.ControllerClass = ClosedLoopController
-
-    # Specify a measurement and output model
-    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
-    prob.output_model = prob.Robot.get_measurement_model(nodes=[51])
-
-    output_model = linearModel(nodes=[51], num_nodes=709)
-
-    # Load and configure the linear ROM model from data saved
-    tpwl_model_file = join(path, 'tpwl_model_snapshots.pkl')
-    config = tpwl_config.tpwl_dynamics_config()
-    model = tpwl.TPWLATV(data=tpwl_model_file, params=config.constants_sim, Hf=output_model.C)
-
-    dt = 0.05
-    model.pre_discretize(dt=dt)
-
-    cost = QuadraticCost()
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100  # corresponding to x position of end effector
-    Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0  # corresponding to z position of end effector
-    cost.Q = Qz
-    cost.Qf = np.zeros_like(Qz)
-    cost.R = .00001 * np.eye(model.input_dim)
-
-    # Define target trajectory for optimization
-    M = 3
-    T = 10
-    N = 1000
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    zf_target = np.zeros((M * N, model.output_dim))
-    zf_target[:, 3] = -10. * np.sin(th)
-    zf_target[:, 4] = 10. * np.sin(2 * th)
-    z = model.zfyf_to_zy(zf=zf_target)
-
-    # Define controller (wait 2 seconds of simulation time to start)
-    from types import SimpleNamespace
-    target = SimpleNamespace(z=z, Hf=output_model.C, t=t)
-    N = 20
-
-    #prob.controller = rh_ilqr(model, cost, target, dt, observer=None, delay=3, planning_horizon=N)
-    prob.controller = ilqr(model, cost, target, dt, observer=None, delay=3)
-
-    # Saving paths
-    prob.opt['sim_duration'] = 13.
-    prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'ilqr'
-
-    return prob
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:

@@ -19,6 +19,9 @@ import matplotlib.pyplot as plt
 from jax import jit
 from functools import partial
 
+from scipy.spatial import cKDTree
+
+
 DISPLAY_NAMES = {
     "origin_only": "origin only",
     "idw": "Inverse Distance Weighting",
@@ -40,6 +43,8 @@ class InterpolatorFactory():
             interpolator = OriginOnlyInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'idw':
             interpolator = IDWInterpolator(q_eq, coeff_dict)
+        elif interpolation_method == 'modified_idw':
+            interpolator = ModifiedIDWInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'linear':
             interpolator = LinearInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'nn':
@@ -52,8 +57,6 @@ class InterpolatorFactory():
             interpolator = RBFInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'krg':
             interpolator = KrigingInterpolator(q_eq, coeff_dict)
-        elif interpolation_method == 'rmts':
-            interpolator = RMTSInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'qp':
             interpolator = SquaredRegressionInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'ls':
@@ -99,24 +102,6 @@ class OriginOnlyInterpolator(Interpolator):
     
     def transform(self, q, coeff_name):
         return self.coeff_dict[coeff_name][self.origin_idx]
-
-
-class InverseDistanceWeightingInterpolator(Interpolator):
-    def __init__(self, q_eq, coeff_dict, p=2):
-        self.p = p
-        super(InverseDistanceWeightingInterpolator, self).__init__(q_eq, coeff_dict)
-    
-    def fit(self):
-        pass
-    
-    def transform(self, q, coeff_name):
-        return self.idw(q, coeff_name)[0]
-
-    def idw(self, q, coeff_name):
-        coeffs = self.coeff_dict[coeff_name]
-        weights = 1 / np.linalg.norm(self.q_eq - q, axis=1) ** self.p
-        weights /= np.sum(weights)
-        return np.sum([coeffs[i] * weights[i] for i in range(len(coeffs))], axis=0), weights
         
 
 class LinearInterpolator(Interpolator):
@@ -224,23 +209,58 @@ class IDWInterpolator(Interpolator):
             return np.einsum("i, ijk -> jk", weights, self.coeff_dict[coeff_name])
     
     def calc_weights(self, q):
-        # weigh the different coordintates differently
-        weighting = np.eye(3)
-        weighting[2, 2] = 100
+        # # weigh the different coordintates differently
+        # weighting = np.eye(3)
+        # for i in range(len(q)):
+        #     weighting[i, i] = 1/ (np.max([q_eq[i] for q_eq in self.q_eq]) - np.min([q_eq[i] for q_eq in self.q_eq]))
+        # # weighting[2, 2] = 50
+        # q_dist = np.linalg.norm([weighting @ (self.q_eq[i] - q) for i in range(len(self.q_eq))], axis=1)
 
-        q_dist = np.linalg.norm(np.tensordot(weighting, (self.q_eq - q), axis=1), axis=1)
-
+        q_dist = np.linalg.norm(self.q_eq - q, axis=1)
         m_idx = np.argmin(q_dist)
         m = q_dist[m_idx] # minimum distance
-        # If the minimum is 0 then just take that point
-        if m == 0:
+        # If the minimum is 0 or if only one model is available, then just take that point
+        if m == 0 or len(q_dist) == 1:
             weights_norm = np.zeros(np.shape(q_dist))
             weights_norm[m_idx] = 1
         # Otherwise compute all weights
         else:
-            weights = 1 / (q_dist ** self.p + self.eps) # np.exp(-self.p * (q_dist + self.eps) / m) # 
+            weights = np.exp(-self.p * (q_dist + self.eps) / m) # 1 / (q_dist ** self.p + self.eps) # 
             weights_norm = weights / np.sum(weights)
         return weights_norm
+    
+
+class ModifiedIDWInterpolator(Interpolator):
+    def __init__(self, q_eq, coeff_dict, p=2, n_neighbors=8, eps=0.):
+        self.p = p
+        self.n_neighbors = n_neighbors
+        self.eps = eps
+        super(ModifiedIDWInterpolator, self).__init__(q_eq, coeff_dict)
+
+    def fit(self):
+        self.kdtree = cKDTree(np.array(self.q_eq), leafsize=10, compact_nodes=False, balanced_tree=False)
+
+    def transform(self, q, coeff_name):
+        weights = self.calc_weights(q)
+        if coeff_name in ["q_bar", "u_bar"]:
+            return np.einsum("i, ij -> j", weights, self.coeff_dict[coeff_name])
+        else:
+            return np.einsum("i, ijk -> jk", weights, self.coeff_dict[coeff_name])
+
+    def calc_weights(self, q):
+        distances, idx = self.kdtree.query(q, k=self.n_neighbors)
+        weights = np.zeros(len(self.q_eq))
+        if self.n_neighbors == 1:
+            weights[idx] = 1
+            return weights
+        elif len(self.q_eq) < self.n_neighbors:
+            raise ValueError("Not enough neighbors to compute the weights")
+        else:
+            # w = 1.0 / ((distances**self.p) + self.eps)
+            w = np.exp(-self.p * (distances + self.eps) / np.max(distances))
+            w /= np.sum(w)
+            weights[idx] = w
+            return weights
 
 
 class KrigingInterpolator(Interpolator):
@@ -261,33 +281,6 @@ class KrigingInterpolator(Interpolator):
 
     def transform(self, q, coeff_name):
         y =  self.interpolation[coeff_name].predict_values(np.atleast_2d(q))
-        return y.reshape(self.coeff_dict[coeff_name][0].shape)
-    
-
-class RMTSInterpolator(Interpolator):
-    def __init__(self, q_eq, coeff_dict):
-        super(RMTSInterpolator, self).__init__(q_eq, coeff_dict)
-
-    def fit(self):
-        self.interpolation = {}
-        for coeff_name in self.coeff_dict:
-            # Create the SMT object
-            sm = RMTB(
-                xlimits=np.array([[-60., 60.], [-60., 60.], [-40., 0.]]),
-                order=3,
-                num_ctrl_pts=5,
-                energy_weight=10.,
-                regularization_weight=100.,
-                print_global=True)
-            print(sm)
-            # Fit the control and target points
-            sm.set_training_values(np.array(self.q_eq), np.array(self.coeff_dict[coeff_name]).reshape(len(self.coeff_dict[coeff_name]), -1))
-            sm.train()
-            # Transform new points
-            self.interpolation[coeff_name] = sm
-
-    def transform(self, q, coeff_name):
-        y = self.interpolation[coeff_name].predict_values(np.atleast_2d(q))
         return y.reshape(self.coeff_dict[coeff_name][0].shape)
 
 
@@ -370,6 +363,7 @@ class NaturalNeighborInterpolator(Interpolator):
             for i in range(len(self.coeff_dict[coeff_name][0])):
                 interpolation[i] = naturalneighbor.griddata(points, values[:, i], interp_range)
         return interpolation
+
 
 def testInterpolators1D():
     interpolation_methods = ["nn", "idw", "krg", "rbf", "qp", "ls"]

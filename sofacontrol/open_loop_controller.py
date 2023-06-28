@@ -118,10 +118,10 @@ class OpenLoopController(Sofa.Core.Controller):
         # self.save_point = False # debugging
         if self.snapshots is not None:
             LDL_path = os.path.join(self.LDL_dir, 'temp/')
-            currFiles = [os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
-                        os.path.isfile(os.path.join(LDL_path, f))]
+            currFiles = sorted([os.path.join(LDL_path, f) for f in os.listdir(LDL_path) if
+                        os.path.isfile(os.path.join(LDL_path, f))])
 
-        if self.save_point and self.snapshots.save_dynamics and (currFiles is not None):
+        if self.save_point and self.snapshots.save_dynamics and currFiles:
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
             dv = self.point.v_next - self.point.v

@@ -389,7 +389,7 @@ def run_gusto_solver():
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
 
     # Define GuSTO model
-    dt = 0.1
+    dt = 0.5
     N = 3
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)

@@ -2,19 +2,19 @@ robot: "trunk"
 save_dir: "plots/"
 file_format: "png"
 
-traj_dir: "sim_trajs/circle_z=-10" # figure8" # 
+traj_dir: "sim_trajs/figure8" # circle_z=-10" # 
 
 show: {
     'ssmr': False,
     'ssmr_origin': True,
     'ssmr_nnssm': False,
-    'ssmr_ctssm': True,
+    'ssmr_ctssm': False,
     'ssmr_linssm': False,
     'ssmr_assm_qp2d_n=100': True,
-    'ssmr_assm_idw3d_n=100': True,
+    'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': False,
-    'koopman': False,
+    'tpwl': True,
+    'koopman': True,
     'rompc': False
 }
 display_name: {
@@ -39,8 +39,8 @@ color: {
     'ssmr_assm_idw3d_n=100': 'tab:green',
     'ssmr_assm_ridge2d_n=100': 'tab:red',
     'ssmr_linssm': 'tab:purple',
-    'tpwl': 'tab:red',
-    'koopman': 'tab:green',
+    'tpwl': 'tab:green',
+    'koopman': 'tab:orange',
     'rompc': 'tab:purple',
     'target': 'black'
 }
@@ -73,7 +73,6 @@ linewidth: {
     'target': 1
 }
 
-select_target: "circle"
 # Figure8 target
 define_targets: {
     figure8: {
@@ -86,7 +85,7 @@ define_targets: {
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
     },
-    circle: {
+    circle_z=-10: {
         M: 1,
         T: 10,
         N: 1000,
