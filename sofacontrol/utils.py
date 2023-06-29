@@ -6,6 +6,8 @@ import osqp
 import jax
 import jax.numpy as jnp
 import lzma
+from scipy.interpolate import CubicSpline
+import matplotlib.pyplot as plt
 
 class QuadraticCost:
     """
@@ -475,6 +477,109 @@ def set_axes_equal(ax):
     ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
     ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
+
+"""
+Drawing trajectories utilities
+"""
+
+
+def drawWaypoints():
+    # create an empty figure
+    fig = plt.figure()
+
+    # create an empty list to store your points
+    points = []
+
+    def onclick(event):
+        # when the figure is clicked, append the point (x, y) to the points list
+        points.append([event.xdata, event.ydata])
+        # plot the point
+        plt.plot(event.xdata, event.ydata, 'ro')
+        if len(points) > 1:
+            # if there are two or more points, plot a line between the last two points
+            plt.plot([points[-2][0], points[-1][0]], [points[-2][1], points[-1][1]], 'b-')
+        # refresh the plot
+        plt.draw()
+
+    # connect the click event to the figure
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+    # show the figure
+    plt.xlim(-20, 20)  # Set the x-axis limits
+    plt.ylim(-20, 20)  # Set the y-axis limits
+    plt.grid(True)
+    plt.show()
+
+    return np.array(points)
+
+
+def drawContinuousPath(distance_threshold=0.1):
+    # create an empty figure
+    fig = plt.figure()
+
+    # create an empty list to store your points
+    points = []
+
+    # variable that tracks whether the left mouse button is pressed
+    is_pressed = False
+
+    def on_press(event):
+        nonlocal is_pressed
+        is_pressed = True
+
+    def on_release(event):
+        nonlocal is_pressed
+        is_pressed = False
+
+    def on_motion(event):
+        nonlocal is_pressed, points
+        if is_pressed:
+            if len(points) == 0 or np.linalg.norm(
+                    np.array([event.xdata, event.ydata]) - np.array(points[-1])) > distance_threshold:
+                # when the mouse moves, append the point (x, y) to the points list
+                points.append([event.xdata, event.ydata])
+                # plot the point
+                plt.plot(event.xdata, event.ydata, 'ro')
+                if len(points) > 1:
+                    # if there are two or more points, plot a line between the last two points
+                    plt.plot([points[-2][0], points[-1][0]], [points[-2][1], points[-1][1]], 'b-')
+                # refresh the plot
+                plt.draw()
+
+    # connect the events to the figure
+    fig.canvas.mpl_connect('button_press_event', on_press)
+    fig.canvas.mpl_connect('button_release_event', on_release)
+    fig.canvas.mpl_connect('motion_notify_event', on_motion)
+
+    # show the figure
+    plt.xlim(-30, 30)  # Set the x-axis limits
+    plt.ylim(-30, 30)  # Set the y-axis limits
+    plt.grid(True)
+    plt.show()
+
+    # return the points
+    return np.array(points)
+
+
+def resample_waypoints(waypoints, speed):
+    waypoints = np.array(waypoints)
+    x, y = waypoints.T
+
+    # Compute the cumulative arc-length
+    dx = np.diff(x)
+    dy = np.diff(y)
+    distance = np.cumsum(np.sqrt(dx ** 2 + dy ** 2))
+    distance = np.insert(distance, 0, 0)
+
+    # Interpolate the path
+    path = CubicSpline(distance, waypoints, axis=0, bc_type='natural')
+
+    # Sample the path at constant arc-length intervals
+    num_points = int(distance[-1] // speed)
+    new_distance = np.linspace(0, distance[-1], num_points)
+    new_waypoints = path(new_distance)
+
+    return np.array(new_waypoints.tolist())
 
 """ Fast linear algebra routines
 Credits: https://gist.github.com/tbenthompson/faae311ec4e465b0ff47b4aabe0d56b2

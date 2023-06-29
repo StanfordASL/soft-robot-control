@@ -5,7 +5,7 @@ file_format: "png"
 traj_dir: "sim_trajs/figure8" # circle_z=-10" # 
 
 show: {
-    'ssmr': False,
+    'ssmr': True,
     'ssmr_origin': True,
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
@@ -13,7 +13,7 @@ show: {
     'ssmr_assm_qp2d_n=100': True,
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': True,
+    'tpwl': False,
     'koopman': True,
     'rompc': False
 }
@@ -31,7 +31,7 @@ display_name: {
     'rompc': "ROMPC",
 }
 color: {
-    'ssmr': 'tab:blue',
+    'ssmr': 'tab:pink',
     'ssmr_origin': 'tab:blue',
     'ssmr_nnssm': 'tab:red',
     'ssmr_ctssm': 'tab:orange',
@@ -73,6 +73,7 @@ linewidth: {
     'target': 1
 }
 
+select_target: "circle"
 # Figure8 target
 define_targets: {
     figure8: {
@@ -85,7 +86,7 @@ define_targets: {
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
     },
-    circle_z=-10: {
+    circle: {
         M: 1,
         T: 10,
         N: 1000,
@@ -115,5 +116,3 @@ plot_mpc_rollouts: False
 # x_target = np.zeros(M*N)
 # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
 # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
-
-# NAME = 'circle'
