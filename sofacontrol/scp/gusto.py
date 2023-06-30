@@ -242,7 +242,7 @@ class GuSTO:
             A_d.append(A_d_i)
             B_d.append(B_d_i)
             d_d.append(d_d_i)
-
+        print(A_d)
         return A_d, B_d, d_d
 
     def get_observer_linearizations(self, x, u=None):

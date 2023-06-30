@@ -193,7 +193,7 @@ class RBFInterpolator(Interpolator):
 
 
 class IDWInterpolator(Interpolator):
-    def __init__(self, q_eq, coeff_dict, p=2, eps=0.):
+    def __init__(self, q_eq, coeff_dict, p=1, eps=1.):
         self.p = p
         self.eps = eps
         super(IDWInterpolator, self).__init__(q_eq, coeff_dict)
@@ -220,12 +220,12 @@ class IDWInterpolator(Interpolator):
         m_idx = np.argmin(q_dist)
         m = q_dist[m_idx] # minimum distance
         # If the minimum is 0 or if only one model is available, then just take that point
-        if m == 0 or len(q_dist) == 1:
+        if m == 0 or len(q_dist) == 1 or self.p == np.inf:
             weights_norm = np.zeros(np.shape(q_dist))
             weights_norm[m_idx] = 1
         # Otherwise compute all weights
         else:
-            weights = np.exp(-self.p * (q_dist + self.eps) / m) # 1 / (q_dist ** self.p + self.eps) # 
+            weights = 1 / (q_dist ** self.p + self.eps) # np.exp(-self.p * (q_dist + self.eps) / m) # 
             weights_norm = weights / np.sum(weights)
         return weights_norm
     

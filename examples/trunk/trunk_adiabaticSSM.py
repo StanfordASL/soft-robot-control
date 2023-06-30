@@ -24,13 +24,14 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 # Set directory for SSM Models
-PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 33_handcrafted" # 9" # 
+PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 9" # 33_handcrafted" # 
 MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PATH_TO_MODEL, name))]
-if exists(join(PATH_TO_MODEL, "use_models.pkl")):
-    with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
-        USE_MODELS = pickle.load(f)
-else:
-    USE_MODELS = list(range(len(MODEL_NAMES)))
+# if exists(join(PATH_TO_MODEL, "use_models.pkl")):
+#     with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
+#         USE_MODELS = pickle.load(f)
+# else:
+USE_MODELS = list(range(len(MODEL_NAMES)))
+# USE_MODELS = [0, 1]
 MODEL_NAMES = [MODEL_NAMES[i] for i in USE_MODELS]
 print("Using models: ", MODEL_NAMES)
 
