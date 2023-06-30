@@ -2,10 +2,10 @@ robot: "trunk"
 save_dir: "plots/"
 file_format: "png"
 
-traj_dir: "sim_trajs/figure8" # circle_z=-10" # 
+traj_dir: "sim_trajs/circle_z=-10" # figure8" # 
 
 show: {
-    'ssmr': True,
+    'ssmr': False,
     'ssmr_origin': True,
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
@@ -13,7 +13,7 @@ show: {
     'ssmr_assm_qp2d_n=100': True,
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': False,
+    'tpwl': True,
     'koopman': True,
     'rompc': False
 }
@@ -86,7 +86,7 @@ define_targets: {
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
     },
-    circle: {
+    circle_z=-10: {
         M: 1,
         T: 10,
         N: 1000,

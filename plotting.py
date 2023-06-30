@@ -79,7 +79,7 @@ M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
 t_target = np.linspace(0, M*T, M*N+1)
 th = np.linspace(0, M*2*np.pi, M*N+1) # + np.pi/2
 z_target = np.zeros((M*N+1, len(Z_EQ)))
-if TARGET == "circle":
+if TARGET == "circle_z=-10":
     z_target[:, 0] += radius * np.cos(th)
     z_target[:, 1] += radius * np.sin(th)
     z_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
@@ -93,7 +93,7 @@ else:
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
 
-SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
+SAVE_DIR = join(path, "examples", SETTINGS['robot'], SETTINGS['save_dir'])
 if not exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 

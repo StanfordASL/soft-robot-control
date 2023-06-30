@@ -12,11 +12,24 @@ sys.path.append(root)
 
 from examples import Problem
 from sofacontrol.open_loop_sequences import TrunkRobotSequences
+from sofacontrol.utils import load_data, qv2x
+from sofacontrol.measurement_models import linearModel
+
 
 # Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
+
+# Load equilibrium point
+rest_file = join(path, 'rest_qv.pkl')
+rest_data = load_data(rest_file)
+q_equilibrium = np.array(rest_data['q'][0])
+
+# Setup equilibrium point (no time delay and observed position and velocity of tip)
+x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
+z_eq_point = output_model.evaluate(x_eq, qv=False)
 
 
 def collect_POD_data():
@@ -282,12 +295,12 @@ def run_scp():
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0  # corresponding to z position of end effector
+    Qz[5, 5] = 1000  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
     cost.R = .00001 * np.eye(model.input_dim)
 
     # Define controller (wait 2 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, observer=EKF, delay=1) # , feedback=False
+    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=1) # , feedback=False
 
     # Saving paths
     prob.opt['sim_duration'] = 11.
@@ -302,12 +315,9 @@ def run_gusto_solver():
     python3 trunk_tpwl.py run_gusto_solver
     """
     from sofacontrol.scp.models.tpwl import TPWLGuSTO
-    from sofacontrol.measurement_models import linearModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.tpwl import tpwl_config, tpwl
     from sofacontrol.utils import HyperRectangle, Polyhedron
-
-    output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
 
     # Load and configure the TPWL model from data saved
     tpwl_model_file = join(path, 'tpwl_model_snapshots.pkl')
@@ -316,27 +326,29 @@ def run_gusto_solver():
 
     # Define target trajectory for optimization
     # === figure8 (2D) ===
-    M = 1
-    T = 10
-    N = 1000
-    radius = 10.
-    t = np.linspace(0, M * T, M * N)
-    th = np.linspace(0, M * 2 * np.pi, M * N)
-    zf_target = np.zeros((M * N, model.output_dim))
-    zf_target[:, 3] = -radius * np.sin(th)
-    zf_target[:, 4] = radius * np.sin(2 * th)
-
-    # # === circle with constant z (3D) ===
     # M = 1
     # T = 10
     # N = 1000
-    # radius = 20.
+    # radius = 30.
     # t = np.linspace(0, M * T, M * N + 1)
-    # th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi / 2
-    # zf_target = np.zeros((M * N, model.output_dim))
-    # zf_target[:, 3] += radius * np.cos(th)
-    # zf_target[:, 4] += radius * np.sin(th)
-    # zf_target[:, 5] += -np.ones(len(tf)) * 15
+    # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    # # zf_target = np.zeros((M * N, model.output_dim))
+    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # zf_target[:, 3] += -radius * np.sin(th)
+    # zf_target[:, 4] += radius * np.sin(2 * th)
+
+    # # === circle with constant z (3D) ===
+    M = 1
+    T = 10
+    N = 1000
+    radius = 20.
+    t = np.linspace(0, M * T, M * N + 1)
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi / 2
+    # zf_target = np.zeros((M * N + 1, model.output_dim))
+    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    zf_target[:, 3] += radius * np.cos(th)
+    zf_target[:, 4] += radius * np.sin(th)
+    zf_target[:, 5] += -np.ones(len(t)) * 10
 
     z = model.zfyf_to_zy(zf=zf_target)
 
@@ -344,7 +356,7 @@ def run_gusto_solver():
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0  # corresponding to z position of end effector
+    Qz[5, 5] = 1000  # corresponding to z position of end effector
     
     dt = 0.1
     N = 5
@@ -360,14 +372,13 @@ def run_gusto_solver():
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
-    print(x0.shape)
 
     # Define GuSTO model
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
 
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                       verbose=2, warm_start=True, convg_thresh=0.001, solver='GUROBI')
+                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI')
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
