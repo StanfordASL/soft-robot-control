@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 import jax
 from functools import partial
+from sofacontrol.utils import norm2Diff
 
 ###  DEFAULT VALUES
 DISCR_METHOD = 'zoh'  # other options: be, zoh, bil. Forward Euler, Backward Euler, Bilinear transf. or Zero-Order Hold
@@ -280,6 +281,15 @@ class SSMDynamics(SSM):
         H = jax.jacobian(self.W_map, 0)(x)
         c_res = self.W_map(x) - jnp.dot(H, x)
         return H, c_res
+    
+    def get_obstacleConstraint_jacobians(self,
+                                      x: jnp.ndarray, obs_center: jnp.ndarray):
+        normFunc = partial(norm2Diff, y=obs_center)
+        g = lambda x: normFunc(self.W_map(x))
+        G = jax.jacobian(g)(x)
+        b = g(x) - G @ x
+        return G, b
+        
 
     # def get_jacobians(self, x, dt=None, u=None):
     #     """

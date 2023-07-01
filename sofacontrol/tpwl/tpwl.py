@@ -3,6 +3,11 @@ from scipy.interpolate import interp1d
 import sofacontrol.utils as scutils
 import sofacontrol.tpwl.tpwl_utils as tutils
 from sofacontrol.mor import pod
+import jax.numpy as jnp
+from functools import partial
+from sofacontrol.utils import norm2Diff
+import jax
+
 
 ###  DEFAULT VALUES
 DISCR_METHOD = 'zoh'  # other options: be, zoh, bil. Forward Euler, Backward Euler, Bilinear transf. or Zero-Order Hold
@@ -25,7 +30,7 @@ class TPWL:
             # In case a file location is passed in
             self.tpwl_dict = scutils.load_data(data)
         self.num_points = len(self.tpwl_dict['q'])
-        self.discr_method = kwargs.get('discr_method', 'fe')
+        self.discr_method = params.get('discr_method', DISCR_METHOD)
 
         # Build ROM object in case it is needed
         if self.tpwl_dict['rom_info']['type'] == 'POD':
@@ -268,6 +273,14 @@ class TPWLATV(TPWL):
             raise RuntimeError('tpwl method should be nn or weighting')
 
         return A, B, d
+    
+    def get_obstacleConstraint_jacobians(self,
+                                      x: jnp.ndarray, obs_center: jnp.ndarray):
+        normFunc = partial(norm2Diff, y=obs_center)
+        g = lambda x: normFunc(self.H @ x)
+        G = jax.jacobian(g)(x)
+        b = g(x) - G @ x
+        return G, b
 
     def discretize_dynamics(self, A_c, B_c, d_c, dt):
         if self.discr_method == 'fe':

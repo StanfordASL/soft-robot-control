@@ -93,6 +93,7 @@ class OpenLoopController(Sofa.Core.Controller):
             # self.point.f = self.robot.tetras.force.value.flatten().copy() # Not currently used
             self.point.u = self.get_command()
 
+            # Check whether to save a point
             if self.save_snapshot() and self.snapshots.save_snapshot(self.point, self.prev_point):
                 self.save_point = True
                 if self.snapshots.save_dynamics:
@@ -138,7 +139,7 @@ class OpenLoopController(Sofa.Core.Controller):
             self.point.q_next = self.robot.tetras.position.value.flatten().copy()
             self.point.v_next = self.robot.tetras.velocity.value.flatten().copy()
             self.snapshots.add_point(self.point)
-
+        
         # Turn off animation at the end of the defined sequence
         if self.t >= self.controller.t_seq[-1] and not self.auto_paused:
             print('Reached the end of the sequence.')

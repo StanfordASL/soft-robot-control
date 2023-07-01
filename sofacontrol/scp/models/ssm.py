@@ -78,6 +78,9 @@ class SSMGuSTO(TemplateModel):
             return self.dyn_sys.get_observer_jacobians(x, self.dyn_sys.W_current, self.dyn_sys.y_bar_current)
         else:
             return self.dyn_sys.get_observer_jacobians(x)
+    
+    def get_obstacleConstraint_jacobians(self, x, obs_center):
+        return self.dyn_sys.get_obstacleConstraint_jacobians(x, obs_center)
 
     def get_characteristic_vals(self):
         """

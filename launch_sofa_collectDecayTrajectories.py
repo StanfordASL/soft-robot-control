@@ -21,8 +21,8 @@ import pickle
 
 from psutil import virtual_memory
 import sys
-from examples.trunk.trunk_adiabaticSSM import run_scp, run_gusto_solver
 from multiprocessing import Process
+from os.path import isfile, join
 
 path = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(path, "settings.yaml"), "rb") as f:
@@ -75,6 +75,8 @@ def createScene_OL(rootNode, q0=None, save_filepath="", input=None, pre_tensioni
     if robot.min_force > [0] * len(robot.actuator_list):
         print('[PROBLEM WARNING]   Minimal force for 1 or more actuators set to {}, which is higher than 0. '
               'Undesired behavior might occur'.format(max(robot.min_force)))
+    
+    save_equilibrium = not isfile(join(path, "rest_qv.pkl"))
 
     rootNode.addObject(prob.ControllerClass(rootNode=rootNode,
                                             robot=robot,
@@ -84,7 +86,8 @@ def createScene_OL(rootNode, q0=None, save_filepath="", input=None, pre_tensioni
                                             output_model=prob.output_model,
                                             simdata_dir=prob.simdata_dir,
                                             snapshots_dir=prob.snapshots_dir,
-                                            opt=prob.opt))
+                                            opt=prob.opt,
+                                            save_equilibrium=save_equilibrium))
     rootNode.autopaused = False  # Enables terminating simulation at the end when running from command line
     return rootNode
 
@@ -106,6 +109,7 @@ def createScene_CL(rootNode, z, T):
     rootNode.addObject('OglSceneFrame', style="Arrows", alignment="TopRight")
     rootNode.addObject('DefaultVisualManagerLoop')
     
+    from examples.trunk.trunk_adiabaticSSM import run_scp, run_gusto_solver
     prob = run_scp(z, T)
     prob.checkDefinition()
 
@@ -139,7 +143,8 @@ def createScene_CL(rootNode, z, T):
 def collectDecayTrajectories():
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
-    sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
+    # sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
+    sofa_lib_path = "/home/jalora/sofa/build/lib"
 
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'

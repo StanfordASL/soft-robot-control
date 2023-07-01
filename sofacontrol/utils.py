@@ -8,6 +8,8 @@ import jax.numpy as jnp
 import lzma
 from scipy.interpolate import CubicSpline
 import matplotlib.pyplot as plt
+import jax.scipy as jsp
+from functools import partial
 
 class QuadraticCost:
     """
@@ -421,8 +423,51 @@ class Polyhedron:
         return x_proj_alt
 
     def update(self, Hk, ck):
+        """
+        self.Ak and self.bk is constructed so that constraints are with respect to observable coordinates
+        """
         self.Ak = np.dot(self.A, Hk)
         self.bk = self.b - np.dot(self.A, ck)
+
+class CircleObstacle(Polyhedron):
+    def __init__(self, A, center, diameter):
+        self.diameter = diameter
+        self.center = center
+        super(CircleObstacle, self).__init__(A, None)
+    
+    
+    def contains(self, x):
+        """
+        Returns true if x is not on the obstacle
+        """
+        # Ensure only taking distance wrt x-y-z (or x-y) 
+        
+        if np.linalg.norm(x - self.center) <= (self.diameter / 2):
+            return True
+        else:
+            return False
+    
+    def get_constraint_violation(self, x, update=False):
+        """
+        Returns distance to constraint, i.e. how large the deviation is
+        """
+        if update:
+            z = self.Ak @ x + self.bk
+        else:
+            z = self.A @ x
+        
+        return np.maximum(np.linalg.norm(z - self.center) - (self.diameter / 2), 0)
+
+    def project_to_polyhedron(self, x):
+        raise RuntimeError('Not implemented for circular obstacle constraint.')
+
+    def update(self, Hk, ck):
+        """
+        self.Ak and self.bk is constructed so that constraints are with respect to observable coordinates
+        """
+        self.Ak = np.dot(self.A, Hk)
+        self.bk = np.dot(self.A, ck)
+
 
 class HyperRectangle(Polyhedron):
     def __init__(self, ub, lb):
@@ -431,6 +476,18 @@ class HyperRectangle(Polyhedron):
         b = np.hstack([np.array([ub[i], -lb[i]]) for i in range(n)])
         super(HyperRectangle, self).__init__(A, b)
 
+def pad_vector(x, y, replicate=False):
+    """
+    Pads numpy array x with dimension of y (assumes dim(x) < dim(y))
+    (optional) replicate (Bool): Replicate vallues in extra dimension of y into x
+    """
+    pad_size = len(y) - len(x)
+    if replicate:
+        x_pad = np.concatenate((x, y[-pad_size:]))
+    else:
+        x_pad = np.pad(x, (0, pad_size))
+    
+    return x_pad
 
 def arr2np(x, dim, squeeze=False):
     """
@@ -579,122 +636,25 @@ def resample_waypoints(waypoints, speed):
 
     return np.array(new_waypoints.tolist())
 
-""" Fast linear algebra routines
-Credits: https://gist.github.com/tbenthompson/faae311ec4e465b0ff47b4aabe0d56b2
+"""
+Custom JAX routine for jnp.norm
 """
 
-def fast_dot(a, b):
-    return (a * b).sum()
+def norm2Diff(x, y, P=None):
+    idxTrunc = len(y) # assume dim(y) < dim(x)
+    x = x[:idxTrunc]
+    is_zero = jnp.allclose(x - y, 0.)
+    x = jnp.where(is_zero, jnp.ones_like(x), x)
+    if P is not None:
+        ans = jnp.linalg.norm(jnp.dot(jsp.linalg.sqrtm(P), x.T - y.T), axis=0)
+    else:
+        ans = jnp.linalg.norm(x - y)
+    ans = jnp.where(is_zero, 0., ans)
 
-fast_mat_mul = jax.vmap(jax.vmap(fast_dot, in_axes=(None, 1)), in_axes=(0, None))
+    return jnp.max(jnp.array([ans, 0.001]))
 
-def inv22(mat):
-    m1, m2 = mat[0]
-    m3, m4 = mat[1]
-    inv_det = 1.0 / (m1 * m4 - m2 * m3)
-    return jnp.array([[m4, -m2], [-m3, m1]]) * inv_det
-
-
-def inv33(mat):
-    m1, m2, m3 = mat[0]
-    m4, m5, m6 = mat[1]
-    m7, m8, m9 = mat[2]
-    det = m1 * (m5 * m9 - m6 * m8) + m4 * (m8 * m3 - m2 * m9) + m7 * (m2 * m6 - m3 * m5)
-    inv_det = 1.0 / det
-    return (
-        jnp.array(
-            [
-                [m5 * m9 - m6 * m8, m3 * m8 - m2 * m9, m2 * m6 - m3 * m5],
-                [m6 * m7 - m4 * m9, m1 * m9 - m3 * m7, m3 * m4 - m1 * m6],
-                [m4 * m8 - m5 * m7, m2 * m7 - m1 * m8, m1 * m5 - m2 * m4],
-            ]
-        )
-        * inv_det
-    )
-
-
-def inv44(m):
-    """
-    See https://github.com/willnode/N-Matrix-Programmer
-    for source in the "Info" folder
-    MIT License.
-    """
-    A2323 = m[2, 2] * m[3, 3] - m[2, 3] * m[3, 2]
-    A1323 = m[2, 1] * m[3, 3] - m[2, 3] * m[3, 1]
-    A1223 = m[2, 1] * m[3, 2] - m[2, 2] * m[3, 1]
-    A0323 = m[2, 0] * m[3, 3] - m[2, 3] * m[3, 0]
-    A0223 = m[2, 0] * m[3, 2] - m[2, 2] * m[3, 0]
-    A0123 = m[2, 0] * m[3, 1] - m[2, 1] * m[3, 0]
-    A2313 = m[1, 2] * m[3, 3] - m[1, 3] * m[3, 2]
-    A1313 = m[1, 1] * m[3, 3] - m[1, 3] * m[3, 1]
-    A1213 = m[1, 1] * m[3, 2] - m[1, 2] * m[3, 1]
-    A2312 = m[1, 2] * m[2, 3] - m[1, 3] * m[2, 2]
-    A1312 = m[1, 1] * m[2, 3] - m[1, 3] * m[2, 1]
-    A1212 = m[1, 1] * m[2, 2] - m[1, 2] * m[2, 1]
-    A0313 = m[1, 0] * m[3, 3] - m[1, 3] * m[3, 0]
-    A0213 = m[1, 0] * m[3, 2] - m[1, 2] * m[3, 0]
-    A0312 = m[1, 0] * m[2, 3] - m[1, 3] * m[2, 0]
-    A0212 = m[1, 0] * m[2, 2] - m[1, 2] * m[2, 0]
-    A0113 = m[1, 0] * m[3, 1] - m[1, 1] * m[3, 0]
-    A0112 = m[1, 0] * m[2, 1] - m[1, 1] * m[2, 0]
-
-    det = (
-        m[0, 0] * (m[1, 1] * A2323 - m[1, 2] * A1323 + m[1, 3] * A1223)
-        - m[0, 1] * (m[1, 0] * A2323 - m[1, 2] * A0323 + m[1, 3] * A0223)
-        + m[0, 2] * (m[1, 0] * A1323 - m[1, 1] * A0323 + m[1, 3] * A0123)
-        - m[0, 3] * (m[1, 0] * A1223 - m[1, 1] * A0223 + m[1, 2] * A0123)
-    )
-    invdet = 1.0 / det
-
-    return invdet * jnp.array(
-        [
-            (m[1, 1] * A2323 - m[1, 2] * A1323 + m[1, 3] * A1223),
-            -(m[0, 1] * A2323 - m[0, 2] * A1323 + m[0, 3] * A1223),
-            (m[0, 1] * A2313 - m[0, 2] * A1313 + m[0, 3] * A1213),
-            -(m[0, 1] * A2312 - m[0, 2] * A1312 + m[0, 3] * A1212),
-            -(m[1, 0] * A2323 - m[1, 2] * A0323 + m[1, 3] * A0223),
-            (m[0, 0] * A2323 - m[0, 2] * A0323 + m[0, 3] * A0223),
-            -(m[0, 0] * A2313 - m[0, 2] * A0313 + m[0, 3] * A0213),
-            (m[0, 0] * A2312 - m[0, 2] * A0312 + m[0, 3] * A0212),
-            (m[1, 0] * A1323 - m[1, 1] * A0323 + m[1, 3] * A0123),
-            -(m[0, 0] * A1323 - m[0, 1] * A0323 + m[0, 3] * A0123),
-            (m[0, 0] * A1313 - m[0, 1] * A0313 + m[0, 3] * A0113),
-            -(m[0, 0] * A1312 - m[0, 1] * A0312 + m[0, 3] * A0112),
-            -(m[1, 0] * A1223 - m[1, 1] * A0223 + m[1, 2] * A0123),
-            (m[0, 0] * A1223 - m[0, 1] * A0223 + m[0, 2] * A0123),
-            -(m[0, 0] * A1213 - m[0, 1] * A0213 + m[0, 2] * A0113),
-            (m[0, 0] * A1212 - m[0, 1] * A0212 + m[0, 2] * A0112),
-        ]
-    ).reshape((4, 4))
-
-@jax.jit
-def fast_inv(mat):
-    if mat.shape[0] == 1:
-        return 1.0 / mat
-    if mat.shape[0] == 2:
-        return inv22(mat)
-    elif mat.shape[0] == 3:
-        return inv33(mat)
-    elif mat.shape[0] == 4:
-        return inv44(mat)
-    r = 4
-    A = mat[:r, :r]
-    B = mat[:r, r:]
-    C = mat[r:, :r]
-    D = mat[r:, r:]
-    A_inv = fast_inv(A)
-    CA_inv = fast_mat_mul(C, A_inv)
-    schur = D - fast_mat_mul(CA_inv, B)
-    schur_inv = fast_inv(schur)
-    A_invB = fast_mat_mul(A_inv, B)
-    lr = schur_inv
-    ur = -fast_mat_mul(A_invB, schur_inv)
-    ll = -fast_mat_mul(schur_inv, CA_inv)
-    ul = A_inv - fast_mat_mul(A_invB, ll)
-    return jnp.concatenate(
-        (
-            jnp.concatenate((ul, ur), axis=1),
-            jnp.concatenate((ll, lr), axis=1),
-        ),
-        axis=0,
-    )
+def norm2Linearize(x, y, dt, P=None):
+    fixed_y_norm2 = partial(norm2Diff, y=y, P=P)
+    A = jax.jacobian(fixed_y_norm2)(x)
+    c = fixed_y_norm2(x) - A @ x
+    return A, c

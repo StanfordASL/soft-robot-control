@@ -54,7 +54,7 @@ def run_scp():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/origin/SSMmodel_delay-embedding" # join(path, "SSMmodels", "model_004")
+    pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3)
@@ -116,7 +116,7 @@ def run_gusto_solver():
     from sofacontrol.scp.models.ssm import SSMGuSTO
     from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
-    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron
+    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron, CircleObstacle, drawContinuousPath, resample_waypoints
     from sofacontrol.SSM import ssm
     import pickle
 
@@ -131,7 +131,8 @@ def run_gusto_solver():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/origin/SSMmodel_delay-embedding" # join(path, "SSMmodels", "model_004")
+    # pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/origin/SSMmodel_delay-embedding" # join(path, "SSMmodels", "model_004")
+    pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
 
     # load SSM model
     with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
@@ -158,37 +159,57 @@ def run_gusto_solver():
     x0 = np.zeros(model.state_dim)
     
     # Define target trajectory for optimization
+    #############################################
+    # Problem 0, Custom Drawn Trajectory
+    #############################################
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100  # corresponding to x position of end effector
+    # Qz[1, 1] = 100  # corresponding to y position of end effector
+    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
+
+    # # Draw the desired trajectory
+    # points = drawContinuousPath(0.5)
+    # resampled_pts = resample_waypoints(points, 0.5)
+
+    # # Setup target trajectory
+    # t = np.linspace(0, 5, resampled_pts.shape[0])
+    # x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
+    # zf_target = np.zeros((resampled_pts.shape[0], model.output_dim))
+    # zf_target[:, 0] = x_target
+    # zf_target[:, 1] = y_target
+
     # === figure8 ===
-    # M = 1
-    # T = 10
-    # N = 1000
-    # radius = 30.
-    # t = np.linspace(0, M * T, M * N + 1)
-    # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # # zf_target = np.zeros((M*N+1, 6))
-    # zf_target[:, 0] += -radius * np.sin(th)
-    # zf_target[:, 1] += radius * np.sin(2 * th)
+    M = 1
+    T = 10
+    N = 1000
+    radius = 30.
+    t = np.linspace(0, M * T, M * N + 1)
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # zf_target = np.zeros((M*N+1, 6))
+    zf_target[:, 0] += -radius * np.sin(th)
+    zf_target[:, 1] += radius * np.sin(2 * th)
     # zf_target[:, 2] += -np.ones(len(t)) * 20
 
     # === circle (with constant z) ===
-    M = 1
-    T = 9 # 10
-    N = 900 # 1000
-    radius = 30.
-    t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
-    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # zf_target = np.zeros((M*N+1, 6))
-    zf_target[:, 0] += radius * np.cos(th)
-    zf_target[:, 1] += radius * np.sin(th)
-    # zf_target[:, 2] += -np.ones(len(t)) * 20
-    print(zf_target[0, :].shape)
-    idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
-    print(idle.shape)
-    zf_target = np.vstack([idle, zf_target])
-    print(zf_target.shape)
-    t = np.linspace(0, M * 10, M * 1000 + 1)
+    # M = 1
+    # T = 9 # 10
+    # N = 900 # 1000
+    # radius = 30.
+    # t = np.linspace(0, M * T, M * N + 1)
+    # th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
+    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # # zf_target = np.zeros((M*N+1, 6))
+    # zf_target[:, 0] += radius * np.cos(th)
+    # zf_target[:, 1] += radius * np.sin(th)
+    # # zf_target[:, 2] += -np.ones(len(t)) * 20
+    # print(zf_target[0, :].shape)
+    # idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
+    # print(idle.shape)
+    # zf_target = np.vstack([idle, zf_target])
+    # print(zf_target.shape)
+    # t = np.linspace(0, M * 10, M * 1000 + 1)
 
     z = model.zfyf_to_zy(zf=zf_target)
 
@@ -209,7 +230,17 @@ def run_gusto_solver():
     # dU = None
 
     # State constraints
-    X = None
+    # X = None
+    
+    # State constraints (q,v format): Polyhedron state constraint
+    # Format [constraint number, variable/state number]    
+    Hz = np.zeros((2, model.output_dim))
+    Hz[0, 0] = 1
+    Hz[1, 1] = 1
+
+    obstacleDiameter = 15
+    obstacleLoc = np.array([-4, 13])
+    X = CircleObstacle(A=Hz, center=obstacleLoc - Hz @ model.y_ref, diameter=obstacleDiameter)
 
     # Define GuSTO model
     gusto_model = SSMGuSTO(model)

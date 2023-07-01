@@ -214,12 +214,12 @@ def run_koopman_solver():
     U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
 
     # State constraints
-    Hz = np.zeros((1, model.n))
-    Hz[0, 1] = 1
-    H = Hz @ model.H
-    b_z = np.array([5])
-    b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
-    X = Polyhedron(A=H, b=b_z_ub_norm)
+    # Hz = np.zeros((1, model.n))
+    # Hz[0, 1] = 1
+    # H = Hz @ model.H
+    # b_z = np.array([5])
+    # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
+    # X = Polyhedron(A=H, b=b_z_ub_norm)
 
     # X = None
 

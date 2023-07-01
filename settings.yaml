@@ -1,15 +1,26 @@
 # collect decay data
 # run "./launch_sofa_collectDecayTrajectories.py"
 collectDecayData: {
-  robot: "diamond",
-  u_dim: 4,
-  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/diamond_adiabatic_test_origin",
+  # robot: "diamond",
+  # u_dim: 4,
+  # save_dir: "/home/jalora/Desktop/diamond_origin",
+  
+  robot: "trunk",
+  u_dim: 8,
+  save_dir: "/home/jalora/Desktop/trunk_origin",
+
+  # save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/diamond_adiabatic_test_origin",
 
   # settings for single decay trajectories
-  combine_inputs: [0, 1000, 3000],
+  # combine_inputs: [0, 1000, 3000],
+  # n_traj: 40,
+  # u_min: 0,
+  # u_max: 4000,
+
+  combine_inputs: [0, 800],
   n_traj: 40,
   u_min: 0,
-  u_max: 4000,
+  u_max: 1000,
 
   # define how the pre-tensionings are found:
   # "specified": use the list of pre_tensionings specified below
@@ -18,8 +29,12 @@ collectDecayData: {
   find_pre_tensionings: "specified", # "grid" # "random"
 
   # settings for find_pre_tensionings = "specified"
-  pre_tensionings: [
-    [0, 0, 0, 0],
+  # pre_tensionings: [
+  #   [0, 0, 0, 0], #Do n_trajs
+  # ],
+
+    pre_tensionings: [
+    [0, 0, 0, 0, 0, 0, 0, 0], #Do n_trajs
     # [200, 0, 0, 0, 200, 0, 0, 0],
     # [0, 200, 0, 0, 0, 200, 0, 0],
     # [0, 0, 200, 0, 0, 0, 200, 0],
@@ -50,8 +65,18 @@ collectDecayData: {
 # run "./launch_sofa_collectInputTrajectories.py"
 collectInputData: {
   # need to run collection of decay trajectories first (at least the early stages), to get the pre-tensionings
+  # robot: "trunk",
+  # u_dim: 8,
+  # u_max: 100,
+  # save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=147",
+
+  # robot: "diamond",
+  # u_dim: 4,
+  # u_max: 2000,
+  # save_dir: "/home/jalora/Desktop/diamond_origin",
+
   robot: "trunk",
   u_dim: 8,
   u_max: 100,
-  save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=147",
+  save_dir: "/home/jalora/Desktop/trunk_origin",
 }

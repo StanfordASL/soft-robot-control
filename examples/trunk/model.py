@@ -2,8 +2,9 @@
 This file defines the parameters for the Trunk robot FEM
 """
 import pickle
-from os.path import dirname, abspath, join
+from os.path import dirname, abspath, join, isfile
 import numpy as np
+from sofacontrol.utils import load_data
 
 
 PATH = dirname(abspath(__file__))
@@ -15,8 +16,10 @@ TIP_NODE = 51
 N_NODES = 709
 
 # equilibrium position after gravity
-with open(join(PATH, 'rest_qv.pkl'), 'rb') as file:
-    QV_EQUILIBRIUM =  [pickle.load(file)['q'][0], np.zeros(3*N_NODES)]
+rest_file = join(PATH, "rest_qv.pkl")
+if isfile(rest_file):
+    with open(rest_file, 'rb') as file:
+        QV_EQUILIBRIUM =  [pickle.load(file)['q'][0], np.zeros(3*N_NODES)]
 
 
 def trunkRobot(q0=None, scale_mode=1000, dt=DT):

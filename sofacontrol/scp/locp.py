@@ -5,6 +5,8 @@ from cvxpy.atoms.affine.wraps import psd_wrap
 from cvxpy.atoms.affine.reshape import reshape
 import time
 import scipy.sparse as sp
+from sofacontrol.utils import CircleObstacle, Polyhedron
+from sofacontrol.utils import norm2Linearize
 
 class LOCP:
     """
@@ -86,6 +88,11 @@ class LOCP:
             if self.nonlinear_observer:
                 self.Hd = [cp.Parameter((self.n_z, self.n_x)) for i in range(self.N + 1)]
                 self.cd = cp.Parameter((self.N + 1) * self.n_z)
+            
+            # Build matrices for obstacle constraint
+            if type(self.X) is CircleObstacle:
+                self.Gd = [cp.Parameter((1, self.n_x)) for i in range(self.N + 1)]
+                self.bd = cp.Parameter(self.N + 1)
 
             self.x0 = cp.Parameter(self.n_x)
             self.xk = cp.Parameter((self.N + 1, self.n_x))
@@ -119,19 +126,24 @@ class LOCP:
                 elif self.Qzf is not None and zf is None:
                     self.zf.value = np.zeros(self.n_z)  # default set to 0
 
-                # Added observer linearizations. Make sure to propogate Hd and cd as parameters in kwargs
                 for j in range(self.N):
                     self.Ad[j].value = np.asarray(Ad[j])
                     self.Bd[j].value = np.asarray(Bd[j])
 
+                self.dd.value = np.ravel(np.asarray(dd))
+
+                # Added observer linearizations. Make sure to propogate Hd and cd as parameters in kwargs
                 if self.nonlinear_observer:
                     for j in range(self.N + 1):
                         self.Hd[j].value = np.asarray(kwargs.get('Hd')[j])
-
-                self.dd.value = np.ravel(np.asarray(dd))
-                if self.nonlinear_observer:
                     cd = kwargs.get('cd')
                     self.cd.value = np.ravel(np.asarray(cd))
+                
+                if type(self.X) is CircleObstacle:
+                    for j in range(self.N + 1):
+                        self.Gd[j].value = np.asarray(kwargs.get('Gd')[j]).reshape((1, self.n_x))
+                    bd = kwargs.get('bd')
+                    self.bd.value = np.ravel(np.asarray(bd))
 
                 self.xk.value = xk
                 self.x0.value = np.asarray(x0)
@@ -169,6 +181,10 @@ class LOCP:
             if self.nonlinear_observer:
                 self.Hd = np.asarray(kwargs.get('Hd'))
                 self.cd = np.asarray(kwargs.get('cd'))
+            
+            if type(self.X) is CircleObstacle:
+                self.Gd = np.asarray(kwargs.get('Gd'))
+                self.bd = np.asarray(kwargs.get('bd'))
 
             self.problem_setup()
 
@@ -309,12 +325,14 @@ class LOCP:
         # State constraints
         if self.X is not None:
             if self.nonlinear_observer:
+                # "cd" is the residual of the nonlinear observer
+                # "H" is the linearization of the nonlinear observer
                 cdfull = np.reshape(self.cd, ((self.N + 1) * self.n_z,)) if isinstance(self.cd, list) else \
                     reshape(self.cd, ((self.N + 1) * self.n_z,))
                 if self.warm_start:
                     Hfull = []
                     for j in range(self.N):
-                        cur = [np.zeros((self.n_z, self.n_x))] * self.N
+                        cur = [np.zeros((self.n_z, self.n_x))] * self.N # TODO: Does this make sense? I dont think so
                         cur[j] = self.Hd[j + 1]
                         Hfull.append(cur)
                     Hfull = cp.bmat(Hfull)
@@ -324,12 +342,22 @@ class LOCP:
                 # Take only last N of cdfull
                 cdfull = cdfull[self.n_z:]
                 XAfull = block_diag(*[self.X.A for j in range(self.N)]) @ Hfull
-                Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
-                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+                if type(self.X) is Polyhedron:
+                    Xbfull = np.tile(self.X.b, self.N) - block_diag(*[self.X.A for j in range(self.N)]) @ cdfull
+                    constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+                elif type(self.X) is CircleObstacle:
+                    x = cp.reshape(self.x[self.n_x:], (self.n_x, self.N))
+                    for i in range(self.N):
+                        constr += [self.Gd[i] @ x[:, i] + self.bd[i] >= self.X.diameter/2]
             else:
-                XAfull = block_diag(*[self.X.A for j in range(self.N)])
-                Xbfull = np.tile(self.X.b, self.N)
-                constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+                if type(self.X) is Polyhedron:
+                    XAfull = block_diag(*[self.X.A for j in range(self.N)])
+                    Xbfull = np.tile(self.X.b, self.N)
+                    constr += [XAfull @ self.x[self.n_x:] <= Xbfull]
+                elif type(self.X) is CircleObstacle:
+                    x = cp.reshape(self.x[self.n_x:], (self.n_x, self.N))
+                    for i in range(self.N):
+                        constr += [self.Gd[i] @ x[:, i] + self.bd[i] >= self.X.diameter/2]
 
         # Terminal constraints
         if self.Xf is not None:

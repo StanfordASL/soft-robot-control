@@ -272,7 +272,7 @@ def run_scp():
     # Saving paths
     prob.opt['sim_duration'] = 13.
     prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'scp'
+    prob.opt['save_prefix'] = 'tpwl'
 
     return prob
 
@@ -284,7 +284,7 @@ def run_gusto_solver():
     from sofacontrol.measurement_models import linearModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.tpwl import tpwl_config, tpwl
-    from sofacontrol.utils import HyperRectangle, Polyhedron
+    from sofacontrol.utils import HyperRectangle, Polyhedron, CircleObstacle
 
     output_model = linearModel(nodes=[1354], num_nodes=1628)
 
@@ -339,14 +339,23 @@ def run_gusto_solver():
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
     # State constraints
-    Hz = np.zeros((1, 6))
-    Hz[0, 4] = 1
-    H = Hz @ model.H
-    b_z = np.array([5])
-    X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
+    # Hz = np.zeros((1, 6))
+    # Hz[0, 4] = 1
+    # H = Hz @ model.H
+    # b_z = np.array([5])
+    # X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
+
+    # Hz = np.zeros((2, model.output_dim))
+    # Hz[0, 3] = 1
+    # Hz[1, 4] = 1
+    # H = Hz @ model.H
+
+    # obstacleDiameter = 10
+    # obstacleLoc = np.array([-12, 12])
+    # X = CircleObstacle(A=H, center=obstacleLoc - Hz @ model.z_ref, diameter=obstacleDiameter)
 
     # No constraints for now
-    # X = None
+    X = None
     ##############################################
     # Problem 2, Circle on side
     ##############################################
@@ -390,7 +399,7 @@ def run_gusto_solver():
 
     # Define GuSTO model
     dt = 0.1
-    N = 3
+    N = 5
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,

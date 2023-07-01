@@ -94,3 +94,6 @@ class TPWLGuSTO(TemplateModel):
         Returns state x (N + 1, n_x) and performance variable z (N + 1, n_z)
         """
         return self.dyn_sys.rollout(x0, u, dt)
+
+    def get_obstacleConstraint_jacobians(self, x, obs_center):
+        return self.dyn_sys.get_obstacleConstraint_jacobians(x, obs_center)

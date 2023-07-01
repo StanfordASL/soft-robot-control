@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from functools import partial
 
 from sofacontrol.scp.locp import LOCP
+from sofacontrol.utils import CircleObstacle
 
 #### Default variables for GuSTO ####
 DELTA0 = 1e4  # trust region
@@ -196,6 +197,8 @@ class GuSTO:
                 if self.nonlinear_observer:
                     x_curr = np.atleast_2d(x[i, :])
                     H_curr, c_curr = self.get_observer_linearizations(x_curr)
+                    
+                    # updates A and b in the constraints, handling the evaluation of constraint in observed coordinates
                     self.X.update(H_curr[0], c_curr[0])
                     update_constraint = True
 
@@ -288,6 +291,20 @@ class GuSTO:
             c_d.append(c_d_i)
 
         return H_d, c_d
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def get_obstacleConstraint_linearization(self, x, obs_center):
+        G_d = []
+        b_d = []
+        # Only take up to the dimension of the obstacle center
+        # n_c = obs_center.shape[0]
+        x = jnp.asarray(x)
+        for i in range(x.shape[0]):
+            G_d_i, b_d_i = self.model.get_obstacleConstraint_jacobians(x[i, :], obs_center)
+            G_d.append(G_d_i)
+            b_d.append(b_d_i)
+
+        return G_d, b_d
 
     def solve(self, x0, u_init, x_init, z=None, zf=None, u=None):
         """
@@ -319,6 +336,11 @@ class GuSTO:
                 H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
         else:
             H_d, c_d = None, None
+        
+        if type(self.X) is CircleObstacle:
+            G_d, b_d = self.get_obstacleConstraint_linearization(self.x_k, self.X.center)
+        else:
+            G_d, b_d = None, None
 
         t_jac = time.time()
         # TODO: Timing computations
@@ -347,11 +369,13 @@ class GuSTO:
 
             # Update the LOCP with new parameters and solve
             if new_solution:
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d)
+                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
+                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d)
                 new_solution = False
             else:
                 # Build new problem if no new solution
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d, full=False)
+                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
+                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, full=False)
 
             # TODO: Timing computations
             print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))

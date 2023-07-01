@@ -42,7 +42,7 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     prob.ControllerClass = OpenLoopController
 
     # t0 is when force is actually applied and when data is saved
-    Sequences = DiamondRobotSequences(t0=t0, dt=0.001)
+    Sequences = DiamondRobotSequences(t0=t0, dt=0.01)
 
     # 1) Wind up the robot
     t_duration1 = 1.0
@@ -77,6 +77,8 @@ def collect_open_loop_data(u_max, pre_tensioning, q0=None, t0=0.0, save_data=Tru
     prob.ControllerClass = OpenLoopController
 
     dt = 0.01
+    m = 4
+    u_max = u_max * np.ones(m)
     Sequences = DiamondRobotSequences(t0=t0, dt=dt, umax=u_max)
     u, save, t = Sequences.lhs_sequence(nbr_samples=200, interp_pts=20, seed=1234, add_base=True)  # ramp inputs between lhs samples
 

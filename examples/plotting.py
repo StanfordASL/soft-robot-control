@@ -10,7 +10,7 @@ import yaml
 import pickle
 
 from sofacontrol.measurement_models import linearModel
-from sofacontrol.utils import qv2x, load_data
+from sofacontrol.utils import qv2x, load_data, CircleObstacle
 
 
 path = dirname(abspath(__file__))
@@ -55,7 +55,8 @@ for control in CONTROLS:
     idx = np.argwhere(control_data['t'] >= t0)[0][0]
     SIM_DATA[control]['t'] = control_data['t'][idx:] - control_data['t'][idx]
     SIM_DATA[control]['z'] = control_data['z'][idx:, 3:]
-    SIM_DATA[control]['z'][:, 2] *= -1
+    if SETTINGS['robot'] == "trunk":
+        SIM_DATA[control]['z'][:, 2] *= -1
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
     SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
     SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
@@ -66,17 +67,20 @@ print(model.QV_EQUILIBRIUM[0].shape, model.QV_EQUILIBRIUM[1].shape)
 x_eq = qv2x(q=model.QV_EQUILIBRIUM[0], v=model.QV_EQUILIBRIUM[1])
 outputModel = linearModel([model.TIP_NODE], model.N_NODES, vel=False)
 Z_EQ = outputModel.evaluate(x_eq, qv=False)
-Z_EQ[2] *= -1
+if SETTINGS['robot'] == "trunk":
+    Z_EQ[2] *= -1
 print(Z_EQ)
 
 # Load reference/target trajectory as defined in plotting_settings.py
 TARGET = SETTINGS['select_target']
 target_settings = SETTINGS['define_targets'][TARGET]
-M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
-t_target = np.linspace(0, M*T, M*N+1)
-th = np.linspace(0, M*2*np.pi, M*N+1) # + np.pi/2
-# zf_target = np.tile(z_eq_point, (M*N+1, 1))
-zf_target = np.zeros((M*N+1, len(Z_EQ)))
+if TARGET != "custom":
+    M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
+    t_target = np.linspace(0, M*T, M*N+1)
+    th = np.linspace(0, M*2*np.pi, M*N+1) # + np.pi/2
+    # zf_target = np.tile(z_eq_point, (M*N+1, 1))
+    zf_target = np.zeros((M*N+1, len(Z_EQ)))
+
 if TARGET == "circle":
     zf_target[:, 0] += radius * np.cos(th)
     zf_target[:, 1] += radius * np.sin(th)
@@ -86,12 +90,20 @@ elif TARGET == "figure8":
     zf_target[:, 1] += radius * np.sin(2 * th)
     zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
 else:
-    zf_target = load_data()
+    targetName = "drawnTrajectory"
+    robotPath = join(path, SETTINGS['robot'])
+    targetDir = join(robotPath, "trajectories")
+    targetFile = join(targetDir, targetName + ".pkl")
+    target = load_data(targetFile)
+
+    zf_target = target['zf_target'] - np.hstack((Z_EQ, np.zeros(3)))
+    t_target = target['t']
+    zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
+    print("zf_target: ", zf_target.shape)
+
 
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
-
-
 
 SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
 if not exists(SAVE_DIR):
@@ -125,8 +137,23 @@ def traj_x_vs_y():
                 color='tab:red',
                 fill=False))
     
+    # TODO: Hardcode in for now
+    Hz = np.zeros((2, 3))
+    Hz[0, 0] = 1
+    Hz[1, 1] = 1
+
+    obstacleDiameter = 10
+    obstacleLoc = np.array([-12, 12])
+    X = CircleObstacle(A=Hz, center=obstacleLoc - Hz @ Z_EQ, diameter=obstacleDiameter)
+    circle = patches.Circle((X.center[0], X.center[1]), X.diameter/2, edgecolor='red', facecolor='none')
+
+    # Add the circle to the axes
+    ax.add_patch(circle)
+
+
     for control in CONTROLS: # + ['target']:
         z_centered = SIM_DATA[control]['z'] - Z_EQ
+        print("z centered: ", z_centered)
         ax.plot(z_centered[:, 0], z_centered[:, 1],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
@@ -232,7 +259,8 @@ def traj_xyz_vs_t():
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],
                         ls=SETTINGS['linestyle'][control], markevery=20)
-        ax.plot(t_target, zf_target[:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        print("curr coord: ", coord)
+        ax.plot(t_target, zf_target[:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
     ax2.set_ylabel(r'$y_{ee}$ [mm]')
     ax3.set_ylabel(r'$z_{ee}$ [mm]')
@@ -370,9 +398,10 @@ def rmse_calculations():
 
 
 if __name__ == "__main__":
+    # TODO: Fix this using interpolation of the 
     # rmse_calculations()
     traj_3D()
     traj_inputs_vs_t()
     traj_x_vs_y()
-    traj_xy_vs_t()
+    # traj_xy_vs_t()
     traj_xyz_vs_t()

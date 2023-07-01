@@ -92,7 +92,9 @@ def createScene(rootNode, q0=None, save_filepath="", u_max=None, pre_tensioning=
 def collectInputTrajectories():
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
-    sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
+    # sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
+    sofa_lib_path = "/home/jalora/sofa/build/lib"
+
     path = os.path.dirname(os.path.abspath(__file__))
 
     if not os.path.exists(sofa_lib_path):
