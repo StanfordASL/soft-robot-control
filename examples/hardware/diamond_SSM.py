@@ -212,8 +212,8 @@ def run_scp():
         outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
+        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], N_NODES)
@@ -305,8 +305,8 @@ def run_gusto_solver():
     if raw_params['delay_embedding']:
         outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
+        # outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
         outputModel = linearModel([TIP_NODE], N_NODES)

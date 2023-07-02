@@ -267,10 +267,10 @@ def run_scp():
 
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=3)
+    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=1)
 
     # Saving paths
-    prob.opt['sim_duration'] = 13.
+    prob.opt['sim_duration'] = 11.
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'tpwl'
 
@@ -335,7 +335,7 @@ def run_gusto_solver():
 
     # Control constraints
     low = 200.0
-    high = 4000.0
+    high = 2500.0
     U = HyperRectangle([high, high, high, high], [low, low, low, low])
 
     # State constraints
