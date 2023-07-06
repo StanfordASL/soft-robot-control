@@ -60,12 +60,12 @@
 # problem = trunk_SSM.run_scp
 
 # ADIABATIC SSM
-# from examples.trunk import trunk_adiabaticSSM
-# problem = trunk_adiabaticSSM.run_scp
+from examples.trunk import trunk_adiabaticSSM
+problem = trunk_adiabaticSSM.run_scp
 
 # TPWL
-from examples.trunk import trunk_tpwl
-# problem = trunk_tpwl.collect_POD_data
-# problem = trunk_tpwl.collect_TPWL_data
-problem = trunk_tpwl.run_scp
-# problem = trunk_tpwl.run_ilqr
+# from examples.trunk import trunk_tpwl
+# # problem = trunk_tpwl.collect_POD_data
+# # problem = trunk_tpwl.collect_TPWL_data
+# problem = trunk_tpwl.run_scp
+# # problem = trunk_tpwl.run_ilqr

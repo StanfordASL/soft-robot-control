@@ -182,7 +182,8 @@ class LOCP:
 
         # TODO: Timing computations
         t1 = time.time()
-        print('DEBUG: Solve routing in LOCP computed in {:.3f} seconds'.format(t1 - t0))
+        if self.verbose >= 1:
+            print('DEBUG: Solve routing in LOCP computed in {:.3f} seconds'.format(t1 - t0))
 
         if self.prob.status == 'optimal':
             return Jstar, True, self.prob.solver_stats

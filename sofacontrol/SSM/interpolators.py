@@ -48,7 +48,8 @@ class InterpolatorFactory():
         elif interpolation_method == 'linear':
             interpolator = LinearInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'nn':
-            interpolator = NearestNeighborInterpolator(q_eq, coeff_dict)
+            # interpolator = NearestNeighborInterpolator(q_eq, coeff_dict)
+            interpolator = IDWInterpolator(q_eq, coeff_dict, p=np.inf)
         elif interpolation_method == 'ct':
             interpolator = CloughTocherInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'tps':
@@ -193,7 +194,7 @@ class RBFInterpolator(Interpolator):
 
 
 class IDWInterpolator(Interpolator):
-    def __init__(self, q_eq, coeff_dict, p=1, eps=1.):
+    def __init__(self, q_eq, coeff_dict, p=8, eps=0.1):
         self.p = p
         self.eps = eps
         super(IDWInterpolator, self).__init__(q_eq, coeff_dict)
@@ -203,7 +204,7 @@ class IDWInterpolator(Interpolator):
 
     def transform(self, q, coeff_name):
         weights = self.calc_weights(q)
-        if coeff_name in ["q_bar", "u_bar"]:
+        if coeff_name in ["q_bar", "x_bar", "u_bar"]:
             return np.einsum("i, ij -> j", weights, self.coeff_dict[coeff_name])
         else:
             return np.einsum("i, ijk -> jk", weights, self.coeff_dict[coeff_name])

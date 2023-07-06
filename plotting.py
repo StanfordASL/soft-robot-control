@@ -330,7 +330,7 @@ def rmse_calculations():
         plt.show()
 
 
-def rmse_vs_n_models(n_models, z, solve_times=None, save_dir="", show=True):
+def rmse_vs_n_models(n_models, z, solve_times=None, baselines=False, save_dir="", show=True):
     """Compute and plot RMSEs for different number of models"""
     fig, ax = plt.subplots(1, 1, figsize=(8, 5))
     colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown']
@@ -340,9 +340,19 @@ def rmse_vs_n_models(n_models, z, solve_times=None, save_dir="", show=True):
         z_centered = np.array(z[control]) - Z_EQ
         error = z_centered[:, :, :, :2] - z_target[:, :2]
         rmse = np.sqrt(np.mean(np.linalg.norm(error, axis=-1)**2, axis=-1))
-        ax.plot(n_models[control], np.mean(rmse, axis=-1), color=colors[i], marker=markers[i], label=control.upper())
-        ax.fill_between(n_models[control], np.min(rmse, axis=-1), np.max(rmse, axis=-1), color=colors[i], alpha=.25)
+        ax.plot(n_models[control], np.nanmean(rmse, axis=-1), color=colors[i], marker=markers[i], label=control.upper())
+        ax.fill_between(n_models[control], np.nanmin(rmse, axis=-1), np.nanmax(rmse, axis=-1), color=colors[i], alpha=.25)
     
+    if baselines:
+        baselines_rmse = {
+            "ssmr_origin": 1.0,
+            "tpwl": 1.1,
+            "koopman": 1.3
+        }
+        colors_baselines = ['tab:blue', 'tab:orange', 'tab:green']
+        for i, control in enumerate(baselines_rmse.keys()):
+            ax.axhline(baselines_rmse[control], color=colors_baselines[i], linestyle='--', label=control.upper())
+
     ax.set_xlabel(r'$N_{models}$')
     ax.set_ylabel(r'RMSE [mm]')
     ax.set_title('RMSE vs. number of models')

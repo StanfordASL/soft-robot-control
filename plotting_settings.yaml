@@ -2,10 +2,10 @@ robot: "trunk"
 save_dir: "plots/"
 file_format: "png"
 
-traj_dir: "sim_trajs/circle_z=-10" # figure8" # 
+traj_dir: "sim_trajs/figure8" # circle_z=-10" # 
 
 show: {
-    'ssmr': False,
+    'ssmr': True,
     'ssmr_origin': True,
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
@@ -14,7 +14,7 @@ show: {
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
     'tpwl': True,
-    'koopman': True,
+    'koopman': False,
     'rompc': False
 }
 display_name: {
@@ -73,8 +73,6 @@ linewidth: {
     'target': 1
 }
 
-select_target: "circle"
-# Figure8 target
 define_targets: {
     figure8: {
         M: 1,

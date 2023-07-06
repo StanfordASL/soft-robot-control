@@ -242,7 +242,6 @@ class GuSTO:
             A_d.append(A_d_i)
             B_d.append(B_d_i)
             d_d.append(d_d_i)
-        print(A_d)
         return A_d, B_d, d_d
 
     def get_observer_linearizations(self, x, u=None):
@@ -322,7 +321,8 @@ class GuSTO:
 
         t_jac = time.time()
         # TODO: Timing computations
-        print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
+        if self.verbose >= 1:
+            print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
 
         new_solution = True
         Jstar_prev = np.inf
@@ -354,7 +354,8 @@ class GuSTO:
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, Hd=H_d, cd=c_d, full=False)
 
             # TODO: Timing computations
-            print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
+            if self.verbose >= 1:
+                print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
 
             # Solve the LOCP
             Jstar, success, stats = self.locp.solve()
@@ -432,7 +433,8 @@ class GuSTO:
                 omega = self.gamma_fail * omega
 
             # TODO: Timing computations
-            print('DEBUG: Trust region + LOCP computed in {:.4f} seconds'.format(time.time() - t0))
+            if self.verbose >= 1:
+                print('DEBUG: Trust region + LOCP computed in {:.4f} seconds'.format(time.time() - t0))
 
             itr += 1
 
@@ -477,12 +479,13 @@ class GuSTO:
                         H_d, c_d = None, None
 
         t_gusto = time.time() - t0
-        if omega > self.omega_max:
-            print('omega > omega_max, solution did not converge')
-        if not self.is_valid_iteration(itr-1):
-            print('Max iterations, solution did not converge')
-        else:
-            print('Solved in {} iterations/{:.3f} seconds, with {:.3f} s from LOCP solve'.format(itr, t_gusto, t_locp))
+        if self.verbose >= 1:
+            if omega > self.omega_max:
+                print('omega > omega_max, solution did not converge')
+            if not self.is_valid_iteration(itr-1):
+                print('Max iterations, solution did not converge')
+            else:
+                print('Solved in {} iterations/{:.3f} seconds, with {:.3f} s from LOCP solve'.format(itr, t_gusto, t_locp))
 
         # Save optimal solution
         self.xopt = np.copy(self.x_k)

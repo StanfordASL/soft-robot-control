@@ -10,6 +10,8 @@ from sofacontrol.scp.ros import GuSTOClientNode
 from sofacontrol.utils import vq2qv
 from sofacontrol.lqr.lqr import dare
 
+import pickle
+
 """
 Functions provide different control techniques for optimal control tasks such as Trajectory Optimization, Trajectory 
 Tracking and setpoint reaching. Interfaces with SOFA through closed_loop_controller.py
@@ -201,7 +203,7 @@ class scp(TemplateController):
         Policy computed online based on observer belief state and current time
         """
         print('t_sim = {:.3f}'.format(t_step))
-        print(f'x_belief = {x_belief}')
+        # print(f'x_belief = {x_belief}')
 
 
         # If the controller hasn't been initialized yet start with x_belief and solve
@@ -226,8 +228,11 @@ class scp(TemplateController):
     def update_policy(self, init=False):
         # Query whether the solution is ready
         if not self.GuSTO.check_if_done():  # If running with wait=True, this is always False
-            print('GuSTO cannot provide real-time compatibility, consider modifying problem')
-            self.GuSTO.force_wait()
+            # print('GuSTO cannot provide real-time compatibility, consider modifying problem')
+            # self.GuSTO.force_wait()
+            with open("/home/jonas/Projects/stanford/soft-robot-control/gusto_failed_flag.pkl", "wb") as f:
+                pickle.dump(True, f)
+            raise RuntimeError('GuSTO solver failed to solve the problem in time')
 
         t_opt_p, u_opt_p, x_opt_p, t_solve = self.GuSTO.get_solution(self.state_dim, self.input_dim)
 
