@@ -24,7 +24,7 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 # Set directory for SSM Models
-PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9" # 100_sparsity=0.95" # 33_handcrafted" # 147" # 
+PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 33_handcrafted" # 147" # 
 MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PATH_TO_MODEL, name))]
 # if exists(join(PATH_TO_MODEL, "use_models.pkl")):
 #     with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
@@ -32,7 +32,7 @@ MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PAT
 # else:
 #     raise FileNotFoundError("No use_models.pkl file found in model directory")
 # USE_MODELS = [int(i) for i in []] # ['096', '077', '098', '053', '032', '018', '064', '082', '031', '061']]
-USE_MODELS = [0, 1, 2, 3, 4] # list(range(len(MODEL_NAMES)))
+USE_MODELS = list(range(len(MODEL_NAMES)))
 # USE_MODELS = [0, 52, 40, 17, 92, 28, 74, 15, 77, 83, 82, 88, 11, 93, 98, 84, 56, 62, 21, 16, 31, 38, 68, 14, 23, 67, 18, 75, 46, 81, 34, 44, 37, 99, 85, 95, 35, 64, 9, 79, 90, 59, 50, 97, 51, 20, 27, 32, 25, 49, 39, 43, 55, 29]
 MODEL_NAMES = [MODEL_NAMES[i] for i in USE_MODELS]
 print("Using models: ", MODEL_NAMES)
@@ -96,37 +96,37 @@ cost = QuadraticCost()
 Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
-Qz[2, 2] = 0.  # corresponding to z position of end effector
+Qz[2, 2] = 1000.  # corresponding to z position of end effector
 R = 0.0001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
 
 # Define target trajectory for optimization
 # === figure8 (2D) ===
-M = 1
-T = 10
-N = 1000
-radius = 30.
-tf = np.linspace(0, M * T, M * N + 1)
-th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
-zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# zf_target = np.zeros((M * N, model.output_dim))
-zf_target[:, 0] += -radius * np.sin(th)
-zf_target[:, 1] += radius * np.sin(2 * th)
-# zf_target[:, 2] += -np.ones(len(t)) * 10
-
-# === circle with constant z (3D) ===
 # M = 1
 # T = 10
 # N = 1000
-# radius = 20.
+# radius = 30.
 # tf = np.linspace(0, M * T, M * N + 1)
-# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + 3 * np.pi / 2
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
 # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
 # # zf_target = np.zeros((M * N, model.output_dim))
-# zf_target[:, 0] += radius * np.cos(th)
-# zf_target[:, 1] += radius * np.sin(th)
-# zf_target[:, 2] += -np.ones(len(tf)) * 10
+# zf_target[:, 0] += -radius * np.sin(th)
+# zf_target[:, 1] += radius * np.sin(2 * th)
+# # zf_target[:, 2] += -np.ones(len(t)) * 10
+
+# === circle with constant z (3D) ===
+M = 1
+T = 10
+N = 1000
+radius = 20.
+tf = np.linspace(0, M * T, M * N + 1)
+th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + 3 * np.pi / 2
+zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+# zf_target = np.zeros((M * N, model.output_dim))
+zf_target[:, 0] += radius * np.cos(th)
+zf_target[:, 1] += radius * np.sin(th)
+zf_target[:, 2] += -np.ones(len(tf)) * 10
 
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 

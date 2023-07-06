@@ -84,7 +84,9 @@ class SSMGuSTO(TemplateModel):
         """
         if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:
             W = self.dyn_sys.interpolator.transform(x[self.dyn_sys.interp_slice], "w_coeff")
-            return self.dyn_sys.get_observer_jacobians(x, W)
+            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x[self.dyn_sys.interp_slice], "q_bar"), 5)
+            y_bar = np.tile(self.dyn_sys.interpolator.transform(x[self.dyn_sys.interp_slice], "q_bar"), 5)
+            return self.dyn_sys.get_observer_jacobians(x, W, x_bar, y_bar)
         else:
             return self.dyn_sys.get_observer_jacobians(x)
 

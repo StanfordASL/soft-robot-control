@@ -11,7 +11,7 @@ import pickle
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "nn" # "natural_neighbor" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg", "qp"
+INTERPOLATION_METHOD = "qp" # "natural_neighbor" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg", "qp"
 ORIGIN_IDX = 0
 
 DISCR_DICT = {'fe': 'forward Euler', 'be': 'implicit Euler', 'bil': 'bilinear transform', 'zoh': 'zero-order hold'}
@@ -143,8 +143,9 @@ class AdiabaticSSM:
         :yf: boolean
         """
         W = self.interpolator.transform(x[0, self.interp_slice], "w_coeff")
-        # y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
-        return self.W_map(W, x.T).T + self.y_ref
+        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
+        y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
+        return self.W_map(W, x.T, x_bar, y_bar).T + self.y_ref
 
 
     def x_to_zy(self, x):
@@ -154,8 +155,9 @@ class AdiabaticSSM:
         :y: boolean
         """
         W = self.interpolator.transform(x[0, self.interp_slice], "w_coeff")
-        # y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
-        return self.W_map(W, x.T)
+        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
+        y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
+        return self.W_map(W, x.T, x_bar, y_bar)
 
     def get_sim_params(self):
         return {'discr_method': self.discr_method}
@@ -205,8 +207,8 @@ class AdiabaticSSM:
         xdot = jnp.dot(R, jnp.asarray(self.rom_phi(*x - x_bar))) + jnp.dot(B, jnp.asarray(self.control_phi(*(u - u_bar))))
         return xdot
 
-    def reduced_to_output(self, W, x):
-        output = jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(W), jnp.asarray(self.ssm_map_phi(*(x)))))
+    def reduced_to_output(self, W, x, x_bar, y_bar):
+        output = jnp.dot(jnp.asarray(self.C), (jnp.dot(jnp.asarray(W), jnp.asarray(self.ssm_map_phi(*(x.T - x_bar).T))).T + y_bar).T)
         return output
 
     # @partial(jax.jit, static_argnums=(0,))
@@ -296,9 +298,11 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
     @partial(jax.jit, static_argnums=(0,))
     def get_observer_jacobians(self,
                             x: jnp.ndarray,
-                            W: jnp.ndarray):
-        H = jax.jacobian(self.W_map, 1)(W, x)
-        c_res = self.W_map(W, x) - jnp.dot(H, x)
+                            W: jnp.ndarray,
+                            x_bar: jnp.ndarray,
+                            y_bar: jnp.ndarray):
+        H = jax.jacobian(self.W_map, 1)(W, x, x_bar, y_bar)
+        c_res = self.W_map(W, x, x_bar, y_bar) - jnp.dot(H, x)
         return H, c_res
 
     # def get_observer_jacobians_nojit(self,
@@ -344,8 +348,9 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
 
     def update_observer_state(self, x, dt=None, u=None):
         W = self.interpolator.transform(x[self.interp_slice], "w_coeff")
-        # y_bar = np.tile(self.interpolator.transform(x[self.interp_slice], "q_bar"), 5)
-        H, c = self.get_observer_jacobians(x, W) # self.W_current, self.y_bar_current)
+        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[self.interp_slice], "q_bar"), 5)
+        y_bar = np.tile(self.interpolator.transform(x[self.interp_slice], "q_bar"), 5)
+        H, c = self.get_observer_jacobians(x, W, x_bar, y_bar) # self.W_current, self.y_bar_current)
         return np.squeeze(jnp.dot(H, x)) + np.squeeze(c)
 
     def discretize_dynamics(self, A_c, B_c, d_c, dt):

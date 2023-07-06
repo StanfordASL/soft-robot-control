@@ -194,7 +194,7 @@ class RBFInterpolator(Interpolator):
 
 
 class IDWInterpolator(Interpolator):
-    def __init__(self, q_eq, coeff_dict, p=8, eps=0.1):
+    def __init__(self, q_eq, coeff_dict, p=.5, eps=0.1):
         self.p = p
         self.eps = eps
         super(IDWInterpolator, self).__init__(q_eq, coeff_dict)
