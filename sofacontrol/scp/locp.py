@@ -23,7 +23,7 @@ class LOCP:
     :x_char: (optional) characteristic quantities for state (for scaling)
     """
 
-    def __init__(self, N, H, Qz, R, Qzf=None, U=None, X=None, Xf=None, dU=None, verbose=False, warm_start=True,
+    def __init__(self, N, H, Qz, R, Qzf=None, U=None, X=None, Xf=None, dU=None, Rd=None, verbose=False, warm_start=True,
                  x_char=None, **kwargs):
         self.N = N
         self.H = H
@@ -34,6 +34,7 @@ class LOCP:
         self.X = X
         self.Xf = Xf
         self.dU = dU
+        self.Rd = Rd
         self.verbose = verbose
         self.warm_start = warm_start
         self.nonlinear_observer = kwargs.pop('nonlinear_observer', False)
@@ -225,6 +226,18 @@ class LOCP:
         # Control cost
         Rfull = sp.csc_matrix(block_diag(*[self.R for j in range(self.N)]))
         J += cp.quad_form(self.u - self.u_des, Rfull)
+        # Control rate cost
+        # if hasattr(self, "Rd") and self.Rd is not None:
+        # Rd = np.eye(self.n_u) * 2.
+        # Rdfull = np.zeros((self.n_u*self.N, self.n_u*self.N))
+        # Rdfull[:-self.n_u, :-self.n_u] += np.kron(np.eye(self.N-1), np.eye(self.n_u))
+        # Rdfull[self.n_u:, :-self.n_u] += np.kron(np.eye(self.N-1), -np.eye(self.n_u))
+        # Rdfull = .0 * Rdfull.T @ Rdfull
+        # Rdfull = sp.csc_matrix(Rdfull)
+        # # Rdfull = sp.csc_matrix(block_diag(*[self.Rd for j in range(self.N)]))
+        # rate_cost = cp.quad_form(self.u, Rdfull)
+        # # rate_cost = self.u.T @ Rdfull @ self.u
+        # J += rate_cost
 
         # Performance cost (we expect all trajectories to be non-shifted i.e., about origin)
         # Assuming a map from reduced-ordered state to performance variable (which we linearize)

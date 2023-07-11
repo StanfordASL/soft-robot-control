@@ -11,7 +11,7 @@ import pickle
 
 
 def runGuSTOSolverNode(model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None, zf=None,
-                       U=None, X=None, Xf=None, dU=None, verbose=0, warm_start=True, **kwargs):
+                       U=None, X=None, Xf=None, dU=None, Rd=None, verbose=0, warm_start=True, **kwargs):
     """
     Function that builds a ROS node to run GuSTO and runs it continuously. This node
     provides a service that at each query will run GuSTO once.
@@ -41,7 +41,7 @@ def runGuSTOSolverNode(model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None
     """
     rclpy.init()
     node = GuSTOSolverNode(model, N, dt, Qz, R, x0, t=t, z=z, u=u, Qzf=Qzf, zf=zf,
-                           U=U, X=X, Xf=Xf, dU=dU, verbose=verbose,
+                           U=U, X=X, Xf=Xf, dU=dU, Rd=Rd, verbose=verbose,
                            warm_start=warm_start, **kwargs)
     rclpy.spin(node)
     rclpy.shutdown()
@@ -53,7 +53,7 @@ class GuSTOSolverNode(Node):
     """
 
     def __init__(self, model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None, zf=None,
-                 U=None, X=None, Xf=None, dU=None, verbose=0, warm_start=True, **kwargs):
+                 U=None, X=None, Xf=None, dU=None, Rd=None, verbose=0, warm_start=True, **kwargs):
         self.model = model
         self.N = N
         self.dt = dt
@@ -81,7 +81,7 @@ class GuSTOSolverNode(Node):
         x_init, _ = self.model.rollout(x0, u_init, self.dt)
         z, zf, u = self.get_target(0.0)
         self.gusto = GuSTO(model, N, dt, Qz, R, x0, u_init, x_init, z=z, u=u,
-                           Qzf=Qzf, zf=zf, U=U, X=X, Xf=Xf, dU=dU,
+                           Qzf=Qzf, zf=zf, U=U, X=X, Xf=Xf, dU=dU, Rd=Rd,
                            verbose=verbose, warm_start=warm_start,
                            x_char=x_char, f_char=f_char, **kwargs)
         self.xopt, self.uopt, _, _ = self.gusto.get_solution()

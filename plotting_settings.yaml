@@ -2,74 +2,50 @@ robot: "trunk"
 save_dir: "plots/"
 file_format: "png"
 
-traj_dir: "sim_trajs/figure8" # circle_z=-10" # 
+traj_dir: "sim_trajs/pac-man" # figure8" # circle_z=-10" # 
 
 show: {
-    'ssmr': True,
+    'ssmr': False,
     'ssmr_origin': True,
-    'ssmr_nnssm': False,
-    'ssmr_ctssm': False,
-    'ssmr_linssm': False,
-    'ssmr_assm_qp2d_n=100': True,
-    'ssmr_assm_idw3d_n=100': False,
-    'ssmr_assm_ridge2d_n=100': False,
+    'ssmr_adiabatic_ct': False,
+    'ssmr_adiabatic_nn': False,
+    'ssmr_adiabatic_qp': True,
+    'ssmr_adiabatic_idw': False,
+    'ssmr_adiabatic_modified-idw': True,
     'tpwl': True,
     'koopman': False,
-    'rompc': False
 }
 display_name: {
     'ssmr': "ASSMR (current model)",
-    'ssmr_origin': "Origin (N=1)", # "SSMR (origin)",
-    'ssmr_nnssm': "ASSMR (NN, N=9)",
-    'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
-    'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
-    'ssmr_assm_idw3d_n=100': "IDW-3D (N=100)", # 'ASSMR (IDW-3D, N=100)',
-    'ssmr_assm_ridge2d_n=100': 'ASSMR (Ridge regression, N=100, degree=3)',
-    'ssmr_linssm': "ASSMR (linear, n=9)",
+    'ssmr_origin': "Origin (N=1)",
+    'ssmr_adiabatic_ct': "CT (2D, N=9)",
+    'ssmr_adiabatic_nn': "NN (N=100)",
+    'ssmr_adiabatic_qp': "QP-2D (N=100)",
+    'ssmr_adiabatic_idw': "IDW-6D (N=100)",
+    'ssmr_adiabatic_modified-idw': "Modified-IDW-6D (N=100)",
     'tpwl': "TPWL",
     'koopman': "Koopman",
-    'rompc': "ROMPC",
 }
 color: {
-    'ssmr': 'tab:pink',
-    'ssmr_origin': 'tab:blue',
-    'ssmr_nnssm': 'tab:red',
-    'ssmr_ctssm': 'tab:orange',
-    'ssmr_assm_qp2d_n=100': 'tab:purple',
-    'ssmr_assm_idw3d_n=100': 'tab:green',
-    'ssmr_assm_ridge2d_n=100': 'tab:red',
-    'ssmr_linssm': 'tab:purple',
+    'ssmr': "tab:pink",
+    'ssmr_origin': "tab:blue",
+    'ssmr_adiabatic_ct': "tab:red",
+    'ssmr_adiabatic_nn': "tab:brown",
+    'ssmr_adiabatic_qp': "tab:purple",
+    'ssmr_adiabatic_idw': "tab:red",
+    'ssmr_adiabatic_modified-idw': "tab:red",
     'tpwl': 'tab:green',
     'koopman': 'tab:orange',
-    'rompc': 'tab:purple',
     'target': 'black'
 }
 linestyle: {
-    'ssmr': '-',
-    'ssmr_origin': '-',
-    'ssmr_nnssm': '-',
-    'ssmr_ctssm': '-',
-    'ssmr_assm_qp2d_n=100': '-',
-    'ssmr_assm_idw3d_n=100': '-',
-    'ssmr_assm_ridge2d_n=100': '-',
-    'ssmr_linssm': '-',
     'tpwl': '-',
     'koopman': '-',
-    'rompc': '-',
     'target': '--'
 }
 linewidth: {
-    'ssmr': 2,
-    'ssmr_origin': 2,
-    'ssmr_nnssm': 2,
-    'ssmr_ctssm': 2,
-    'ssmr_assm_qp2d_n=100': 2,
-    'ssmr_assm_idw3d_n=100': 2,
-    'ssmr_assm_ridge2d_n=100': 2,
-    'ssmr_linssm': 2,
     'tpwl': 2,
     'koopman': 2,
-    'rompc': 2,
     'target': 1
 }
 
@@ -90,6 +66,18 @@ define_targets: {
         N: 1000,
         radius: 20,
         z_const: -10,
+        # state constraints
+        z_lb: null, # [-16, -16],
+        z_ub: null  # [16, 5]
+    },
+    pac-man: {
+        M: 1,
+        T: 10,
+        N: 1000,
+        radius: 20,
+        z_const: -10,
+        t_in_pacman: 1.,
+        t_out_pacman: 1.,
         # state constraints
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]

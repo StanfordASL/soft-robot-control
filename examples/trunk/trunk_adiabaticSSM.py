@@ -19,12 +19,14 @@ from sofacontrol.utils import QuadraticCost, HyperRectangle, load_data, qv2x
 from sofacontrol.SSM import adiabatic_ssm
 import pickle
 
+import matplotlib.pyplot as plt
+
 # Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 # Set directory for SSM Models
-PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 33_handcrafted" # 147" # 
+PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 147" # 
 MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PATH_TO_MODEL, name))]
 # if exists(join(PATH_TO_MODEL, "use_models.pkl")):
 #     with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
@@ -33,12 +35,13 @@ MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PAT
 #     raise FileNotFoundError("No use_models.pkl file found in model directory")
 # USE_MODELS = [int(i) for i in []] # ['096', '077', '098', '053', '032', '018', '064', '082', '031', '061']]
 USE_MODELS = list(range(len(MODEL_NAMES)))
-# USE_MODELS = [0, 52, 40, 17, 92, 28, 74, 15, 77, 83, 82, 88, 11, 93, 98, 84, 56, 62, 21, 16, 31, 38, 68, 14, 23, 67, 18, 75, 46, 81, 34, 44, 37, 99, 85, 95, 35, 64, 9, 79, 90, 59, 50, 97, 51, 20, 27, 32, 25, 49, 39, 43, 55, 29]
+# USE_MODELS = [0, 1, 2, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 33, 36, 42, 46, 47, 49, 53, 59, 60, 61, 62, 63, 66, 67, 68, 69, 70, 71, 76, 77, 80, 81, 83, 87, 89, 91, 93, 96, 98]
+# USE_MODELS = [0, 1, 2, 5, 6, 8, 9, 11, 12, 13, 14, 16, 19, 21, 22, 23, 26, 30, 36, 41, 42, 47, 50, 53, 57, 58, 59, 61, 63, 66, 67, 68, 69, 70, 71, 76, 77, 81, 87, 89, 91, 94, 96]
 MODEL_NAMES = [MODEL_NAMES[i] for i in USE_MODELS]
 print("Using models: ", MODEL_NAMES)
 
 useTimeDelay = True
-useDefaultModels = False
+useDefaultModels = True
 
 # Load equilibrium point
 rest_file = join(path, 'rest_qv.pkl')
@@ -53,7 +56,7 @@ raw_params = {}
 raw_models = []
 
 if useDefaultModels:
-    PATH_TO_DEFAULT_MODELS = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9_old"
+    PATH_TO_DEFAULT_MODELS = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9"
     for model_name in [name for name in sorted(listdir(PATH_TO_DEFAULT_MODELS)) if isdir(join(PATH_TO_DEFAULT_MODELS, name))]:
         with open(join(PATH_TO_DEFAULT_MODELS, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV_fixed-delay", "SSM_model.pkl"), 'rb') as f:
             SSM_data = pickle.load(f)
@@ -64,7 +67,7 @@ if useDefaultModels:
         raw_params = SSM_data['params']
 
 for model_name in MODEL_NAMES:
-    with open(join(PATH_TO_MODEL, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV_fixed-delay", "SSM_model.pkl"), 'rb') as f:
+    with open(join(PATH_TO_MODEL, model_name, "SSMmodel_delay-embedding_globalV", "SSM_model.pkl"), 'rb') as f:
         SSM_data = pickle.load(f)
     with open(join(PATH_TO_MODEL, model_name, "rest_q.pkl"), "rb") as f:
         q_eq = pickle.load(f)
@@ -96,10 +99,16 @@ cost = QuadraticCost()
 Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
-Qz[2, 2] = 1000.  # corresponding to z position of end effector
+Qz[2, 2] = 100.  # corresponding to z position of end effector
 R = 0.0001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
+# # control rate cost
+# A = np.eye(model.input_dim)
+# A[:-1, 1:] += -np.eye(model.input_dim-1)
+# A[-1:, :] = 0.
+# Rd = A.T @ (0.01 * np.eye(model.input_dim)) @ A
+# # cost.Rd = Rd
 
 # Define target trajectory for optimization
 # === figure8 (2D) ===
@@ -116,17 +125,33 @@ cost.Q = model.H.T @ Qz @ model.H
 # # zf_target[:, 2] += -np.ones(len(t)) * 10
 
 # === circle with constant z (3D) ===
+# M = 1
+# T = 10
+# N = 1000
+# radius = 20.
+# tf = np.linspace(0, M * T, M * N + 1)
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + 3 * np.pi / 2
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+# # zf_target = np.zeros((M * N, model.output_dim))
+# zf_target[:, 0] += radius * np.cos(th)
+# zf_target[:, 1] += radius * np.sin(th)
+# zf_target[:, 2] += -np.ones(len(tf)) * 10
+
+# === Pac-Man (3D) ===
 M = 1
 T = 10
 N = 1000
 radius = 20.
 tf = np.linspace(0, M * T, M * N + 1)
-th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + 3 * np.pi / 2
+th = np.linspace(0, M * 2 * np.pi, M * N + 1)
 zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
 # zf_target = np.zeros((M * N, model.output_dim))
 zf_target[:, 0] += radius * np.cos(th)
 zf_target[:, 1] += radius * np.sin(th)
 zf_target[:, 2] += -np.ones(len(tf)) * 10
+t_in_pacman, t_out_pacman = 1., 1.
+zf_target[tf < t_in_pacman, :] = z_eq_point + (zf_target[tf < t_in_pacman][-1, :] - z_eq_point) * (tf[tf < t_in_pacman] / t_in_pacman)[..., None]
+zf_target[tf > T - t_out_pacman, :] = z_eq_point + (zf_target[tf > T - t_out_pacman][0, :] - z_eq_point) * (1 - (tf[tf > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 
@@ -201,8 +226,8 @@ def run_gusto_solver(t=None, z=None):
     u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
-    # dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 
-    dU = None
+    dU = HyperRectangle([1] * model.input_dim, [-1] * model.input_dim) # None # 
+    # dU = None
     # State constraints
     X = None
 
@@ -211,7 +236,7 @@ def run_gusto_solver(t=None, z=None):
 
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                     verbose=0, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                    max_gusto_iters=0, input_nullspace=None, dU=dU, jit=False)
+                    max_gusto_iters=3, input_nullspace=None, dU=dU, jit=False)
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ import pickle
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "qp" # "natural_neighbor" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg", "qp"
+INTERPOLATION_METHOD = "modified_idw" # "natural_neighbor" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg", "qp"
 ORIGIN_IDX = 0
 
 DISCR_DICT = {'fe': 'forward Euler', 'be': 'implicit Euler', 'bil': 'bilinear transform', 'zoh': 'zero-order hold'}
@@ -39,6 +39,8 @@ class AdiabaticSSM:
         #     self.interp_3d = False
         if INTERPOLATION_METHOD in ["idw", "modified_idw", "nn"]:
             self.interp_slice = np.s_[:]
+        elif INTERPOLATION_METHOD in ["krg", "rbf", "tps"]:
+            self.interp_slice = np.s_[:3]
         else:
             self.interp_slice = np.s_[:2]
         

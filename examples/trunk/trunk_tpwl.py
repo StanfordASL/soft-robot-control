@@ -230,7 +230,7 @@ def collect_TPWL_data():
 #     # zf_target = np.zeros((M * N, model.output_dim))
 #     # zf_target[:, 3] += radius * np.cos(th)
 #     # zf_target[:, 4] += radius * np.sin(th)
-#     # zf_target[:, 5] += -np.ones(len(tf)) * 15
+#     # zf_target[:, 5] += -np.ones(len(t)) * 15
 
 #     z = model.zfyf_to_zy(zf=zf_target)
 
@@ -295,7 +295,7 @@ def run_scp():
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 1000  # corresponding to z position of end effector
+    # Qz[5, 5] = 100  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
     cost.R = .00001 * np.eye(model.input_dim)
 
@@ -326,37 +326,53 @@ def run_gusto_solver():
 
     # Define target trajectory for optimization
     # === figure8 (2D) ===
-    # M = 1
-    # T = 10
-    # N = 1000
-    # radius = 30.
-    # t = np.linspace(0, M * T, M * N + 1)
-    # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    # # zf_target = np.zeros((M * N, model.output_dim))
-    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # zf_target[:, 3] += -radius * np.sin(th)
-    # zf_target[:, 4] += radius * np.sin(2 * th)
-
-    # # === circle with constant z (3D) ===
     M = 1
     T = 10
     N = 1000
-    radius = 20.
+    radius = 30.
     t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi / 2
-    # zf_target = np.zeros((M * N + 1, model.output_dim))
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    # zf_target = np.zeros((M * N, model.output_dim))
     zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    zf_target[:, 3] += radius * np.cos(th)
-    zf_target[:, 4] += radius * np.sin(th)
-    zf_target[:, 5] += -np.ones(len(t)) * 10
+    zf_target[:, 3] += -radius * np.sin(th)
+    zf_target[:, 4] += radius * np.sin(2 * th)
+
+    # === circle with constant z (3D) ===
+    # M = 1
+    # T = 10
+    # N = 1000
+    # radius = 20.
+    # t = np.linspace(0, M * T, M * N + 1)
+    # th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi / 2
+    # # zf_target = np.zeros((M * N + 1, model.output_dim))
+    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # zf_target[:, 3] += radius * np.cos(th)
+    # zf_target[:, 4] += radius * np.sin(th)
+    # zf_target[:, 5] += -np.ones(len(t)) * 10
+
+    # === Pac-Man (3D) ===
+    # M = 1
+    # T = 10
+    # N = 1000
+    # radius = 20.
+    # t = np.linspace(0, M * T, M * N + 1)
+    # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # # zf_target = np.zeros((M * N, model.output_dim))
+    # zf_target[:, 3] += radius * np.cos(th)
+    # zf_target[:, 4] += radius * np.sin(th)
+    # zf_target[:, 5] += -np.ones(len(t)) * 10
+    # t_in_pacman, t_out_pacman = 1., 1.
+    # zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
+    # zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
     z = model.zfyf_to_zy(zf=zf_target)
 
     R = .00001 * np.eye(model.input_dim)
     Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100  # corresponding to x position of end effector
-    Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 1000  # corresponding to z position of end effector
+    Qz[3, 3] = 100.  # corresponding to x position of end effector
+    Qz[4, 4] = 100.  # corresponding to y position of end effector
+    # Qz[5, 5] = 100.  # corresponding to z position of end effector
     
     dt = 0.1
     N = 5

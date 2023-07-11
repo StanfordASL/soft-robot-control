@@ -21,6 +21,8 @@ from functools import partial
 
 from scipy.spatial import cKDTree
 
+np.set_printoptions(linewidth=200)
+
 
 DISPLAY_NAMES = {
     "origin_only": "origin only",
@@ -173,7 +175,7 @@ class ThinPlateSplineInterpolator(Interpolator):
 
 class RBFInterpolator(Interpolator):
 
-    def __init__(self, q_eq, coeff_dict, h=100.):
+    def __init__(self, q_eq, coeff_dict, h=10.):
         self.h = h
         super(RBFInterpolator, self).__init__(q_eq, coeff_dict)
 
@@ -194,7 +196,7 @@ class RBFInterpolator(Interpolator):
 
 
 class IDWInterpolator(Interpolator):
-    def __init__(self, q_eq, coeff_dict, p=.5, eps=0.1):
+    def __init__(self, q_eq, coeff_dict, p=2, eps=0.):
         self.p = p
         self.eps = eps
         super(IDWInterpolator, self).__init__(q_eq, coeff_dict)
@@ -216,8 +218,12 @@ class IDWInterpolator(Interpolator):
         #     weighting[i, i] = 1/ (np.max([q_eq[i] for q_eq in self.q_eq]) - np.min([q_eq[i] for q_eq in self.q_eq]))
         # # weighting[2, 2] = 50
         # q_dist = np.linalg.norm([weighting @ (self.q_eq[i] - q) for i in range(len(self.q_eq))], axis=1)
-
-        q_dist = np.linalg.norm(self.q_eq - q, axis=1)
+        # print(q)
+        # var = np.var(np.array(self.q_eq), axis=0)
+        # var = np.ones(np.shape(q))
+        q_dist = np.linalg.norm((self.q_eq - q), axis=1)
+        # q_dist = np.array([np.sqrt((q - self.q_eq[i]).T @ cov_inv @ (q - self.q_eq[i])) for i in range(len(self.q_eq))])
+        # print(q_dist)
         m_idx = np.argmin(q_dist)
         m = q_dist[m_idx] # minimum distance
         # If the minimum is 0 or if only one model is available, then just take that point
@@ -226,7 +232,9 @@ class IDWInterpolator(Interpolator):
             weights_norm[m_idx] = 1
         # Otherwise compute all weights
         else:
-            weights = 1 / (q_dist ** self.p + self.eps) # np.exp(-self.p * (q_dist + self.eps) / m) # 
+            R = np.max(q_dist)
+            weights = ((R - q_dist) / (R * q_dist)) ** self.p
+            # weights = 1 / (q_dist ** self.p + self.eps) # np.exp(-self.p * (q_dist + self.eps) / m) # 
             weights_norm = weights / np.sum(weights)
         return weights_norm
     
@@ -257,8 +265,10 @@ class ModifiedIDWInterpolator(Interpolator):
         elif len(self.q_eq) < self.n_neighbors:
             raise ValueError("Not enough neighbors to compute the weights")
         else:
-            # w = 1.0 / ((distances**self.p) + self.eps)
-            w = np.exp(-self.p * (distances + self.eps) / np.max(distances))
+            R = np.max(distances)
+            # w = 1.0 / (distances ** self.p + self.eps)
+            w = ((R - distances) / (R * distances)) ** self.p
+            # w = np.exp(-self.p * (distances + self.eps) / np.min(distances))
             w /= np.sum(w)
             weights[idx] = w
             return weights

@@ -52,7 +52,7 @@ class GuSTO:
     """
 
     def __init__(self, model, N, dt, Qz, R, x0, u_init, x_init, z=None, u=None,
-                 Qzf=None, zf=None, U=None, X=None, Xf=None, dU=None,
+                 Qzf=None, zf=None, U=None, X=None, Xf=None, dU=None, Rd=None,
                  verbose=0, visual=None, warm_start=True, **kwargs):
         self.model = model
 
@@ -66,6 +66,7 @@ class GuSTO:
         self.Qz = Qz
         self.R = R
         self.Qzf = Qzf
+        self.Rd = Rd
 
         #### Constraints - State, control, final state ####
         self.U = U
@@ -133,7 +134,7 @@ class GuSTO:
         self.nonlinear_observer = model.nonlinear_observer
 
         self.locp = LOCP(self.N, self.model.H, self.Qz, self.R, Qzf=self.Qzf,
-                         U=self.U, X=self.X, Xf=self.Xf, dU=self.dU,
+                         U=self.U, X=self.X, Xf=self.Xf, dU=self.dU, Rd=self.Rd,
                          verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char,
                          nonlinear_observer=self.nonlinear_observer, **kwargs)
 

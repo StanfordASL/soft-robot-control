@@ -24,6 +24,9 @@ plt.rcParams.update({'mathtext.fontset': 'cm'})
 FONTSCALE = 1.2
 PAD_LIMS = 7
 
+TRAJ_LINEWIDTH = 2
+TRAJ_LINESTYLE = '-'
+
 plt.rc('font', size=12*FONTSCALE)          # controls default text sizes
 plt.rc('axes', titlesize=15*FONTSCALE)     # fontsize of the axes title
 plt.rc('axes', labelsize=13*FONTSCALE)     # fontsize of the x and y labels
@@ -87,6 +90,12 @@ elif TARGET == "figure8":
     z_target[:, 0] += -radius * np.sin(th)
     z_target[:, 1] += radius * np.sin(2 * th)
     z_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
+elif TARGET == "pac-man":
+    z_target[:, 0] += radius * np.cos(th)
+    z_target[:, 1] += radius * np.sin(th)
+    z_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
+    z_target[t_target < target_settings['t_in_pacman'], :] = z_target[t_target < target_settings['t_in_pacman']][-1, :] * (t_target[t_target < target_settings['t_in_pacman']] / target_settings['t_in_pacman'])[..., None]
+    z_target[t_target > T - target_settings['t_out_pacman'], :] = z_target[t_target > T - target_settings['t_out_pacman']][0, :] * (1 - (t_target[t_target > T - target_settings['t_out_pacman']] - (T - target_settings['t_out_pacman'])) / target_settings['t_out_pacman'])[..., None]
 else:
     z_target = load_data()
 
@@ -130,10 +139,14 @@ def traj_x_vs_y():
         ax.plot(z_centered[:, 0], z_centered[:, 1],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
-                linewidth=SETTINGS['linewidth'][control],
-                ls=SETTINGS['linestyle'][control], markevery=20,
+                linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
+                ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), markevery=20,
                 alpha=1.)
-    ax.plot(z_target[:, 0], z_target[:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+    ax.plot(z_target[:, 0], z_target[:, 1],
+            color=SETTINGS['color']['target'], alpha=0.9,
+            ls=SETTINGS['linestyle'].get('target', TRAJ_LINESTYLE),
+            lw=SETTINGS['linewidth'].get('target', TRAJ_LINEWIDTH),
+            label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
     ax.set_ylabel(r'$y_{ee}$ [mm]')
@@ -166,10 +179,13 @@ def traj_3D():
         ax.plot(z_centered[:, 0], z_centered[:, 1], z_centered[:, 2],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
-                linewidth=SETTINGS['linewidth'][control],
-                ls=SETTINGS['linestyle'][control], markevery=20)
+                linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
+                ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), markevery=20)
     ax.plot(z_target[:, 0], z_target[:, 1], z_target[:, 2],
-            color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+            color=SETTINGS['color']['target'], alpha=0.8,
+            ls=SETTINGS['linestyle'].get('target', TRAJ_LINESTYLE),
+            lw=SETTINGS['linewidth'].get('target', TRAJ_LINEWIDTH),
+            label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
     ax.set_ylabel(r'$y_{ee}$ [mm]')
@@ -197,9 +213,13 @@ def traj_xy_vs_t():
                 ax.plot(SIM_DATA[control]['t'], z_centered[:, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
-                        linewidth=SETTINGS['linewidth'][control],
-                        ls=SETTINGS['linestyle'][control], markevery=20)
-        ax.plot(t_target, z_target[:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.7, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=3)
+                        linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
+                        ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), markevery=20)
+        ax.plot(t_target, z_target[:, coord],
+                color=SETTINGS['color']['target'], alpha=0.7,
+                ls=SETTINGS['linestyle'].get('target', TRAJ_LINESTYLE),
+                lw=SETTINGS['linewidth'].get('target', TRAJ_LINEWIDTH),
+                label='Target', zorder=3)
         ax.set_xlim([t_target[0], t_target[-1]])
         ax.set_ylim(np.min(z_target[:, coord]) - PAD_LIMS, np.max(z_target[:, coord]) + PAD_LIMS)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
@@ -233,9 +253,13 @@ def traj_xyz_vs_t():
                 ax.plot(SIM_DATA[control]['t'], z_centered[:, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
-                        linewidth=SETTINGS['linewidth'][control],
-                        ls=SETTINGS['linestyle'][control], markevery=20)
-        ax.plot(t_target, z_target[:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.7, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=2)
+                        linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
+                        ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), markevery=20)
+        ax.plot(t_target, z_target[:, coord],
+                color=SETTINGS['color']['target'], alpha=0.7,
+                ls=SETTINGS['linestyle'].get('target', TRAJ_LINESTYLE),
+                lw=SETTINGS['linewidth'].get('target', TRAJ_LINEWIDTH),
+                label='Target', zorder=3)
         ax.set_xlim([t_target[0], t_target[-1]])
         ax.set_ylim(np.min(z_target[:, coord]) - PAD_LIMS, np.max(z_target[:, coord]) + PAD_LIMS)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
@@ -268,8 +292,8 @@ def traj_inputs_vs_t():
     for i, control in enumerate(CONTROLS):
         axs[i].plot(SIM_DATA[control]['t'], SIM_DATA[control]['u'],
                     label=SETTINGS['display_name'][control],
-                    linewidth=SETTINGS['linewidth'][control],
-                    ls=SETTINGS['linestyle'][control], markevery=20)
+                    linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
+                    ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), markevery=20)
         axs[i].legend([rf"$u_{i}$" for i in range(1, SIM_DATA[control]['u'].shape[1]+1)])
         axs[i].set_xlabel(r'$t$ [s]')
         axs[i].set_title(SETTINGS['display_name'][control])
@@ -279,19 +303,8 @@ def traj_inputs_vs_t():
         plt.show()
 
 
-def rmse_calculations():
+def rmse_calculations(plot_solve_times=True):
     """Compute, display and plot RMSEs for all controllers"""
-    # TODO: Remove constraints from error and compute num violations / num points
-    # idx represents where the constraints are active. idx_viol_x represent where
-    # the constraints are violated
-    # constraint_idx = 4
-    # if constrained:
-    #     idx_koop = np.argwhere(zd_koop[:, constraint_idx] >= y_ub)
-    #     viol_koop = np.count_nonzero(z_koop[idx_koop.flatten(), constraint_idx] > y_ub + 0.2) / idx_koop.size
-    #     idx_viol_koop = np.argwhere(z_koop[idx_koop.flatten(), constraint_idx] > y_ub + 0.2)
-    #     zd_koop = np.delete(zd_koop, idx_viol_koop, axis=0)
-    #     z_koop = np.delete(z_koop, idx_viol_koop, axis=0)
-
     err = {}
     rmse = {}
     solve_times = {}
@@ -316,15 +329,23 @@ def rmse_calculations():
         print(f"Solve time: Min: {np.min(solve_times[control]):.3f} ms, Mean: {np.mean(solve_times[control]):.3f} ms, Max: {np.max(solve_times[control]):.3f} ms")
 
     # Plot RMSEs and solve times (barplot)
-    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-    fig, ax1 = plt.subplots(1, 1, figsize=(8, 5))
+    if plot_solve_times:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 6), sharex=False)
+    else:
+        fig, ax1 = plt.subplots(1, 1, figsize=(12, 5))
     xlabels = [SETTINGS['display_name'][control] for control in CONTROLS]
-    ax1.bar(xlabels, [rmse[control] for control in CONTROLS], color=[SETTINGS['color'][control] for control in CONTROLS])
+    ax1.bar(xlabels, [rmse[control] for control in CONTROLS], color=[SETTINGS['color'][control] for control in CONTROLS], zorder=3)
     ax1.set_ylabel(r'RMSE [mm]')
     ax1.set_title('RMSE')
-    # ax2.bar(xlabels, [np.mean(solve_times[control]) for control in CONTROLS], color=[SETTINGS['color'][control] for control in CONTROLS])
-    # ax2.set_ylabel(r'Solve time [ms]')
-    # ax2.set_title('Average solve time')
+    ax1.grid(True, alpha=.5)
+    ax1.set_ylim(0, None)
+    # ax1.set_yscale('log')
+    ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: '{:g}'.format(y)))
+    if plot_solve_times:
+        ax2.bar(xlabels, [np.mean(solve_times[control]) for control in CONTROLS], color=[SETTINGS['color'][control] for control in CONTROLS], zorder=3)
+        ax2.set_ylabel(r'Solve time [ms]')
+        ax2.set_title('Average solve time')
+        ax2.grid(True, alpha=.5)
     plt.savefig(join(SAVE_DIR, f"{TARGET}_rmse_and_solve_times.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
     if SHOW_PLOTS:
         plt.show()
@@ -345,9 +366,9 @@ def rmse_vs_n_models(n_models, z, solve_times=None, baselines=False, save_dir=""
     
     if baselines:
         baselines_rmse = {
-            "ssmr_origin": 1.0,
-            "tpwl": 1.1,
-            "koopman": 1.3
+            "ssmr_origin": 0.9,
+            "tpwl": 4.1,
+            "koopman": 1.2
         }
         colors_baselines = ['tab:blue', 'tab:orange', 'tab:green']
         for i, control in enumerate(baselines_rmse.keys()):
@@ -380,9 +401,9 @@ def rmse_vs_n_models(n_models, z, solve_times=None, baselines=False, save_dir=""
 
 
 if __name__ == "__main__":
+    rmse_calculations(plot_solve_times=False)
     traj_x_vs_y()
     traj_xy_vs_t()
     traj_xyz_vs_t()
-    rmse_calculations()
     traj_3D()
     traj_inputs_vs_t()

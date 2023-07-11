@@ -77,37 +77,53 @@ target = Target()
 
 # Define target trajectory for optimization
 # === figure8 ===
-# M = 1
-# T = 10
-# N = 1000
-# radius = 30.
-# t = np.linspace(0, M * T, M * N)
-# th = np.linspace(0, M * 2 * np.pi, M * N)
-# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
-# # zf_target = np.zeros((M * N, model.n))
-# zf_target[:, 0] += -radius * np.sin(th)
-# zf_target[:, 1] += radius * np.sin(2 * th)
-# # zf_target[:, 2] += -np.ones(len(t)) * 10
-
-# # === circle with constant z ===
 M = 1
 T = 10
 N = 1000
-radius = 20.
-t = np.linspace(0, M * T, M * N )
-th = np.linspace(0, M * 2 * np.pi, M * N) + np.pi / 2
+radius = 30.
+t = np.linspace(0, M * T, M * N)
+th = np.linspace(0, M * 2 * np.pi, M * N)
 zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
 # zf_target = np.zeros((M * N, model.n))
-zf_target[:, 0] += radius * np.cos(th)
-zf_target[:, 1] += radius * np.sin(th)
-zf_target[:, 2] += -np.ones(len(t)) * 10
+zf_target[:, 0] += -radius * np.sin(th)
+zf_target[:, 1] += radius * np.sin(2 * th)
+# zf_target[:, 2] += -np.ones(len(t)) * 10
+
+# # === circle with constant z ===
+# M = 1
+# T = 10
+# N = 1000
+# radius = 20.
+# t = np.linspace(0, M * T, M * N )
+# th = np.linspace(0, M * 2 * np.pi, M * N)
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
+# # zf_target = np.zeros((M * N, model.n))
+# zf_target[:, 0] += radius * np.cos(th)
+# zf_target[:, 1] += radius * np.sin(th)
+# zf_target[:, 2] += -np.ones(len(t)) * 10
+
+# === Pac-Man (3D) ===
+# M = 1
+# T = 10
+# N = 1000
+# radius = 20.
+# t = np.linspace(0, M * T, M * N + 1)
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N + 1, 1))
+# # zf_target = np.zeros((M * N, model.output_dim))
+# zf_target[:, 0] += radius * np.cos(th)
+# zf_target[:, 1] += radius * np.sin(th)
+# zf_target[:, 2] += -np.ones(len(t)) * 10
+# t_in_pacman, t_out_pacman = 1., 1.
+# zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
+# zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
 # Cost
 cost.R = .00001 * np.eye(model.m)
 cost.Q = np.zeros((model.n, model.n))
 cost.Q[0, 0] = 100  # corresponding to x position of end effector
 cost.Q[1, 1] = 100  # corresponding to y position of end effector
-cost.Q[2, 2] = 1000  # corresponding to z position of end effector
+# cost.Q[2, 2] = 100  # corresponding to z position of end effector
 
 
 def generate_koopman_data():
@@ -160,13 +176,8 @@ def run_koopman():
     cov_q = 0.0 * np.eye(3)
     prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
-    # Building A matrix
-    Hz = np.zeros((1, 3))
-    Hz[0, 1] = 1
-    b_z = np.array([5])
-    Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
 
-    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1, Y=Y)
+    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1)
 
     prob.opt['sim_duration'] = 11.  # Simulation time, optional
     prob.simdata_dir = path
