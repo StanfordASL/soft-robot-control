@@ -6,6 +6,10 @@ from soft_robot_control_ros.srv import GuSTOsrv
 
 from sofacontrol.scp.locp import LOCP
 from sofacontrol.utils import arr2np, np2arr
+from sofacontrol.utils import CircleObstacle
+from functools import partial
+import jax.numpy as jnp
+import jax
 
 
 def runMPCSolverNode(model, N, dt, cost_params, target, U=None, X=None, Xf=None, dU=None, verbose=0, warm_start=True,
@@ -207,9 +211,17 @@ class MPCSolverNode(Node):
         #     if not self.X.contains(x0):
         #         x0 = self.X.project_to_polyhedron(x0)
 
+        # Update linearization of conic constraint if circle obstacle
+        x_init = self.xopt if self.xopt is not None else np.tile(x0, (self.planning_horizon + 1, 1))
+
+        if type(self.X) is CircleObstacle:
+            G_d, b_d = self.get_obstacleConstraint_linearization(x_init, self.X.center)
+        else:
+            G_d, b_d = None, None
+
         # Get target values at proper times by interpolating
         z, zf, u = self.get_target(t0)
-        self.locp.update(self.A_d, self.B_d, self.d_d, x0, None, 0, 0, z=z, zf=zf, u=u)
+        self.locp.update(self.A_d, self.B_d, self.d_d, x0, None, 0, 0, z=z, zf=zf, u=u, Gd=G_d, bd=b_d)
         Jstar, success, solver_stats = self.locp.solve()
 
         if success:
@@ -233,6 +245,20 @@ class MPCSolverNode(Node):
         except:
             response.solve_time = 0.0
         return response
+
+    @partial(jax.jit, static_argnums=(0,))
+    def get_obstacleConstraint_linearization(self, x, obs_center):
+        G_d = []
+        b_d = []
+        # Only take up to the dimension of the obstacle center
+        # n_c = obs_center.shape[0]
+        x = jnp.asarray(x)
+        for i in range(x.shape[0]):
+            G_d_i, b_d_i = self.model.get_obstacleConstraint_jacobians(x[i, :], obs_center)
+            G_d.append(G_d_i)
+            b_d.append(b_d_i)
+
+        return G_d, b_d
 
     def get_target(self, t0):
         """

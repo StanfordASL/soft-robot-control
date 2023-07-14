@@ -47,7 +47,7 @@ class SSM:
         # Observation model
         if C is not None:
             self.C = C
-            assert np.shape(self.C) == (self.output_dim, self.obs_dim)
+            assert np.shape(self.C) == (self.output_dim, self.obs_dim), 'Shape of C: ' + str(np.shape(self.C)) + '\n' + 'model shape: ' + str((self.output_dim, self.obs_dim))
         else:
             # When we learn mappings to output variables directly (no time-delays)
             self.C = np.eye(self.obs_dim, self.obs_dim)

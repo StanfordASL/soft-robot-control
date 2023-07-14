@@ -3,7 +3,10 @@ import numpy as np
 from sympy.polys.monomials import itermonomials
 from sympy.polys.orderings import monomial_key
 
-from sofacontrol.utils import load_data
+from sofacontrol.utils import load_data, norm2Diff
+from functools import partial
+import jax.numpy as jnp
+import jax
 
 class KoopmanData:
     def __init__(self, scale, delay):
@@ -174,3 +177,11 @@ class KoopmanModel:
         else:
             print('{} is not implemented / not a valid selection. Please select a different obs type'
                   .format(self.obs_type))
+    
+    def get_obstacleConstraint_jacobians(self,
+                                      x: jnp.ndarray, obs_center: jnp.ndarray):
+        normFunc = partial(norm2Diff, y=obs_center)
+        g = lambda x: normFunc(self.H @ x)
+        G = jax.jacobian(g)(x)
+        b = g(x) - G @ x
+        return G, b

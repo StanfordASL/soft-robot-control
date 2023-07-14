@@ -9,7 +9,7 @@
 # various mode shapes
 # problem = diamond.apply_constant_input
 
-# from examples.diamond import diamond_rompc
+# from examples.hardware import diamond_rompc
 # problem = diamond_rompc.run_rompc
 
 # from examples.diamond import diamond_koopman
@@ -21,8 +21,8 @@
 # problem = calibration.model_calibration
 # problem = calibration.actuator_calibration
 
-from examples.hardware import diamond
-problem = diamond.run_scp
+# from examples.hardware import diamond
+# problem = diamond.run_scp
 # problem = diamond.collect_POD_data
 # problem = diamond.collect_TPWL_data
 # problem = diamond.run_ilqr
@@ -36,8 +36,8 @@ problem = diamond.run_scp
 # problem = diamond_koopman.run_koopman
 # problem = diamond_koopman.run_MPC_OL
 
-# from examples.hardware import diamond_SSM
-# problem = diamond_SSM.run_scp
+from examples.hardware import diamond_SSM
+problem = diamond_SSM.run_scp
 # problem = diamond_SSM.run_scp_OL
 # problem = diamond_SSM.module_test
 # problem = diamond_SSM.module_test_continuous

@@ -33,78 +33,49 @@ def run_scp():
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.measurement_models import linearModel, OutputModel
-    from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron
+    from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron, generateModel
     from sofacontrol.SSM import ssm
     from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
     from sofacontrol.SSM.controllers import scp
     import pickle
 
+    ######## User Options ########
+    # Set directory for SSM Models and import
+    pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
+    # This dt for when to recalculate control
+    dt = 0.02
+    # Simulation settings
+    sim_duration = 11
+    save_prefix = 'ssmr'
+    
+
+    ######## Setup the Robot Environment and Type of Controller ########
     prob = Problem()
     prob.Robot = trunkRobot()
     prob.ControllerClass = ClosedLoopController
 
-    useTimeDelay = True
+    ######## Generate SSM Model ########
+    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES)
 
-    # Load equilibrium point
-    rest_file = join(path, 'rest_qv.pkl')
-    rest_data = load_data(rest_file)
-    q_equilibrium = np.array(rest_data['q'][0])
-
-    # Setup equilibrium point (no time delay and observed position and velocity of tip)
-    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
-
-    # Set directory for SSM Models
-    pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
-
-    # Specify a measurement and output model
+    ######## Specify a measurement of what we observe during simulation ########
     cov_q = 0.0 * np.eye(3)
     cov_v = 0.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
-
-    # load SSM model
-    with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
-        SSM_data = pickle.load(f)
-
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    if raw_params['delay_embedding']:
-        outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
-        z_eq_point = outputModel.evaluate(x_eq, qv=False)
+    if model.params['delay_embedding']:
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
-        Cout = outputSSMModel.C
     else:
-        outputModel = linearModel([TIP_NODE], N_NODES)
-        z_eq_point = outputModel.evaluate(x_eq, qv=True)
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
-        Cout = None
-
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=Cout)
-
-    # This dt for when to recalculate control
-    dt = 0.02
 
     # Pure SSM Manifold Observer
     observer = SSMObserver(model)
 
-    cost = QuadraticCost()
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100.  # corresponding to x position of end effector
-    Qz[1, 1] = 100.  # corresponding to y position of end effector
-    Qz[2, 2] = 0.  # corresponding to z position of end effector
-    cost.Q = model.H.T @ Qz @ model.H
-    cost.R = 0.001 * np.eye(model.input_dim)
-
     # Define controller (wait 1 second of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
+    prob.controller = scp(model, QuadraticCost(), dt, N_replan=2, delay=1, feedback=False, EKF=observer)
 
     # Saving paths
-    prob.opt['sim_duration'] = 11.
+    prob.opt['sim_duration'] = sim_duration
     prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'ssmr'
+    prob.opt['save_prefix'] = save_prefix
 
     return prob
 
@@ -116,136 +87,78 @@ def run_gusto_solver():
     from sofacontrol.scp.models.ssm import SSMGuSTO
     from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
-    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron, CircleObstacle, drawContinuousPath, resample_waypoints
-    from sofacontrol.SSM import ssm
-    import pickle
+    from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron, \
+        CircleObstacle, createTargetTrajectory, save_data, generateModel, createControlConstraint, \
+        createObstacleConstraint
 
-    useTimeDelay = True
+    ######## User Options ########
+    saveControlTask = True
+    createNewTask = True 
+    dt = 0.02
+    N = 3
 
-    # Load equilibrium point
-    rest_file = join(path, 'rest_qv.pkl')
-    rest_data = load_data(rest_file)
-    q_equilibrium = np.array(rest_data['q'][0])
+    # Control Task Params
+    controlTask = "figure8" # figure8, circle, or custom
+    trajAmplitude = 15
 
-    # Setup equilibrium point (no time delay and observed position and velocity of tip)
-    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+    # Trajectory constraint
+    # Obstacle constraints
+    obstacleDiameter = [15] 
+    obstacleLoc = [np.array([-4, 13])]
 
+    # Constrol Constraints
+    u_min, u_max = 0.0, 800.0
+    du_max = 10
+
+    ######## Generate SSM model and setup control task ########
     # Set directory for SSM Models
     # pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/origin/SSMmodel_delay-embedding" # join(path, "SSMmodels", "model_004")
     pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
-
-    # load SSM model
-    with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
-        SSM_data = pickle.load(f)
-
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    if raw_params['delay_embedding']:
-        outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
-        z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
-        # outputSSMModel = OutputModel(6, 3) # TODO: modify this
-        Cout = outputSSMModel.C
-    else:
-        outputModel = linearModel([TIP_NODE], N_NODES)
-        z_eq_point = outputModel.evaluate(x_eq, qv=True)
-        Cout = None
-
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=Cout)
-
-    # Define initial condition to be x_ref for initial solve
-    x0 = np.zeros(model.state_dim)
+    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES)
     
     # Define target trajectory for optimization
-    #############################################
-    # Problem 0, Custom Drawn Trajectory
-    #############################################
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    trajDir = join(path, "control_tasks")
+    taskFile = join(trajDir, controlTask + ".pkl")
+    taskParams = {}
 
-    # # Draw the desired trajectory
-    # points = drawContinuousPath(0.5)
-    # resampled_pts = resample_waypoints(points, 0.5)
+    if createNewTask:
+        ######## Define the trajectory ########
+        zf_target, t = createTargetTrajectory(controlTask, 'trunk', model.y_eq, model.output_dim, amplitude=trajAmplitude)
+        z = model.zfyf_to_zy(zf=zf_target)
 
-    # # Setup target trajectory
-    # t = np.linspace(0, 5, resampled_pts.shape[0])
-    # x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
-    # zf_target = np.zeros((resampled_pts.shape[0], model.output_dim))
-    # zf_target[:, 0] = x_target
-    # zf_target[:, 1] = y_target
+        ######## Define a new state constraint (q, v) format ########
+        ## Format [constraint number, variable/state number]
+        
+        # Obstacle avoidance constraint
+        X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
+        # No constraint
+        # X = None
 
-    # === figure8 ===
-    M = 1
-    T = 10
-    N = 1000
-    radius = 30.
-    t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # zf_target = np.zeros((M*N+1, 6))
-    zf_target[:, 0] += -radius * np.sin(th)
-    zf_target[:, 1] += radius * np.sin(2 * th)
-    # zf_target[:, 2] += -np.ones(len(t)) * 20
+        ######## Define new control constraint ########
+        U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+        # dU = None
 
-    # === circle (with constant z) ===
-    # M = 1
-    # T = 9 # 10
-    # N = 900 # 1000
-    # radius = 30.
-    # t = np.linspace(0, M * T, M * N + 1)
-    # th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
-    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # # zf_target = np.zeros((M*N+1, 6))
-    # zf_target[:, 0] += radius * np.cos(th)
-    # zf_target[:, 1] += radius * np.sin(th)
-    # # zf_target[:, 2] += -np.ones(len(t)) * 20
-    # print(zf_target[0, :].shape)
-    # idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
-    # print(idle.shape)
-    # zf_target = np.vstack([idle, zf_target])
-    # print(zf_target.shape)
-    # t = np.linspace(0, M * 10, M * 1000 + 1)
-
-    z = model.zfyf_to_zy(zf=zf_target)
-
+        ######## Save Target Trajectory and Constraints ########
+        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        if saveControlTask:
+            save_data(taskFile, taskParams)
+    else:
+        taskParams = load_data(taskFile)
+        
+    ######## Cost Function ########
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.   # corresponding to x position of end effector
     Qz[1, 1] = 100.   # corresponding to y position of end effector
     Qz[2, 2] = 0.   # corresponding to z position of end effector
     R = 0.001 * np.eye(model.input_dim)
 
-    dt = 0.02
-    N = 3
-
-    # Control constraints
-    u_min, u_max = 0.0, 800.0
-    U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
-    # input rate constraints
-    dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 
-    # dU = None
-
-    # State constraints
-    # X = None
-    
-    # State constraints (q,v format): Polyhedron state constraint
-    # Format [constraint number, variable/state number]    
-    Hz = np.zeros((2, model.output_dim))
-    Hz[0, 0] = 1
-    Hz[1, 1] = 1
-
-    obstacleDiameter = 15
-    obstacleLoc = np.array([-4, 13])
-    X = CircleObstacle(A=Hz, center=obstacleLoc - Hz @ model.y_ref, diameter=obstacleDiameter)
+    # Define initial condition to be x_ref for initial solve
+    x0 = np.zeros(model.state_dim)
 
     # Define GuSTO model
     gusto_model = SSMGuSTO(model)
 
-    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
+    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
                        max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
 

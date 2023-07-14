@@ -48,7 +48,7 @@ def generate_koopman_data():
     from sofacontrol.utils import load_data, qv2x, save_data, vq2qv
     from sofacontrol.measurement_models import linearModel
 
-    useVel = True
+    useVel = False
     # koopman_data_name = 'pod_snapshots'
     # koopman_data_name = 'koopman_train_data_full'
     koopman_data_name = 'koopman_train_data_full_extra'
@@ -159,7 +159,7 @@ def run_koopman_solver():
     from sofacontrol.baselines.ros import runMPCSolverNode
     from sofacontrol.tpwl.tpwl_utils import Target
     from sofacontrol.utils import QuadraticCost
-    from sofacontrol.utils import HyperRectangle, Polyhedron
+    from sofacontrol.utils import HyperRectangle, Polyhedron, CircleObstacle
 
     koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
     raw_model = koopman_data['model']
@@ -222,6 +222,16 @@ def run_koopman_solver():
     # X = Polyhedron(A=H, b=b_z_ub_norm)
 
     # X = None
+
+    Hz = np.zeros((2, model.n))
+    Hz[0, 0] = 1
+    Hz[1, 1] = 1
+
+    obstacleDiameter = 10
+    obstacleLoc = np.array([-12, 12, 0.])
+    X = CircleObstacle(A=Hz, center=scaling.scale_down(y=obstacleLoc).reshape(-1)[:2], 
+                       diameter=scaling.scale_down(y=obstacleDiameter).reshape(-1)[0])
+
 
     #####################################################
     # Problem 2, Circle on side (2pi/T = frequency rad/s)

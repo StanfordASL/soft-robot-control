@@ -440,12 +440,13 @@ class CircleObstacle(Polyhedron):
         """
         Returns true if x is not on the obstacle
         """
-        # Ensure only taking distance wrt x-y-z (or x-y) 
         
-        if np.linalg.norm(x - self.center) <= (self.diameter / 2):
-            return True
-        else:
-            return False
+        # Check if x is within the diameter of the circle
+        for j in range(self.center.shape[0]):
+            if np.abs(x - self.center[j]) > (self.diameter[j] / 2):
+                return False
+        
+        return True
     
     def get_constraint_violation(self, x, update=False):
         """
@@ -456,7 +457,14 @@ class CircleObstacle(Polyhedron):
         else:
             z = self.A @ x
         
-        return np.maximum(np.linalg.norm(z - self.center) - (self.diameter / 2), 0)
+        constraintVals = []
+        
+        # For each circle, add the maximum of the distance to the circle and 0 to constraintVals
+        for j in range(self.center.shape[0]):
+            constraintVals.append(np.maximum(np.linalg.norm(z - self.center[j]) - (self.diameter[j] / 2), 0))
+        
+        # Return maximum of all constraint violations
+        return np.max(constraintVals)
 
     def project_to_polyhedron(self, x):
         raise RuntimeError('Not implemented for circular obstacle constraint.')
@@ -658,3 +666,135 @@ def norm2Linearize(x, y, dt, P=None):
     A = jax.jacobian(fixed_y_norm2)(x)
     c = fixed_y_norm2(x) - A @ x
     return A, c
+
+"""
+    Create a new target trajectory. TODO: Assume outdofs are [0, 1, 2]
+"""
+def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15):
+    if controlTask == 'custom':
+        #############################################
+        # Problem 0, Custom Drawn Trajectory
+        #############################################
+        # Draw the desired trajectory
+        points = drawContinuousPath(0.5)
+        resampled_pts = resample_waypoints(points, 0.5)
+
+        # Setup target trajectory
+        t = np.linspace(0, 5, resampled_pts.shape[0])
+        x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
+        zf_target = np.zeros((resampled_pts.shape[0], output_dim))
+        zf_target[:, 0] = x_target
+        zf_target[:, 1] = y_target
+    elif controlTask == "figure8":
+        # === figure8 ===
+        M = 1
+        T = 10
+        N = 1000
+        radius = amplitude
+        t = np.linspace(0, M * T, M * N + 1)
+        th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+        zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
+        # zf_target = np.zeros((M*N+1, 6))
+        zf_target[:, 0] += -radius * np.sin(th)
+        zf_target[:, 1] += radius * np.sin(2 * th)
+        # zf_target[:, 2] += -np.ones(len(t)) * 20
+    elif controlTask == "circle":
+        if robot == 'trunk':
+            # === circle (with constant z) ===
+            M = 1
+            T = 9 # 10
+            N = 900 # 1000
+            radius = amplitude
+            t = np.linspace(0, M * T, M * N + 1)
+            th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
+            zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
+            # zf_target = np.zeros((M*N+1, 6))
+            zf_target[:, 0] += radius * np.cos(th)
+            zf_target[:, 1] += radius * np.sin(th)
+            # zf_target[:, 2] += -np.ones(len(t)) * 20
+            print(zf_target[0, :].shape)
+            idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
+            print(idle.shape)
+            zf_target = np.vstack([idle, zf_target])
+            print(zf_target.shape)
+            t = np.linspace(0, M * 10, M * 1000 + 1)
+        elif robot == 'diamond':
+            M = 3
+            T = 5.
+            N = 1000
+            t = np.linspace(0, M * T, M * N)
+            th = np.linspace(0, M * 2 * np.pi, M * N)
+            x_target = np.zeros(M * N)
+            
+            y_target = amplitude * np.sin(th)
+            z_target = amplitude - amplitude * np.cos(th) + 107.0
+
+            zf_target = np.zeros((M * N, output_dim))
+            zf_target[:, 0] = x_target
+            zf_target[:, 1] = y_target
+            zf_target[:, 2] = z_target
+        else:
+            raise RuntimeError('Requested robot not implemented. Must be trunk or diamond')
+        
+    else:
+        raise RuntimeError('Requested target not implemented. Must be figure8, circle, or custom')
+    
+    return zf_target, t
+
+"""
+    Generate a model. TODO: Only SSM for now
+"""
+def generateModel(root_path, pathToModel, nodes, num_nodes):
+    from sofacontrol.SSM import ssm
+    import sofacontrol.measurement_models as msm
+
+    # Load equilibrium point
+    rest_file = os.path.join(root_path, 'rest_qv.pkl')
+    rest_data = load_data(rest_file)
+    q_equilibrium = np.array(rest_data['q'][0])
+
+    # Setup equilibrium point (no time delay and observed position and velocity of tip)
+    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+
+    # load SSM model
+    with open(os.path.join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+        SSM_data = pickle.load(f)
+
+    raw_model = SSM_data['model']
+    raw_params = SSM_data['params']
+
+    if raw_params['delay_embedding']:
+        outputModel = msm.linearModel(nodes, num_nodes, vel=False)
+        z_eq_point = outputModel.evaluate(x_eq, qv=False)
+        outputSSMModel = msm.OutputModel(raw_params['obs_dim'], raw_params['output_dim'])
+        Cout = outputSSMModel.C
+    else:
+        outputModel = msm.linearModel(nodes, num_nodes)
+        z_eq_point = outputModel.evaluate(x_eq, qv=True)
+        Cout = None
+
+    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
+                            model=raw_model, params=raw_params, C=Cout)
+
+    return model
+
+def createControlConstraint(u_min, u_max, input_dim, du_max=None):
+    U = HyperRectangle([u_max] * input_dim, [u_min] * input_dim)
+    
+    if du_max is not None:
+        dU = HyperRectangle([du_max] * input_dim, [-du_max] * input_dim)
+    else:
+        dU = None
+    
+    return U, dU
+
+"""
+    Obstacle constraint in x-y plane
+"""
+def createObstacleConstraint(output_dim, y_ref, obstacleDiameter, obstacleLoc):
+    Hz = np.zeros((2, output_dim))
+    Hz[0, 0] = 1
+    Hz[1, 1] = 1
+    X = CircleObstacle(A=Hz, center=obstacleLoc - Hz @ y_ref, diameter=obstacleDiameter)
+
+    return X

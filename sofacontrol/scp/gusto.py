@@ -300,7 +300,14 @@ class GuSTO:
         # n_c = obs_center.shape[0]
         x = jnp.asarray(x)
         for i in range(x.shape[0]):
-            G_d_i, b_d_i = self.model.get_obstacleConstraint_jacobians(x[i, :], obs_center)
+            G_d_i = []
+            b_d_i = []
+            # For each constraint in self.X.center, get the linearization of the constraint at point x[i, :]
+            for j in range(len(self.X.center)):
+                G_d_i_j, b_d_i_j = self.model.get_obstacleConstraint_jacobians(x[i, :], obs_center[j])
+                G_d_i.append(G_d_i_j)
+                b_d_i.append(b_d_i_j)
+            
             G_d.append(G_d_i)
             b_d.append(b_d_i)
 

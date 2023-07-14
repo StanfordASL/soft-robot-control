@@ -11,7 +11,7 @@ from sofacontrol.utils import load_data, set_axes_equal
 path = dirname(abspath(__file__))
 
 constrained = False
-plot_rompc = False
+plot_rompc = True
 #############################################
 # Problem 1, Figure 8 with constraints
 #############################################
@@ -22,8 +22,8 @@ t_target = np.linspace(0, M*T, M*N)
 th = np.linspace(0, M * 2 * np.pi, M*N)
 zf_target = np.zeros((M*N, 6))
 
-zf_target[:, 3] = -15. * np.sin(th) - 7.1
-zf_target[:, 4] = 15. * np.sin(2 * th)
+zf_target[:, 3] = -2. * np.sin(th) - 7.1
+zf_target[:, 4] = 2. * np.sin(2 * th)
 
 # zf_target[:, 3] = -25. * np.sin(th) + 13
 # zf_target[:, 4] = 25. * np.sin(2 * th) + 20
@@ -110,13 +110,13 @@ real_time_limit_tpwl = tpwl_data['info']['rollout_time']
 # t_opt_rollout = koop_data['info']['t_rollout']
 
 # Load rompc data
-# rompc_simdata_file = join(path, 'rompc_sim.pkl')
-# rompc_data = load_data(rompc_simdata_file)
-# idx = np.argwhere(rompc_data['t'] >= 3)[0][0]
-# t_rompc = rompc_data['t'][idx:] - rompc_data['t'][idx]
-# z_rompc = rompc_data['z'][idx:, :]
-# solve_times_rompc = rompc_data['info']['solve_times']
-# real_time_limit_rompc = rompc_data['info']['rollout_time']
+rompc_simdata_file = join(path, 'rompc_sim.pkl')
+rompc_data = load_data(rompc_simdata_file)
+idx = np.argwhere(rompc_data['t'] >= 1)[0][0]
+t_rompc = rompc_data['t'][idx:] - rompc_data['t'][idx]
+z_rompc = rompc_data['z'][idx:, :]
+solve_times_rompc = rompc_data['info']['solve_times']
+real_time_limit_rompc = rompc_data['info']['rollout_time']
 
 plot_rollouts = False
 m_w = 30

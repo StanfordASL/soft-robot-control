@@ -89,10 +89,11 @@ class LOCP:
                 self.Hd = [cp.Parameter((self.n_z, self.n_x)) for i in range(self.N + 1)]
                 self.cd = cp.Parameter((self.N + 1) * self.n_z)
             
-            # Build matrices for obstacle constraint
+            # Build matrices for obstacle constraint. For each state, store each linearized constraint
             if type(self.X) is CircleObstacle:
-                self.Gd = [cp.Parameter((1, self.n_x)) for i in range(self.N + 1)]
-                self.bd = cp.Parameter(self.N + 1)
+                self.Gd = [[cp.Parameter((1, self.n_x)) for j in range(self.X.center.shape[0])] 
+                           for i in range(self.N + 1)]
+                self.bd = [cp.Parameter(self.X.center.shape[0]) for i in range(N + 1)]
 
             self.x0 = cp.Parameter(self.n_x)
             self.xk = cp.Parameter((self.N + 1, self.n_x))
@@ -140,11 +141,15 @@ class LOCP:
                     self.cd.value = np.ravel(np.asarray(cd))
                 
                 if type(self.X) is CircleObstacle:
-                    for j in range(self.N + 1):
-                        self.Gd[j].value = np.asarray(kwargs.get('Gd')[j]).reshape((1, self.n_x))
-                    bd = kwargs.get('bd')
-                    self.bd.value = np.ravel(np.asarray(bd))
-
+                    for i in range(self.N + 1):
+                        for j in range(self.X.center.shape[0]):
+                            self.Gd[i][j].value = np.asarray(kwargs.get('Gd')[i][j]).reshape((1, self.n_x))
+                    
+                    # Each column is a constraint for each x[i]
+                    bd = np.asarray(kwargs.get('bd')).T
+                    for j in range(np.shape(self.bd)[0]):
+                        self.bd[j].value = np.ravel(np.asarray(bd[:, j]))
+                    
                 self.xk.value = xk
                 self.x0.value = np.asarray(x0)
 
@@ -348,7 +353,8 @@ class LOCP:
                 elif type(self.X) is CircleObstacle:
                     x = cp.reshape(self.x[self.n_x:], (self.n_x, self.N))
                     for i in range(self.N):
-                        constr += [self.Gd[i] @ x[:, i] + self.bd[i] >= self.X.diameter/2]
+                        for j in range(self.X.center.shape[0]):
+                            constr += [self.Gd[i][j] @ x[:, i] + self.bd[i][j] >= self.X.diameter[j]/2]
             else:
                 if type(self.X) is Polyhedron:
                     XAfull = block_diag(*[self.X.A for j in range(self.N)])
@@ -357,7 +363,8 @@ class LOCP:
                 elif type(self.X) is CircleObstacle:
                     x = cp.reshape(self.x[self.n_x:], (self.n_x, self.N))
                     for i in range(self.N):
-                        constr += [self.Gd[i] @ x[:, i] + self.bd[i] >= self.X.diameter/2]
+                        for j in range(self.X.center.shape[0]):
+                            constr += [self.Gd[i][j] @ x[:, i] + self.bd[i][j] >= self.X.diameter[j]/2]
 
         # Terminal constraints
         if self.Xf is not None:

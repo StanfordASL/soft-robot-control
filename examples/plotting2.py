@@ -74,33 +74,8 @@ print(Z_EQ)
 # Load reference/target trajectory as defined in plotting_settings.py
 TARGET = SETTINGS['select_target']
 target_settings = SETTINGS['define_targets'][TARGET]
-if TARGET != "custom":
-    M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
-    t_target = np.linspace(0, M*T, M*N+1)
-    th = np.linspace(0, M*2*np.pi, M*N+1) # + np.pi/2
-    # zf_target = np.tile(z_eq_point, (M*N+1, 1))
-    zf_target = np.zeros((M*N+1, len(Z_EQ)))
-
-if TARGET == "circle":
-    zf_target[:, 0] += radius * np.cos(th)
-    zf_target[:, 1] += radius * np.sin(th)
-    zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
-elif TARGET == "figure8":
-    zf_target[:, 0] += -radius * np.sin(th)
-    zf_target[:, 1] += radius * np.sin(2 * th)
-    zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
-else:
-    targetName = "drawnTrajectory"
-    robotPath = join(path, SETTINGS['robot'])
-    targetDir = join(robotPath, "trajectories")
-    targetFile = join(targetDir, targetName + ".pkl")
-    target = load_data(targetFile)
-
-    zf_target = target['zf_target'] - np.hstack((Z_EQ, np.zeros(3)))
-    t_target = target['t']
-    zf_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
-    print("zf_target: ", zf_target.shape)
-
+taskFile = join(path, SETTINGS['robot'], 'control_tasks', TARGET + '.pkl')
+target = load_data(taskFile) # Note: target is centered, so we need to center the robot trajectory
 
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
@@ -136,19 +111,10 @@ def traj_x_vs_y():
                 linewidth=2,
                 color='tab:red',
                 fill=False))
-    
-    # TODO: Hardcode in for now
-    Hz = np.zeros((2, 3))
-    Hz[0, 0] = 1
-    Hz[1, 1] = 1
 
-    obstacleDiameter = [10, 8]
-    obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
+    for iObs in range(len(target['X'].center)):
 
-    for iObs in range(len(obstacleLoc)):
-        X = CircleObstacle(A=Hz, center=obstacleLoc[iObs] - Hz @ Z_EQ, diameter=obstacleDiameter[iObs])
-
-        circle = patches.Circle((X.center[0], X.center[1]), X.diameter/2, edgecolor='red', facecolor='none')
+        circle = patches.Circle((target['X'].center[iObs][0], target['X'].center[iObs][1]), target['X'].diameter[iObs]/2, edgecolor='red', facecolor='none')
         # Add the circle to the axes
         ax.add_patch(circle)
 
@@ -162,7 +128,7 @@ def traj_x_vs_y():
                 linewidth=SETTINGS['linewidth'][control],
                 ls=SETTINGS['linestyle'][control], markevery=20,
                 alpha=1.)
-    ax.plot(zf_target[:, 0], zf_target[:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+    ax.plot(target['z'][:, 0], target['z'][:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
     ax.set_ylabel(r'$y_{ee}$ [mm]')
@@ -196,7 +162,7 @@ def traj_3D():
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'][control],
                 ls=SETTINGS['linestyle'][control], markevery=20)
-    ax.plot(zf_target[:, 0], zf_target[:, 1], zf_target[:, 2],
+    ax.plot(target['z'][:, 0], target['z'][:, 1], target['z'][:, 2],
             color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
@@ -227,7 +193,7 @@ def traj_xy_vs_t():
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],
                         ls=SETTINGS['linestyle'][control], markevery=20)
-        ax.plot(t_target, zf_target[:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        ax.plot(target['t'], target['z'][:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
     ax2.set_ylabel(r'$y_{ee}$ [mm]')
     ax2.set_xlabel(r'$t$ [s]')
@@ -262,7 +228,7 @@ def traj_xyz_vs_t():
                         linewidth=SETTINGS['linewidth'][control],
                         ls=SETTINGS['linestyle'][control], markevery=20)
         print("curr coord: ", coord)
-        ax.plot(t_target, zf_target[:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        ax.plot(target['t'], target['z'][:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
     ax2.set_ylabel(r'$y_{ee}$ [mm]')
     ax3.set_ylabel(r'$z_{ee}$ [mm]')

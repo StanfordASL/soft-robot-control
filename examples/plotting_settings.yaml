@@ -1,4 +1,4 @@
-robot: "hardware" #trunk
+robot: "hardware" #trunk, hardware
 save_dir: "plots/"
 file_format: "png"
 
@@ -14,7 +14,7 @@ show: {
     'ssmr_assm_qp2d_n=100': False,
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': True,
+    'tpwl': False,
     'koopman': False,
     'rompc': False
 }

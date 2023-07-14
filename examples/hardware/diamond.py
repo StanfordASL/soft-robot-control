@@ -89,6 +89,8 @@ def collect_POD_data():
 
     This function runs a Sofa simulation with an open loop controller to collect data that will be used to identify the
     POD basis.
+
+    Also use this to collect data for the Koopman model.
     """
     from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
     from sofacontrol.utils import SnapshotData
@@ -100,22 +102,20 @@ def collect_POD_data():
     u_max = 2000. * np.ones(4)
 
     # Training snapshots
-    u1, save1, t1 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=1234,
-                                                       add_base=True)  # ramp inputs between lhs samples
-    u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1., seed=4321)  # step inputs of 1.5 seconds
-    # Additional training data to improve models with more features
-    u3, save3, t3 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=6969,
-                                                       add_base=True)  # ramp inputs between lhs samples
+    # u1, save1, t1 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=1234,
+    #                                                    add_base=True)  # ramp inputs between lhs samples
+    # u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1., seed=4321)  # step inputs of 1.5 seconds
+    # # Additional training data to improve models with more features
+    # u3, save3, t3 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=6969,
+    #                                                    add_base=True)  # ramp inputs between lhs samples
+    # u, save, t = prob.Robot.sequences.combined_sequence([u1, u2, u3], [save1, save2, save3], [t1, t2, t3])
 
     # Validation snapshots
-    # u1, save1, t1 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=69,
-    #                                                   add_base=True)  # ramp inputs between lhs samples
-    # u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1., seed=420)  # step inputs of 1.5 seconds
+    u1, save1, t1 = prob.Robot.sequences.lhs_sequence(nbr_samples=40, interp_pts=45, seed=69,
+                                                      add_base=True)  # ramp inputs between lhs samples
+    u2, save2, t2 = prob.Robot.sequences.lhs_sequence(nbr_samples=25, t_step=1., seed=420)  # step inputs of 1.5 seconds
+    u, save, t = prob.Robot.sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
 
-    # u, save, t = prob.Robot.sequences.combined_sequence([u1, u2], [save1, save2], [t1, t2])
-
-    # Training sequence to get larger variety in training data
-    u, save, t = prob.Robot.sequences.combined_sequence([u1, u2, u3], [save1, save2, save3], [t1, t2, t3])
     prob.controller = OpenLoop(u.shape[0], t, u, save)
 
     prob.snapshots = SnapshotData(save_dynamics=False)

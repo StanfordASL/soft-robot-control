@@ -24,7 +24,7 @@ N_NODES = 1628
 
 # equilibrium position after gravity
 with open(join(PATH, 'rest_qv.pkl'), 'rb') as file:
-    QV_EQUILIBRIUM = pickle.load(file)['rest']
+    QV_EQUILIBRIUM = pickle.load(file)['q']
 
 
 def diamondRobot(q0=None, scale_mode=1000, dt=DT):
