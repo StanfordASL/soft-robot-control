@@ -1,4 +1,4 @@
-robot: "hardware" #trunk, hardware
+robot: "trunk" #trunk, hardware
 save_dir: "plots/"
 file_format: "png"
 
@@ -6,21 +6,28 @@ file_format: "png"
 traj_dir: ""
 
 show: {
-    'ssmr': True,
-    'ssmr_origin': False,
+    'ssmr': False, # Full obsevables
+    'ssmr_origin': False, # pos-vel
+    'ssmr_1delay': True, # Single delay embedding
+    'ssmr_2delay': False, # Single delay embedding
+    'linear': True, # Linear model
+    # Adiabatic SSM settings
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
     'ssmr_linssm': False,
     'ssmr_assm_qp2d_n=100': False,
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': False,
-    'koopman': False,
+    'tpwl': True,
+    'koopman': True,
     'rompc': False
 }
 display_name: {
-    'ssmr': "ASSMR (current model)",
-    'ssmr_origin': "Origin (N=1)", # "SSMR (origin)",
+    'ssmr': "SSMR (Full Delay Observables)",
+    'ssmr_origin': "SSMR (Position-Velocity)", # "SSMR (origin)",
+    'ssmr_1delay': "SSMR (Single Time Delay)", # Single delay embedding
+    'ssmr_2delay': "SSMR (Double Time Delay)", # Double delay embedding
+    'linear': "Linear Model (Single Time Delay)", # Linear SSMR Model
     'ssmr_nnssm': "ASSMR (NN, N=9)",
     'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
     'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
@@ -33,7 +40,10 @@ display_name: {
 }
 color: {
     'ssmr': 'tab:blue',
-    'ssmr_origin': 'tab:blue',
+    'ssmr_origin': 'tab:red',
+    'ssmr_1delay': 'tab:orange',
+    'ssmr_2delay': 'tab:green',
+    'linear': 'tab:purple',
     'ssmr_nnssm': 'tab:red',
     'ssmr_ctssm': 'tab:orange',
     'ssmr_assm_qp2d_n=100': 'tab:purple',
@@ -48,6 +58,9 @@ color: {
 linestyle: {
     'ssmr': '-',
     'ssmr_origin': '-',
+    'ssmr_1delay': '-',
+    'ssmr_2delay': '-',
+    'linear': '-',
     'ssmr_nnssm': '-',
     'ssmr_ctssm': '-',
     'ssmr_assm_qp2d_n=100': '-',
@@ -62,6 +75,9 @@ linestyle: {
 linewidth: {
     'ssmr': 2,
     'ssmr_origin': 2,
+    'ssmr_1delay': 3,
+    'ssmr_2delay': 2,
+    'linear': 2,
     'ssmr_nnssm': 2,
     'ssmr_ctssm': 2,
     'ssmr_assm_qp2d_n=100': 2,
@@ -75,14 +91,14 @@ linewidth: {
 }
 
 # select_target: "circle"
-select_target: "figure8"
+select_target: "custom"
 # Figure8 target
 define_targets: {
     figure8: {
         M: 1,
         T: 10,
         N: 1000,
-        radius: 15, # 20, # 30, # 
+        radius: 30, # 20, # 30, # 
         z_const: 0, # -10, # 0, # 
         # state constraints
         z_lb: null, # [-16, -16],
@@ -97,6 +113,11 @@ define_targets: {
         # state constraints
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
+    },
+    pacman: {
+        z_const: 0, # -10, # 0, # 
+        z_lb: null,
+        z_ub: null
     },
     custom: {
         z_const: 0, # -10, # 0, # 

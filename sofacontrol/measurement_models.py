@@ -25,7 +25,7 @@ class OutputModel:
 
     def build_C_matrix(self, num_obs, num_perf):
         # Generate output matrix (observed to output) - Assumed desired output is in the end of the vector
-        # Probably should refactor this later
+        # TODO: Probably should refactor this later
         self.C = np.zeros((self.num_perf, self.num_obs))
         for i in range(self.num_perf):
             self.C[self.num_perf - 1 - i, self.num_obs - 1 - i] = 1

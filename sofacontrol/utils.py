@@ -10,6 +10,7 @@ from scipy.interpolate import CubicSpline
 import matplotlib.pyplot as plt
 import jax.scipy as jsp
 from functools import partial
+import matplotlib.image as mpimg
 
 class QuadraticCost:
     """
@@ -576,14 +577,19 @@ def drawWaypoints():
     return np.array(points)
 
 
-def drawContinuousPath(distance_threshold=0.1):
-    # create an empty figure
-    fig = plt.figure()
+def drawContinuousPath(distance_threshold=0.1, image_path=None):
+    # Create an empty figure
+    fig, ax = plt.subplots()
 
-    # create an empty list to store your points
+    # Load and display the image, if image_path is provided
+    if image_path is not None:
+        img = mpimg.imread(image_path)
+        ax.imshow(img, extent=[-25, 25, -25, 25])
+
+    # Create an empty list to store your points
     points = []
 
-    # variable that tracks whether the left mouse button is pressed
+    # Variable that tracks whether the left mouse button is pressed
     is_pressed = False
 
     def on_press(event):
@@ -597,34 +603,33 @@ def drawContinuousPath(distance_threshold=0.1):
     def on_motion(event):
         nonlocal is_pressed, points
         if is_pressed:
-            if len(points) == 0 or np.linalg.norm(
-                    np.array([event.xdata, event.ydata]) - np.array(points[-1])) > distance_threshold:
-                # when the mouse moves, append the point (x, y) to the points list
+            if len(points) == 0 or np.linalg.norm(np.array([event.xdata, event.ydata]) - np.array(points[-1])) > distance_threshold:
+                # When the mouse moves, append the point (x, y) to the points list
                 points.append([event.xdata, event.ydata])
-                # plot the point
-                plt.plot(event.xdata, event.ydata, 'ro')
+                # Plot the point
+                ax.plot(event.xdata, event.ydata, 'ro')
                 if len(points) > 1:
-                    # if there are two or more points, plot a line between the last two points
-                    plt.plot([points[-2][0], points[-1][0]], [points[-2][1], points[-1][1]], 'b-')
-                # refresh the plot
-                plt.draw()
+                    # If there are two or more points, plot a line between the last two points
+                    ax.plot([points[-2][0], points[-1][0]], [points[-2][1], points[-1][1]], 'b-')
+                # Refresh the plot
+                fig.canvas.draw()
 
-    # connect the events to the figure
+    # Connect the events to the figure
     fig.canvas.mpl_connect('button_press_event', on_press)
     fig.canvas.mpl_connect('button_release_event', on_release)
     fig.canvas.mpl_connect('motion_notify_event', on_motion)
 
-    # show the figure
-    plt.xlim(-30, 30)  # Set the x-axis limits
-    plt.ylim(-30, 30)  # Set the y-axis limits
+    # Show the figure
+    ax.set_xlim(-30, 30)  # Set the x-axis limits
+    ax.set_ylim(-30, 30)  # Set the y-axis limits
     plt.grid(True)
     plt.show()
 
-    # return the points
-    return np.array(points)
+    # Return the points
+    return points
 
 
-def resample_waypoints(waypoints, speed):
+def resample_waypoints(waypoints, total_time):
     waypoints = np.array(waypoints)
     x, y = waypoints.T
 
@@ -634,18 +639,24 @@ def resample_waypoints(waypoints, speed):
     distance = np.cumsum(np.sqrt(dx ** 2 + dy ** 2))
     distance = np.insert(distance, 0, 0)
 
+    # Total distance
+    total_distance = distance[-1]
+
+    # Desired speed
+    speed = total_distance / total_time
+
     # Interpolate the path
     path = CubicSpline(distance, waypoints, axis=0, bc_type='natural')
 
-    # Sample the path at constant arc-length intervals
-    num_points = int(distance[-1] // speed)
-    new_distance = np.linspace(0, distance[-1], num_points)
+    # Sample the path at constant speed intervals
+    num_points = int(total_time * speed)
+    new_distance = np.linspace(0, total_distance, num_points)
     new_waypoints = path(new_distance)
 
-    return np.array(new_waypoints.tolist())
+    return new_waypoints
 
 """
-Custom JAX routine for jnp.norm
+Custom JAX routine for jnp.norm. Takes difference between first len(y) components of x and y.
 """
 
 def norm2Diff(x, y, P=None):
@@ -670,17 +681,17 @@ def norm2Linearize(x, y, dt, P=None):
 """
     Create a new target trajectory. TODO: Assume outdofs are [0, 1, 2]
 """
-def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15):
+def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None):
     if controlTask == 'custom':
         #############################################
         # Problem 0, Custom Drawn Trajectory
         #############################################
         # Draw the desired trajectory
-        points = drawContinuousPath(0.5)
-        resampled_pts = resample_waypoints(points, 0.5)
+        points = drawContinuousPath(distance_threshold=0.5, image_path=pathToImage)
+        resampled_pts = resample_waypoints(points, 10.1)
 
         # Setup target trajectory
-        t = np.linspace(0, 5, resampled_pts.shape[0])
+        t = np.linspace(0, 10.1, resampled_pts.shape[0])
         x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
         zf_target = np.zeros((resampled_pts.shape[0], output_dim))
         zf_target[:, 0] = x_target
@@ -726,8 +737,12 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             th = np.linspace(0, M * 2 * np.pi, M * N)
             x_target = np.zeros(M * N)
             
-            y_target = amplitude * np.sin(th)
-            z_target = amplitude - amplitude * np.cos(th) + 107.0
+            if freq is None:
+                y_target = amplitude * np.sin(th)
+                z_target = amplitude - amplitude * np.cos(th) + 107.0
+            else:
+                y_target = amplitude * np.sin(freq * T / (2 * np.pi) * th)
+                z_target = amplitude - amplitude * np.cos(freq * T / (2 * np.pi) * th) + 107.0
 
             zf_target = np.zeros((M * N, output_dim))
             zf_target[:, 0] = x_target
@@ -735,11 +750,37 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             zf_target[:, 2] = z_target
         else:
             raise RuntimeError('Requested robot not implemented. Must be trunk or diamond')
+    elif controlTask == "pacman":
+        M = 3
+        T = 10
+        N = 1000
+        radius = 20.
+        t = np.linspace(0, M * T, M * N + 1)
+        th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+        zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
+        # zf_target = np.zeros((M * N, model.output_dim))
+        zf_target[:, 0] += radius * np.cos(th)
+        zf_target[:, 1] += radius * np.sin(th)
+        zf_target[:, 2] += -np.zeros(len(t)) * 10
+        t_in_pacman, t_out_pacman = 1., 1.
+        zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
+        zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
         
     else:
         raise RuntimeError('Requested target not implemented. Must be figure8, circle, or custom')
     
     return zf_target, t
+
+def load_full_equilibrium(root_path):
+    # Load equilibrium point
+    rest_file = os.path.join(root_path, 'rest_qv.pkl')
+    rest_data = load_data(rest_file)
+    q_equilibrium = np.array(rest_data['q'][0])
+
+    # Setup equilibrium point (no time delay and observed position and velocity of tip)
+    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+
+    return x_eq
 
 """
     Generate a model. TODO: Only SSM for now
@@ -748,13 +789,8 @@ def generateModel(root_path, pathToModel, nodes, num_nodes):
     from sofacontrol.SSM import ssm
     import sofacontrol.measurement_models as msm
 
-    # Load equilibrium point
-    rest_file = os.path.join(root_path, 'rest_qv.pkl')
-    rest_data = load_data(rest_file)
-    q_equilibrium = np.array(rest_data['q'][0])
-
     # Setup equilibrium point (no time delay and observed position and velocity of tip)
-    x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+    x_eq = load_full_equilibrium(root_path)
 
     # load SSM model
     with open(os.path.join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
@@ -789,7 +825,7 @@ def createControlConstraint(u_min, u_max, input_dim, du_max=None):
     return U, dU
 
 """
-    Obstacle constraint in x-y plane
+    Obstacle constraint in x-y plane. TODO: Only works for SSMR right now
 """
 def createObstacleConstraint(output_dim, y_ref, obstacleDiameter, obstacleLoc):
     Hz = np.zeros((2, output_dim))
@@ -798,3 +834,33 @@ def createObstacleConstraint(output_dim, y_ref, obstacleDiameter, obstacleLoc):
     X = CircleObstacle(A=Hz, center=obstacleLoc - Hz @ y_ref, diameter=obstacleDiameter)
 
     return X
+
+def generateObstacles(num_obstacles, d_min, d_max, min_distance_from_origin, min_distance_between_obstacles=5, seed=69):
+    
+    np.random.seed(seed)
+
+    # Initialize the list of obstacles
+    obstacles = []
+
+    while len(obstacles) < num_obstacles:
+        # Generate a random location
+        location = np.random.uniform(-30, 30, size=2)  # Change the range as needed
+
+        # Generate a random diameter
+        diameter = np.random.uniform(d_min, d_max)
+
+        # Check if the new obstacle is too close to the origin
+        if np.linalg.norm(location) < min_distance_from_origin:
+            continue
+
+        # Check if the new obstacle is too close to any existing obstacle
+        for existing_diameter, existing_location in obstacles:
+            distance_between_centers = np.linalg.norm(location - existing_location)
+            distance_between_perimeters = distance_between_centers - (diameter + existing_diameter) / 2
+            if distance_between_perimeters < min_distance_between_obstacles:
+                break
+        else:
+            # If no intersection, add the obstacle to the list
+            obstacles.append((diameter, location))
+    
+    return obstacles

@@ -13,9 +13,23 @@ sys.path.append(root)
 from examples import Problem
 from examples.hardware.model import diamondRobot
 from sofacontrol.open_loop_sequences import DiamondRobotSequences
+from sofacontrol.utils import load_data, qv2x
+from sofacontrol.measurement_models import linearModel
 
 
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
+TIP_NODE = 1354
+N_NODES = 1628
+
+# Load equilibrium point
+rest_file = join(path, 'rest_qv.pkl')
+rest_data = load_data(rest_file)
+q_equilibrium = np.array(rest_data['q'][0])
+
+# Setup equilibrium point (no time delay and observed position and velocity of tip)
+x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
+z_eq_point = output_model.evaluate(x_eq, qv=False)
 
 def TPWL_rollout():
     from sofacontrol.closed_loop_controller import ClosedLoopController
@@ -222,8 +236,8 @@ def run_scp():
     prob.ControllerClass = ClosedLoopController
 
     # Specify a measurement and output model
-    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.001 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_v = 60.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
@@ -284,8 +298,30 @@ def run_gusto_solver():
     from sofacontrol.measurement_models import linearModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.tpwl import tpwl_config, tpwl
-    from sofacontrol.utils import HyperRectangle, Polyhedron, CircleObstacle
+    from sofacontrol.utils import createTargetTrajectory, createControlConstraint, save_data, load_data, CircleObstacle
 
+     ######## User Options ########
+    saveControlTask = False
+    createNewTask = False
+    dt = 0.1
+    N = 3
+
+    # Control Task Params
+    controlTask = "figure8" # figure8, circle, or custom
+    trajAmplitude = 15
+    trajFreq = 17 # rad/s
+    flipCoords = True # Use this only when the saved trajectory is from SSM run
+
+    # Trajectory constraint
+    # Obstacle constraints
+    obstacleDiameter = [10, 8]
+    obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
+
+    # Constrol Constraints
+    u_min, u_max = 200.0, 2500.0
+    du_max = None
+
+    ######## Generate SSM model and setup control task ########
     output_model = linearModel(nodes=[1354], num_nodes=1628)
 
     # Load and configure the TPWL model from data saved
@@ -293,118 +329,78 @@ def run_gusto_solver():
     config = tpwl_config.tpwl_dynamics_config()
     model = tpwl.TPWLATV(data=tpwl_model_file, params=config.constants_sim, Hf=output_model.C,
                          discr_method='zoh')
+    
+    # Define target trajectory for optimization
+    trajDir = join(path, "control_tasks")
+    taskFile = join(trajDir, controlTask + ".pkl")
+    taskParams = {}
+    
+    if createNewTask:
+        ######## Define the trajectory ########
+        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, freq=trajFreq)
+        z = model.zfyf_to_zy(zf=zf_target)
 
+        ######## Define a new state constraint (q, v) format ########
+        ## Format [constraint number, variable/state number]
+        
+        # Obstacle avoidance constraint
+        # X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
+        # No constraint
+        X = None
+
+        ######## Define new control constraint ########
+        U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+        # dU = None
+
+        ######## Save Target Trajectory and Constraints ########
+        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        if type(X) is CircleObstacle:
+            taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU, 'obstacleDiameter': obstacleDiameter, 'obstacleLoc': obstacleLoc}
+
+        if saveControlTask:
+            save_data(taskFile, taskParams)
+    else:
+        taskParams = load_data(taskFile)
+        if flipCoords:
+            taskParams['z'] = np.hstack((np.zeros((taskParams['z'].shape[0], 3)), taskParams['z']))
+            
+            # Need to flip all state/obstacle constraints
+            if type(taskParams['X']) is CircleObstacle:
+                Hz = np.zeros((2, model.output_dim))
+                Hz[0, 3] = 1
+                Hz[1, 4] = 1
+                H = Hz @ model.H
+
+                taskParams['X'] = CircleObstacle(A=H, center=taskParams['obstacleLoc'] - Hz @ model.z_ref, diameter=taskParams['obstacleDiameter'])
+
+
+    ######## Cost Function ########
     #############################################
-    # Problem 1, Figure 8 with constraints
+    # Problem 1, X-Y plane cost function
     #############################################
-    M = 3
-    T = 10
-    N = 500
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M * 2 * np.pi, M*N)
-    zf_target = np.zeros((M*N, model.output_dim))
-
-    zf_target[:, 3] = -15. * np.sin(th) - 7.1
-    zf_target[:, 4] = 15. * np.sin(2 * th)
-
-    # zf_target[:, 3] = -25. * np.sin(th) + 13.
-    # zf_target[:, 4] = 25. * np.sin(2 * th) + 20.
-
-    # zf_target[:, 3] = -40. * np.sin(th) - 7.1
-    # zf_target[:, 4] = 40. * np.sin(2 * th)
-
-    # zf_target[:, 3] = -5. * np.sin(th) - 7.1
-    # zf_target[:, 4] = 5. * np.sin(2 * th)
-
-    # Offset with constraints
-    # zf_target[:, 3] = -15. * np.sin(th)
-    # zf_target[:, 4] = 15. * np.sin(2 * th)
-
-    # zf_target[:, 3] = -15. * np.sin(8 * th) - 7.1
-    # zf_target[:, 4] = 15. * np.sin(16 * th)
-
-    z = model.zfyf_to_zy(zf=zf_target)
-
-    # Cost
-    R = .00001 * np.eye(model.input_dim)
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
     Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
 
-
-    # Control constraints
-    low = 200.0
-    high = 2500.0
-    U = HyperRectangle([high, high, high, high], [low, low, low, low])
-
-    # State constraints
-    # Hz = np.zeros((1, 6))
-    # Hz[0, 4] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # X = Polyhedron(A=H, b=b_z - Hz @ model.z_ref)
-
-    # Hz = np.zeros((2, model.output_dim))
-    # Hz[0, 3] = 1
-    # Hz[1, 4] = 1
-    # H = Hz @ model.H
-
-    # obstacleDiameter = 10
-    # obstacleLoc = np.array([-12, 12])
-    # X = CircleObstacle(A=H, center=obstacleLoc - Hz @ model.z_ref, diameter=obstacleDiameter)
-
-    # No constraints for now
-    X = None
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
-    # M = 3
-    # T = 5
-    # N = 1000
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M*2*np.pi, M*N)
-    # x_target = np.zeros(M*N)
-
-    # r = 15
-    # y_target = r * np.sin(th)
-    # z_target = r - r * np.cos(th) + 107.0
-
-    # r = 15
-    # phi = 17
-    # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-    # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
-    #
-    # zf_target = np.zeros((M*N, 6))
-    # zf_target[:, 3] = x_target
-    # zf_target[:, 4] = y_target
-    # zf_target[:, 5] = z_target
-    # z = model.zfyf_to_zy(zf=zf_target)
-    #
-    # # Cost
-    # R = .00001 * np.eye(4)
-    # Qz = np.zeros((6, 6))
-    # Qz[3, 3] = 0.0  # corresponding to x position of end effector
+    #############################################
+    # Problem 2, X-Y-Z plane cost function
+    #############################################
+    # R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100.0  # corresponding to x position of end effector
     # Qz[4, 4] = 100.0  # corresponding to y position of end effector
     # Qz[5, 5] = 100.0  # corresponding to z position of end effector
-
-    # Constraints
-    # low = 200.0
-    # high = 2500.0
-    # U = HyperRectangle([high, high, high, high], [low, low, low, low])
-    # X = None
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
 
-    # Define GuSTO model
-    dt = 0.1
-    N = 5
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
-    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
+    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=5, jit=False)
+                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
 
 def run_scp_OL():
     """

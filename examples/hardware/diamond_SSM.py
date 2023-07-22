@@ -186,7 +186,7 @@ def run_scp():
     dt = 0.02
     # Simulation settings
     sim_duration = 11
-    save_prefix = 'ssmr'
+    save_prefix = 'ssmr_linear'
 
     ######## Setup the Robot Environment and Type of Controller ########
     prob = Problem()
@@ -197,13 +197,14 @@ def run_scp():
     model = generateModel(path, pathToModel, [TIP_NODE], N_NODES)
 
     ######## Specify a measurement of what we observe during simulation ########
-    cov_q = 0.0 * np.eye(3)
-    cov_v = 0.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.001 * np.eye(3)
+    cov_v = 60.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
     if model.params['delay_embedding']:
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
     else:
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
+    
     # Pure SSM Manifold Observer
     observer = SSMObserver(model)
 
@@ -239,13 +240,14 @@ def run_gusto_solver():
     
     ######## User Options ########
     saveControlTask = True
-    createNewTask = True 
+    createNewTask = True
     dt = 0.02
     N = 3
 
     # Control Task Params
     controlTask = "figure8" # figure8, circle, or custom
     trajAmplitude = 15
+    trajFreq = 17 # rad/s
 
     # Trajectory constraint
     # Obstacle constraints
@@ -269,16 +271,16 @@ def run_gusto_solver():
     
     if createNewTask:
         ######## Define the trajectory ########
-        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude)
+        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, freq=trajFreq)
         z = model.zfyf_to_zy(zf=zf_target)
 
         ######## Define a new state constraint (q, v) format ########
         ## Format [constraint number, variable/state number]
         
         # Obstacle avoidance constraint
-        X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
+        # X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
         # No constraint
-        # X = None
+        X = None
 
         ######## Define new control constraint ########
         U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)

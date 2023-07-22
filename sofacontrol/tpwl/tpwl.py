@@ -277,7 +277,7 @@ class TPWLATV(TPWL):
     def get_obstacleConstraint_jacobians(self,
                                       x: jnp.ndarray, obs_center: jnp.ndarray):
         normFunc = partial(norm2Diff, y=obs_center)
-        g = lambda x: normFunc(self.H @ x)
+        g = lambda x: normFunc((self.H @ x)[3:]) # TODO: Assumes that observables are in format (vel, pos)
         G = jax.jacobian(g)(x)
         b = g(x) - G @ x
         return G, b

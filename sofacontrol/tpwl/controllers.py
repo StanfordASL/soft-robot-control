@@ -323,12 +323,13 @@ class scp(TemplateController):
         self.u_bar = interp1d(self.t_opt, self.u_opt, axis=0)
         self.x_bar = interp1d(self.t_opt, self.x_opt, axis=0)
 
+    # TODO: The clipping to input constraint is currently hard-coded (between 0 and 800)
     def compute_input(self, t_step, x_belief):
         self.GuSTO.force_spin()  # Periodic querying of client node
 
         # LQR
         i_near = self.dyn_sys.calc_nearest_point(self.x_bar(t_step))
-        u = self.u_bar(t_step) + self.K[i_near] @ (x_belief - self.x_bar(t_step))
+        u = np.clip(self.u_bar(t_step) + self.K[i_near] @ (x_belief - self.x_bar(t_step)), 0, 800)
 
         return u
 

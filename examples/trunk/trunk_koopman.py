@@ -95,124 +95,244 @@ def run_koopman():
     prob.Robot = environments.Trunk()
     prob.ControllerClass = ClosedLoopController
 
-    cov_q = 0.0 * np.eye(3)
+    cov_q = 0.001 * np.eye(3)
     prob.measurement_model = MeasurementModel(nodes=[51], num_nodes=prob.Robot.nb_nodes, pos=True, vel=False, S_q=cov_q)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[51])
 
     # Building A matrix
-    Hz = np.zeros((1, 3))
-    Hz[0, 1] = 1
-    b_z = np.array([5])
-    Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
+    # Hz = np.zeros((1, 3))
+    # Hz[0, 1] = 1
+    # b_z = np.array([5])
+    # Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
+    Y = None
 
-    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=3, rollout_horizon=1, Y=Y)
+    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1, Y=Y)
 
-    prob.opt['sim_duration'] = 13.  # Simulation time, optional
+    prob.opt['sim_duration'] = 11.  # Simulation time, optional
     prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'koopman'
+    prob.opt['save_prefix'] = 'linear'
 
     return prob
-
 
 def run_koopman_solver():
     """
     python3 diamond_koopman.py run_koopman_solver
     """
-    from scipy.io import loadmat
     from sofacontrol.baselines.koopman import koopman_utils
     from sofacontrol.baselines.ros import runMPCSolverNode
     from sofacontrol.tpwl.tpwl_utils import Target
     from sofacontrol.utils import QuadraticCost
-    from sofacontrol.utils import HyperRectangle, Polyhedron
+    from sofacontrol.utils import HyperRectangle, load_data, save_data, qv2x, Polyhedron, CircleObstacle, \
+        drawContinuousPath, resample_waypoints, generateModel, createTargetTrajectory, createControlConstraint, \
+        createObstacleConstraint
+    from scipy.io import loadmat
+    
+    ######## User Options ########
+    saveControlTask = False
+    createNewTask = False
+    N = 3
 
+    # Control Task Params
+    controlTask = "custom" # figure8, circle, or custom
+    trajAmplitude = 15
+    trajFreq = 17 # rad/s
+
+    # Trajectory constraint
+    # Obstacle constraints
+    obstacleDiameter = [10, 8]
+    obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
+
+    # Constrol Constraints
+    u_min, u_max = 200.0, 2500.0
+    du_max = None
+
+    ######## Generate Koopman model and setup control task ########
     koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
     raw_model = koopman_data['model']
     raw_params = koopman_data['params']
     model = koopman_utils.KoopmanModel(raw_model, raw_params)
     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
+    
+    # Define target trajectory for optimization
+    trajDir = join(path, "control_tasks")
+    taskFile = join(trajDir, controlTask + ".pkl")
+    taskParams = {}
+    
+    if createNewTask:
+        ######## Define the trajectory ########
+        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, freq=trajFreq)
+        z = model.zfyf_to_zy(zf=zf_target)
 
-    cost = QuadraticCost()
+        ######## Define a new state constraint (q, v) format ########
+        ## Format [constraint number, variable/state number]
+        
+        # Obstacle avoidance constraint
+        # X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
+        # No constraint
+        X = None
+
+        ######## Define new control constraint ########
+        U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+        # dU = None
+
+        ######## Save Target Trajectory and Constraints ########
+        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        
+        if saveControlTask:
+            save_data(taskFile, taskParams)
+    else:
+        taskParams = load_data(taskFile)
+
+        # Control constraints
+        u_ub = u_max * np.ones(model.m)
+        u_lb = u_min * np.ones(model.m)
+        u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+        u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+        U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+
+        # State constraints
+        if type(taskParams['X']) is CircleObstacle:
+            Hz = np.zeros((2, model.n))
+            Hz[0, 0] = 1
+            Hz[1, 1] = 1
+
+            obstacleLoc = np.asarray([scaling.scale_down(y=np.append(vector, 0)).reshape(-1)[:2] for vector in taskParams['obstacleLoc']])
+            obstacleDiameter = [scaling.scale_down(y=diameter).reshape(-1)[0] for diameter in taskParams['obstacleDiameter']]
+
+            taskParams['X'] = CircleObstacle(A=Hz, center=obstacleLoc, diameter=obstacleDiameter)
+
+
+    # Define target trajectory for optimization
     target = Target()
-    #############################################
-    # Problem 1, Figure 8 with constraints
-    #############################################
-    M = 3
-    T = 10
-    N = 500
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M * 2 * np.pi, M*N)
-    zf_target = np.zeros((M*N, model.n))
-    zf_target[:, 0] = -20. * np.sin(th)
-    zf_target[:, 1] = 20. * np.sin(2 * th)
+    target.t = taskParams['t']
+    target.z = scaling.scale_down(y=taskParams['z'][:, :model.n])
+    target.u = scaling.scale_down(u=np.zeros(model.m)).reshape(-1)
 
-    # Cost
+    ######## Cost Function ########
+    cost = QuadraticCost()
+    #############################################
+    # Problem 1, X-Y plane cost function
+    #############################################
     cost.R = .00001 * np.eye(model.m)
     cost.Q = np.zeros((model.n, model.n))
     cost.Q[0, 0] = 100  # corresponding to x position of end effector
     cost.Q[1, 1] = 100  # corresponding to y position of end effector
     cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
 
-    # Control constraints
-    u_ub = 800. * np.ones(model.m)
-    u_lb = 0. * np.ones(model.m)
-    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-
-    # State constraints
-    # Hz = np.zeros((1, 3))
-    # Hz[0, 1] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
-    # X = Polyhedron(A=H, b=b_z_ub_norm)
-
-    ##############################################
-    # Problem 2, Circle on side
-    ##############################################
-    # M = 3
-    # T = 5
-    # N = 1000
-    # r = 10
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M*2*np.pi, M*N)
-    # x_target = np.zeros(M*N)
-    # y_target = r * np.sin(th)
-    # z_target = r - r * np.cos(th) + 107.0
-    # zf_target = np.zeros((M*N, 3))
-    # zf_target[:, 0] = x_target
-    # zf_target[:, 1] = y_target
-    # zf_target[:, 2] = z_target
-    #
-    # # Cost
+    #############################################
+    # Problem 2, X-Y-Z plane cost function
+    #############################################
     # cost.R = .00001 * np.eye(model.m)
     # cost.Q = np.zeros((3, 3))
-    # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
+    # cost.Q[0, 0] = 100.0  # corresponding to x position of end effector
     # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
     # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-    #
-    # # Constraints
-    # u_ub = 1500. * np.ones(model.m)
-    # u_lb = 200. * np.ones(model.m)
-    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-    # X = None
-
-    
-    # Define target trajectory for optimization
-    target.t = t
-    target.z = scaling.scale_down(y=zf_target)
-    target.u = scaling.scale_down(u=np.zeros(model.m)).reshape(-1)
 
     # Consider same "scaled" cost parameters as other models
     cost.R *= np.diag(scaling.u_factor[0])
     cost.Q *= np.diag(scaling.y_factor[0])
 
-    N = 3
 
     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
-                     warm_start=True, U=U, solver='GUROBI')
+                     warm_start=True, U=U, X=taskParams['X'], solver='GUROBI')
+
+# def run_koopman_solver():
+#     """
+#     python3 diamond_koopman.py run_koopman_solver
+#     """
+#     from scipy.io import loadmat
+#     from sofacontrol.baselines.koopman import koopman_utils
+#     from sofacontrol.baselines.ros import runMPCSolverNode
+#     from sofacontrol.tpwl.tpwl_utils import Target
+#     from sofacontrol.utils import QuadraticCost
+#     from sofacontrol.utils import HyperRectangle, Polyhedron
+
+#     koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
+#     raw_model = koopman_data['model']
+#     raw_params = koopman_data['params']
+#     model = koopman_utils.KoopmanModel(raw_model, raw_params)
+#     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
+
+#     cost = QuadraticCost()
+#     target = Target()
+#     #############################################
+#     # Problem 1, Figure 8 with constraints
+#     #############################################
+#     M = 3
+#     T = 10
+#     N = 500
+#     t = np.linspace(0, M*T, M*N)
+#     th = np.linspace(0, M * 2 * np.pi, M*N)
+#     zf_target = np.zeros((M*N, model.n))
+#     zf_target[:, 0] = -20. * np.sin(th)
+#     zf_target[:, 1] = 20. * np.sin(2 * th)
+
+#     # Cost
+#     cost.R = .00001 * np.eye(model.m)
+#     cost.Q = np.zeros((model.n, model.n))
+#     cost.Q[0, 0] = 100  # corresponding to x position of end effector
+#     cost.Q[1, 1] = 100  # corresponding to y position of end effector
+#     cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
+
+#     # Control constraints
+#     u_ub = 800. * np.ones(model.m)
+#     u_lb = 0. * np.ones(model.m)
+#     u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+#     u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+#     U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+
+#     # State constraints
+#     # Hz = np.zeros((1, 3))
+#     # Hz[0, 1] = 1
+#     # H = Hz @ model.H
+#     # b_z = np.array([5])
+#     # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
+#     # X = Polyhedron(A=H, b=b_z_ub_norm)
+
+#     ##############################################
+#     # Problem 2, Circle on side
+#     ##############################################
+#     # M = 3
+#     # T = 5
+#     # N = 1000
+#     # r = 10
+#     # t = np.linspace(0, M*T, M*N)
+#     # th = np.linspace(0, M*2*np.pi, M*N)
+#     # x_target = np.zeros(M*N)X
+#     # zf_target = np.zeros((M*N, 3))
+#     # zf_target[:, 0] = x_target
+#     # zf_target[:, 1] = y_target
+#     # zf_target[:, 2] = z_target
+#     #
+#     # # Cost
+#     # cost.R = .00001 * np.eye(model.m)
+#     # cost.Q = np.zeros((3, 3))
+#     # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
+#     # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
+#     # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+#     #
+#     # # Constraints
+#     # u_ub = 1500. * np.ones(model.m)
+#     # u_lb = 200. * np.ones(model.m)
+#     # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+#     # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+#     # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+#     # X = None
+
+    
+#     # Define target trajectory for optimization
+#     target.t = t
+#     target.z = scaling.scale_down(y=zf_target)
+#     target.u = scaling.scale_down(u=np.zeros(model.m)).reshape(-1)
+
+#     # Consider same "scaled" cost parameters as other models
+#     cost.R *= np.diag(scaling.u_factor[0])
+#     cost.Q *= np.diag(scaling.y_factor[0])
+
+#     N = 3
+
+#     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
+#                      warm_start=True, U=U, solver='GUROBI')
 
 
 

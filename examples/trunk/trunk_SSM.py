@@ -46,7 +46,7 @@ def run_scp():
     dt = 0.02
     # Simulation settings
     sim_duration = 11
-    save_prefix = 'ssmr'
+    save_prefix = 'ssmr_1delay'
     
 
     ######## Setup the Robot Environment and Type of Controller ########
@@ -58,8 +58,8 @@ def run_scp():
     model = generateModel(path, pathToModel, [TIP_NODE], N_NODES)
 
     ######## Specify a measurement of what we observe during simulation ########
-    cov_q = 0.0 * np.eye(3)
-    cov_v = 0.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.001 * np.eye(3)
+    cov_v = 60.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
     if model.params['delay_embedding']:
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
@@ -89,26 +89,34 @@ def run_gusto_solver():
     from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.utils import HyperRectangle, load_data, qv2x, Polyhedron, \
         CircleObstacle, createTargetTrajectory, save_data, generateModel, createControlConstraint, \
-        createObstacleConstraint
+        createObstacleConstraint, generateObstacles
 
     ######## User Options ########
-    saveControlTask = True
-    createNewTask = True 
+    saveControlTask = False
+    createNewTask = False
     dt = 0.02
     N = 3
 
     # Control Task Params
-    controlTask = "figure8" # figure8, circle, or custom
-    trajAmplitude = 15
+    controlTask = "custom" # figure8, circle, pacman, or custom
+    trajAmplitude = 30
+    pathToTraceImage = "/home/jalora/Desktop/ETH.png"
 
     # Trajectory constraint
     # Obstacle constraints
-    obstacleDiameter = [15] 
-    obstacleLoc = [np.array([-4, 13])]
+    # obstacleDiameter = [15] 
+    # obstacleLoc = [np.array([-4, 13])]
+
+    num_obstacles = 20
+    min_diameter, max_diameter = 8, 12
+    min_distance_from_origin = 10
+    obstacles = generateObstacles(num_obstacles, min_diameter, max_diameter, min_distance_from_origin, min_distance_between_obstacles=3)
+    obstacleDiameter = [d[0] for d in obstacles]
+    obstacleLoc = [d[1] for d in obstacles]
 
     # Constrol Constraints
     u_min, u_max = 0.0, 800.0
-    du_max = 10
+    du_max = None
 
     ######## Generate SSM model and setup control task ########
     # Set directory for SSM Models
@@ -123,7 +131,7 @@ def run_gusto_solver():
 
     if createNewTask:
         ######## Define the trajectory ########
-        zf_target, t = createTargetTrajectory(controlTask, 'trunk', model.y_eq, model.output_dim, amplitude=trajAmplitude)
+        zf_target, t = createTargetTrajectory(controlTask, 'trunk', model.y_eq, model.output_dim, amplitude=trajAmplitude, pathToImage=pathToTraceImage)
         z = model.zfyf_to_zy(zf=zf_target)
 
         ######## Define a new state constraint (q, v) format ########
@@ -140,10 +148,15 @@ def run_gusto_solver():
 
         ######## Save Target Trajectory and Constraints ########
         taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        if type(X) is CircleObstacle:
+            taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU, 'obstacleDiameter': obstacleDiameter, 'obstacleLoc': obstacleLoc}
+
         if saveControlTask:
             save_data(taskFile, taskParams)
     else:
         taskParams = load_data(taskFile)
+        if taskParams['z'].shape[1] < model.output_dim:
+            taskParams['z'] = np.hstack((taskParams['z'], np.zeros((taskParams['z'].shape[0], model.output_dim - taskParams['z'].shape[1]))))
         
     ######## Cost Function ########
     Qz = np.zeros((model.output_dim, model.output_dim))
@@ -160,7 +173,7 @@ def run_gusto_solver():
 
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
+                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
 
 
 # def run_scp_OL():

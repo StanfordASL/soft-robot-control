@@ -10,7 +10,7 @@ import yaml
 import pickle
 
 from sofacontrol.measurement_models import linearModel
-from sofacontrol.utils import qv2x, load_data, CircleObstacle
+from sofacontrol.utils import qv2x, load_data, CircleObstacle, load_full_equilibrium
 
 
 path = dirname(abspath(__file__))
@@ -63,10 +63,11 @@ for control in CONTROLS:
 
 print("=== SOFA equilibrium point ===")
 # Load equilibrium point
-print(model.QV_EQUILIBRIUM[0].shape, model.QV_EQUILIBRIUM[1].shape)
-x_eq = qv2x(q=model.QV_EQUILIBRIUM[0], v=model.QV_EQUILIBRIUM[1])
+x_eq = load_full_equilibrium(join(path, SETTINGS['robot']))
+print(x_eq.shape)
+
 outputModel = linearModel([model.TIP_NODE], model.N_NODES, vel=False)
-Z_EQ = outputModel.evaluate(x_eq, qv=False)
+Z_EQ = outputModel.evaluate(x_eq, qv=False) #+ np.array([1.4, 0.0, 0.0])
 if SETTINGS['robot'] == "trunk":
     Z_EQ[2] *= -1
 print(Z_EQ)
@@ -111,24 +112,32 @@ def traj_x_vs_y():
                 linewidth=2,
                 color='tab:red',
                 fill=False))
+    if target['X'] is not None:
+        for iObs in range(len(target['X'].center)):
+        
+            circle = patches.Circle((target['X'].center[iObs][0], target['X'].center[iObs][1]), target['X'].diameter[iObs]/2, edgecolor='red', facecolor='none')
+            # Add the circle to the axes
+            ax.add_patch(circle)
 
-    for iObs in range(len(target['X'].center)):
 
-        circle = patches.Circle((target['X'].center[iObs][0], target['X'].center[iObs][1]), target['X'].diameter[iObs]/2, edgecolor='red', facecolor='none')
-        # Add the circle to the axes
-        ax.add_patch(circle)
+    f = interp1d(target['t'], target['z'], axis=0)
 
+    for control in CONTROLS:
+        zf_target = f(SIM_DATA[control]['t'][:-2])
 
-    for control in CONTROLS: # + ['target']:
-        z_centered = SIM_DATA[control]['z'] - Z_EQ
-        print("z centered: ", z_centered)
-        ax.plot(z_centered[:, 0], z_centered[:, 1],
+        # Don't center coordinates if koopman
+        if control == "koopman" or control == "linear":
+            z_centered = SIM_DATA[control]['z']
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
+        ax.plot(z_centered[:-2, 0], z_centered[:-2, 1],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'][control],
                 ls=SETTINGS['linestyle'][control], markevery=20,
                 alpha=1.)
-    ax.plot(target['z'][:, 0], target['z'][:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+    ax.plot(zf_target[:, 0], zf_target[:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
     ax.set_ylabel(r'$y_{ee}$ [mm]')
@@ -155,14 +164,22 @@ def traj_3D():
     fig = plt.figure(figsize=(8, 6))
     ax = plt.axes(projection='3d')
     
-    for control in CONTROLS: # + ['target']:
-        z_centered = SIM_DATA[control]['z'] - Z_EQ
-        ax.plot(z_centered[:, 0], z_centered[:, 1], z_centered[:, 2],
+    f = interp1d(target['t'], target['z'], axis=0)
+
+    for control in CONTROLS:
+        zf_target = f(SIM_DATA[control]['t'][:-2])
+        
+        # Don't center coordinates if koopman
+        if control == "koopman" or control == "linear":
+            z_centered = SIM_DATA[control]['z']
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        ax.plot(z_centered[:-2, 0], z_centered[:-2, 1], z_centered[:-2, 2],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'][control],
                 ls=SETTINGS['linestyle'][control], markevery=20)
-    ax.plot(target['z'][:, 0], target['z'][:, 1], target['z'][:, 2],
+    ax.plot(zf_target[:, 0], zf_target[:, 1], zf_target[:, 2],
             color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
@@ -185,15 +202,24 @@ def traj_xy_vs_t():
     
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
 
+    f = interp1d(target['t'], target['z'], axis=0)
+
     for ax, coord in [(ax1, 0), (ax2, 1)]:
         for control in CONTROLS: # + ['target']:
+            zf_target = f(SIM_DATA[control]['t'][:-2])
+
+            # Don't center coordinates if koopman
+            if control == "koopman" or control == "linear":
+                z_centered = SIM_DATA[control]['z']
+            else:
                 z_centered = SIM_DATA[control]['z'] - Z_EQ
-                ax.plot(SIM_DATA[control]['t'], z_centered[:, coord],
+            
+            ax.plot(SIM_DATA[control]['t'][:-2], z_centered[:-2, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],
                         ls=SETTINGS['linestyle'][control], markevery=20)
-        ax.plot(target['t'], target['z'][:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        ax.plot(SIM_DATA[control]['t'], zf_target[:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
     ax2.set_ylabel(r'$y_{ee}$ [mm]')
     ax2.set_xlabel(r'$t$ [s]')
@@ -219,16 +245,25 @@ def traj_xyz_vs_t():
     
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
 
+    f = interp1d(target['t'], target['z'], axis=0)
+
     for ax, coord in [(ax1, 0), (ax2, 1), (ax3, 2)]:
         for control in CONTROLS: # + ['target']:
+            zf_target = f(SIM_DATA[control]['t'][:-2])
+
+            # Don't center coordinates if koopman
+            if control == "koopman" or control == "linear":
+                z_centered = SIM_DATA[control]['z']
+            else:
                 z_centered = SIM_DATA[control]['z'] - Z_EQ
-                ax.plot(SIM_DATA[control]['t'], z_centered[:, coord],
+
+            ax.plot(SIM_DATA[control]['t'][:-2], z_centered[:-2, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],
                         ls=SETTINGS['linestyle'][control], markevery=20)
         print("curr coord: ", coord)
-        ax.plot(target['t'], target['z'][:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        ax.plot(SIM_DATA[control]['t'][:-2], zf_target[:, coord], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
     ax2.set_ylabel(r'$y_{ee}$ [mm]')
     ax3.set_ylabel(r'$z_{ee}$ [mm]')
@@ -287,17 +322,25 @@ def rmse_calculations():
     rmse = {}
     solve_times = {}
 
+    f = interp1d(target['t'], target['z'], axis=0)
+
     for control in CONTROLS:
-        # TODO: distinguish depending on target traj, if error computed in 2D or 3D
-        z_centered = SIM_DATA[control]['z'] - Z_EQ
+        zf_target = f(SIM_DATA[control]['t'][:-2])
+        
+        # Don't center coordinates if koopman
+        if control == "koopman" or control == "linear":
+            z_centered = SIM_DATA[control]['z']
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
         # if control == "ssmr_origin":
         #     z_centered = z_centered[:-1, :]
-        if TARGET == "circle":
+        if TARGET == "circle" and SETTINGS['robot'] == "hardware":
             # errors are to be measured in 3D
             err[control] = (z_centered - zf_target)
         else:
             # errors are to be measured in 2D
-            err[control] = (z_centered[:, :2] - zf_target[:, :2])
+            err[control] = (z_centered[:-2, :2] - zf_target[:, :2])
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
         solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
 
@@ -367,7 +410,7 @@ def rmse_calculations():
 
 if __name__ == "__main__":
     # TODO: Fix this using interpolation of the 
-    # rmse_calculations()
+    rmse_calculations()
     traj_3D()
     traj_inputs_vs_t()
     traj_x_vs_y()

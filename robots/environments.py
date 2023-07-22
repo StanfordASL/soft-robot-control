@@ -182,8 +182,8 @@ class Diamond(TemplateEnvironment):
         self.robot.addObject('TetrahedronFEMForceField', template='Vec3d',
                              method='large', name='forcefield',
                              poissonRatio=poissonRatio, youngModulus=youngModulus)
-        self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
-                             precision='10', name='matrixExporter')
+        # self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
+        #                      precision='10', name='matrixExporter')
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)
         self.robot.addObject('BoxROI', name='boxROI', box=[-15, -15, -40, 15, 15, 10], drawBoxes=True)
         self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12', name='constraints')

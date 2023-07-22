@@ -42,6 +42,7 @@ class SSM:
 
         self.rom_phi = self.get_poly_basis(self.state_dim, self.ROM_order)
         self.ssm_phi = self.get_poly_basis(self.state_dim, self.SSM_order)
+        self.chart_phi = self.get_poly_basis(self.obs_dim, self.SSM_order)
         self.control_phi = self.get_poly_basis(self.input_dim + self.state_dim, 2)
 
         # Observation model
@@ -152,7 +153,7 @@ class SSM:
         return self.input_dim
 
     def get_output_dim(self):
-        return self.output_dim
+        return self.obs_dim
 
     def rollout(self, x0, u, dt):
         """
@@ -196,13 +197,13 @@ class SSM:
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
         if self.v_coeff is not None:
-            return jnp.dot(jnp.asarray(self.v_coeff), jnp.asarray(self.ssm_phi(*y)))
+            return jnp.dot(jnp.asarray(self.v_coeff), jnp.asarray(self.chart_phi(*y)))
         else:
             return jnp.dot(np.transpose(self.V), y)
 
     def observed_to_reduced_nojit(self, y):
         if self.v_coeff is not None:
-            return np.dot(self.v_coeff, np.asarray(self.ssm_phi(*y)))
+            return np.dot(self.v_coeff, np.asarray(self.chart_phi(*y)))
         else:
             return np.dot(np.transpose(self.V), y)
 

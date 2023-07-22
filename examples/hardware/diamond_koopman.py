@@ -35,9 +35,24 @@ sys.path.append(root)
 
 from examples import Problem
 from examples.hardware.model import diamondRobot
+from sofacontrol.open_loop_sequences import DiamondRobotSequences
+from sofacontrol.utils import load_data, qv2x
+from sofacontrol.measurement_models import linearModel
 
-# Default nodes are the "end effector (1354)" and the "elbows (726, 139, 1445, 729)"
+
 DEFAULT_OUTPUT_NODES = [1354]
+TIP_NODE = 1354
+N_NODES = 1628
+
+# Load equilibrium point
+rest_file = join(path, 'rest_qv.pkl')
+rest_data = load_data(rest_file)
+q_equilibrium = np.array(rest_data['q'][0])
+
+# Setup equilibrium point (no time delay and observed position and velocity of tip)
+x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
+output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
+z_eq_point = output_model.evaluate(x_eq, qv=False)
 
 
 def generate_koopman_data():
@@ -121,7 +136,7 @@ def run_koopman():
     # Specify a measurement and output model vel=useVel, qv=useVel)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
-    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.001 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     if useVel:
         cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
     else:
@@ -141,11 +156,11 @@ def run_koopman():
     # Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
     Y = None
 
-    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=3, rollout_horizon=1, Y=Y)
+    prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1, Y=Y)
 
-    prob.opt['sim_duration'] = 13.  # Simulation time, optional
+    prob.opt['sim_duration'] = 11.  # Simulation time, optional
     prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'koopman'
+    prob.opt['save_prefix'] = 'koopman' #koopman, linear
 
     return prob
 
@@ -173,15 +188,27 @@ def run_koopman_solver():
     #############################################
     # Problem 1, Figure 8 with constraints
     #############################################
-    M = 3
+    M = 1
     T = 10
-    N = 500
-    t = np.linspace(0, M*T, M*N)
-    th = np.linspace(0, M * 2 * np.pi, M*N)
-    zf_target = np.zeros((M*N, model.n))
+    N = 1000
+    radius = 15.
+    t = np.linspace(0, M * T, M * N + 1)
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+    # zf_target = np.zeros((M * N + 1, model.n))
+    zf_target = np.tile(z_eq_point[-3:], (M * N + 1, 1))
+    zf_target[:, 0] += -radius * np.sin(th)
+    zf_target[:, 1] += radius * np.sin(2 * th)
 
-    zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    zf_target[:, 1] = 15. * np.sin(2 * th)
+
+    # M = 3
+    # T = 10
+    # N = 500
+    # t = np.linspace(0, M*T, M*N)
+    # th = np.linspace(0, M * 2 * np.pi, M*N)
+    # zf_target = np.zeros((M*N, model.n))
+
+    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
+    # zf_target[:, 1] = 15. * np.sin(2 * th)
 
     # zf_target[:, 0] = -25. * np.sin(th) + 13.
     # zf_target[:, 1] = 25. * np.sin(2 * th) + 20.
@@ -221,16 +248,16 @@ def run_koopman_solver():
     # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
     # X = Polyhedron(A=H, b=b_z_ub_norm)
 
-    # X = None
+    X = None
 
-    Hz = np.zeros((2, model.n))
-    Hz[0, 0] = 1
-    Hz[1, 1] = 1
+    # Hz = np.zeros((2, model.n))
+    # Hz[0, 0] = 1
+    # Hz[1, 1] = 1
 
-    obstacleDiameter = 10
-    obstacleLoc = np.array([-12, 12, 0.])
-    X = CircleObstacle(A=Hz, center=scaling.scale_down(y=obstacleLoc).reshape(-1)[:2], 
-                       diameter=scaling.scale_down(y=obstacleDiameter).reshape(-1)[0])
+    # obstacleDiameter = 10
+    # obstacleLoc = np.array([-12, 12, 0.])
+    # X = CircleObstacle(A=Hz, center=scaling.scale_down(y=obstacleLoc).reshape(-1)[:2], 
+    #                    diameter=scaling.scale_down(y=obstacleDiameter).reshape(-1)[0])
 
 
     #####################################################
@@ -243,29 +270,29 @@ def run_koopman_solver():
     # t = np.linspace(0, M*T, M*N)
     # th = np.linspace(0, M*2*np.pi, M*N)
     # x_target = np.zeros(M*N)
-    #
+    
     # r = 15
     # phi = 17
     # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
     # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
-    #
-    # # r = 15
-    # # y_target = r * np.sin(th)
-    # # z_target = r - r * np.cos(th) + 107.0
-    #
+    
+    # # # r = 15
+    # # # y_target = r * np.sin(th)
+    # # # z_target = r - r * np.cos(th) + 107.0
+    # #
     # # TODO: Modify number of observables
     # zf_target = np.zeros((M*N, model.n))
     # zf_target[:, 0] = x_target
     # zf_target[:, 1] = y_target
     # zf_target[:, 2] = z_target
-    #
+    
     # # Cost
     # cost.R = .00001 * np.eye(model.m)
     # cost.Q = np.zeros((model.n, model.n))
     # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
     # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
     # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-    #
+    
     # # Constraints
     # u_ub = 2500. * np.ones(model.m)
     # u_lb = 200. * np.ones(model.m)
