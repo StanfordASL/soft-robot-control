@@ -281,7 +281,7 @@ def run_scp():
 
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=1)
+    prob.controller = scp(model, cost, dt, N_replan=10, observer=EKF, delay=1)
 
     # Saving paths
     prob.opt['sim_duration'] = 11.
@@ -303,11 +303,11 @@ def run_gusto_solver():
      ######## User Options ########
     saveControlTask = False
     createNewTask = False
-    dt = 0.1
+    dt = 0.05
     N = 3
 
     # Control Task Params
-    controlTask = "figure8" # figure8, circle, or custom
+    controlTask = "circle" # figure8, circle, or custom
     trajAmplitude = 15
     trajFreq = 17 # rad/s
     flipCoords = True # Use this only when the saved trajectory is from SSM run
@@ -361,6 +361,9 @@ def run_gusto_solver():
             save_data(taskFile, taskParams)
     else:
         taskParams = load_data(taskFile)
+
+        taskParams['U'], taskParams['dU'] = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+
         if flipCoords:
             taskParams['z'] = np.hstack((np.zeros((taskParams['z'].shape[0], 3)), taskParams['z']))
             
@@ -378,20 +381,20 @@ def run_gusto_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100  # corresponding to x position of end effector
-    Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100  # corresponding to x position of end effector
+    # Qz[4, 4] = 100  # corresponding to y position of end effector
+    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    # R = .00001 * np.eye(model.input_dim)
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100.0  # corresponding to x position of end effector
-    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100.0  # corresponding to x position of end effector
+    Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    Qz[5, 5] = 100.0  # corresponding to z position of end effector
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)

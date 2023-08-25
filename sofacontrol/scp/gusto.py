@@ -519,7 +519,13 @@ class GuSTO:
         self.xopt = np.copy(self.x_k)
         self.uopt = np.copy(self.u_k)
         self.zopt = np.transpose(self.model.H @ self.xopt.T)
-        self.locp_solve_time = time.time() - t0 # t_locp
+        if hasattr(self.model.dyn_sys, 'isLinear'):
+            if self.model.dyn_sys.isLinear:
+                self.locp_solve_time = t_locp # TODO: Pretend like we didn't calculate jacobians. Refactor
+            else:
+                self.locp_solve_time = time.time() - t0 # t_locp
+        else:
+            self.locp_solve_time = time.time() - t0 # t_locp
 
     def get_solution(self):
         return self.xopt, self.uopt, self.zopt, self.locp_solve_time

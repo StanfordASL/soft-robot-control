@@ -203,7 +203,6 @@ class scp(TemplateController):
         print('t_sim = {:.3f}'.format(t_step))
         print(f'x_belief = {x_belief}')
 
-
         # If the controller hasn't been initialized yet start with x_belief and solve
         if not self.initialized:
             # x_belief = self.dyn_sys.rom.compute_RO_state(xf=self.dyn_sys.rom.x_ref)

@@ -2,6 +2,7 @@ import os
 import pickle
 import numpy as np
 from scipy.sparse import linalg, coo_matrix
+from scipy.linalg import block_diag
 import osqp
 import jax
 import jax.numpy as jnp
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 import jax.scipy as jsp
 from functools import partial
 import matplotlib.image as mpimg
+import scipy.stats as stats
 
 class QuadraticCost:
     """
@@ -404,7 +406,7 @@ class Polyhedron:
         else:
             return True
 
-    def get_constraint_violation(self, x, update=False):
+    def get_constraint_violation(self, x, z=None, update=False):
         """
         Returns distance to constraint, i.e. how large the deviation is
         """
@@ -439,30 +441,32 @@ class CircleObstacle(Polyhedron):
     
     def contains(self, x):
         """
-        Returns true if x is not on the obstacle
+        Returns true if x is not in the obstacle
         """
         
         # Check if x is within the diameter of the circle
         for j in range(self.center.shape[0]):
-            if np.abs(x - self.center[j]) > (self.diameter[j] / 2):
-                return False
+            if np.linalg.norm(x - self.center[j]) < (self.diameter[j] / 2):
+                return True
         
-        return True
+        return False
     
-    def get_constraint_violation(self, x, update=False):
+    def get_constraint_violation(self, x, z=None, update=False):
         """
         Returns distance to constraint, i.e. how large the deviation is
         """
-        if update:
-            z = self.Ak @ x + self.bk
-        else:
-            z = self.A @ x
+        if z is None:
+            if update:
+                z = self.Ak @ x + self.bk
+            else:
+                z = self.A @ x
         
         constraintVals = []
         
         # For each circle, add the maximum of the distance to the circle and 0 to constraintVals
+        # TODO: Pretty inefficient since we're looping over all circles for each point
         for j in range(self.center.shape[0]):
-            constraintVals.append(np.maximum(np.linalg.norm(z - self.center[j]) - (self.diameter[j] / 2), 0))
+            constraintVals.append(np.maximum((self.diameter[j] / 2 - np.linalg.norm(z - self.center[j])), 0))
         
         # Return maximum of all constraint violations
         return np.max(constraintVals)
@@ -577,14 +581,17 @@ def drawWaypoints():
     return np.array(points)
 
 
-def drawContinuousPath(distance_threshold=0.1, image_path=None):
+def drawContinuousPath(distance_threshold=0.1, image_path=None, z_plane=False, num_repeat=1):
     # Create an empty figure
     fig, ax = plt.subplots()
 
     # Load and display the image, if image_path is provided
     if image_path is not None:
         img = mpimg.imread(image_path)
-        ax.imshow(img, extent=[-25, 25, -25, 25])
+        if z_plane:
+            ax.imshow(img, extent=[-12, 12, -12, 12])
+        else:
+            ax.imshow(img, extent=[-25, 25, -25, 25])
 
     # Create an empty list to store your points
     points = []
@@ -626,7 +633,7 @@ def drawContinuousPath(distance_threshold=0.1, image_path=None):
     plt.show()
 
     # Return the points
-    return points
+    return np.tile(points, (num_repeat, 1))
 
 
 def resample_waypoints(waypoints, total_time):
@@ -681,21 +688,26 @@ def norm2Linearize(x, y, dt, P=None):
 """
     Create a new target trajectory. TODO: Assume outdofs are [0, 1, 2]
 """
-def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None):
+def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None, outdofs=[0, 1, 2], z_offset=None, repeat_traj=1):
     if controlTask == 'custom':
+        # Check if the trajectory is along z-plane
+        if outdofs == [0, 1, 2]:
+            z_plane = False
+        else:
+            z_plane = True
         #############################################
         # Problem 0, Custom Drawn Trajectory
         #############################################
         # Draw the desired trajectory
-        points = drawContinuousPath(distance_threshold=0.5, image_path=pathToImage)
+        points = drawContinuousPath(distance_threshold=0.5, image_path=pathToImage, z_plane=z_plane, num_repeat=repeat_traj)
         resampled_pts = resample_waypoints(points, 10.1)
 
         # Setup target trajectory
         t = np.linspace(0, 10.1, resampled_pts.shape[0])
         x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
         zf_target = np.zeros((resampled_pts.shape[0], output_dim))
-        zf_target[:, 0] = x_target
-        zf_target[:, 1] = y_target
+        zf_target[:, outdofs[0]] = x_target
+        zf_target[:, outdofs[1]] = y_target
     elif controlTask == "figure8":
         # === figure8 ===
         M = 1
@@ -706,8 +718,8 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         th = np.linspace(0, M * 2 * np.pi, M * N + 1)
         zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
         # zf_target = np.zeros((M*N+1, 6))
-        zf_target[:, 0] += -radius * np.sin(th)
-        zf_target[:, 1] += radius * np.sin(2 * th)
+        zf_target[:, outdofs[0]] += -radius * np.sin(th)
+        zf_target[:, outdofs[1]] += radius * np.sin(2 * th)
         # zf_target[:, 2] += -np.ones(len(t)) * 20
     elif controlTask == "circle":
         if robot == 'trunk':
@@ -720,8 +732,8 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
             zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
             # zf_target = np.zeros((M*N+1, 6))
-            zf_target[:, 0] += radius * np.cos(th)
-            zf_target[:, 1] += radius * np.sin(th)
+            zf_target[:, outdofs[0]] += radius * np.cos(th)
+            zf_target[:, outdofs[1]] += radius * np.sin(th)
             # zf_target[:, 2] += -np.ones(len(t)) * 20
             print(zf_target[0, :].shape)
             idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
@@ -739,15 +751,15 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             
             if freq is None:
                 y_target = amplitude * np.sin(th)
-                z_target = amplitude - amplitude * np.cos(th) + 107.0
+                z_target = amplitude - amplitude * np.cos(th) + z_offset
             else:
                 y_target = amplitude * np.sin(freq * T / (2 * np.pi) * th)
-                z_target = amplitude - amplitude * np.cos(freq * T / (2 * np.pi) * th) + 107.0
+                z_target = amplitude - amplitude * np.cos(freq * T / (2 * np.pi) * th)
 
             zf_target = np.zeros((M * N, output_dim))
-            zf_target[:, 0] = x_target
-            zf_target[:, 1] = y_target
-            zf_target[:, 2] = z_target
+            zf_target[:, outdofs[0]] = x_target
+            zf_target[:, outdofs[1]] = y_target
+            zf_target[:, outdofs[2]] = z_target
         else:
             raise RuntimeError('Requested robot not implemented. Must be trunk or diamond')
     elif controlTask == "pacman":
@@ -759,15 +771,18 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         th = np.linspace(0, M * 2 * np.pi, M * N + 1)
         zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
         # zf_target = np.zeros((M * N, model.output_dim))
-        zf_target[:, 0] += radius * np.cos(th)
-        zf_target[:, 1] += radius * np.sin(th)
-        zf_target[:, 2] += -np.zeros(len(t)) * 10
+        zf_target[:, outdofs[0]] += radius * np.cos(th)
+        zf_target[:, outdofs[1]] += radius * np.sin(th)
+        zf_target[:, outdofs[2]] += -np.zeros(len(t)) * 10
         t_in_pacman, t_out_pacman = 1., 1.
         zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
         zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
         
     else:
         raise RuntimeError('Requested target not implemented. Must be figure8, circle, or custom')
+    
+    if z_offset is not None:
+        zf_target += np.array([0., 0., z_offset])
     
     return zf_target, t
 
@@ -785,7 +800,7 @@ def load_full_equilibrium(root_path):
 """
     Generate a model. TODO: Only SSM for now
 """
-def generateModel(root_path, pathToModel, nodes, num_nodes):
+def generateModel(root_path, pathToModel, nodes, num_nodes, modelType=None, isLinear=False):
     from sofacontrol.SSM import ssm
     import sofacontrol.measurement_models as msm
 
@@ -793,8 +808,12 @@ def generateModel(root_path, pathToModel, nodes, num_nodes):
     x_eq = load_full_equilibrium(root_path)
 
     # load SSM model
-    with open(os.path.join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
-        SSM_data = pickle.load(f)
+    if modelType is None:
+        with open(os.path.join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)
+    else:
+        with open(os.path.join(pathToModel, 'SSM_model_' + modelType + '.pkl'), 'rb') as f:
+            SSM_data = pickle.load(f)
 
     raw_model = SSM_data['model']
     raw_params = SSM_data['params']
@@ -810,7 +829,7 @@ def generateModel(root_path, pathToModel, nodes, num_nodes):
         Cout = None
 
     model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=Cout)
+                            model=raw_model, params=raw_params, C=Cout, isLinear=isLinear)
 
     return model
 
@@ -835,32 +854,127 @@ def createObstacleConstraint(output_dim, y_ref, obstacleDiameter, obstacleLoc):
 
     return X
 
-def generateObstacles(num_obstacles, d_min, d_max, min_distance_from_origin, min_distance_between_obstacles=5, seed=69):
-    
-    np.random.seed(seed)
+import numpy as np
+import time
 
-    # Initialize the list of obstacles
-    obstacles = []
+def generateObstacles(num_obstacles, d_min, d_max, min_distance_from_origin, min_distance_between_obstacles=5):
+    max_attempts_per_obstacle = 1000
+    seed = int(time.time())  # Use the current time as a seed
 
-    while len(obstacles) < num_obstacles:
-        # Generate a random location
-        location = np.random.uniform(-30, 30, size=2)  # Change the range as needed
+    while True:  # Outer loop to keep trying with different seeds
+        np.random.seed(seed)
 
-        # Generate a random diameter
-        diameter = np.random.uniform(d_min, d_max)
+        # Initialize the list of obstacles
+        obstacles = []
 
-        # Check if the new obstacle is too close to the origin
-        if np.linalg.norm(location) < min_distance_from_origin:
-            continue
+        for _ in range(num_obstacles):  # Loop for each obstacle
+            attempts = 0
+            while attempts < max_attempts_per_obstacle:
+                # Generate a random location
+                location = np.random.uniform(-30, 30, size=2)
 
-        # Check if the new obstacle is too close to any existing obstacle
-        for existing_diameter, existing_location in obstacles:
-            distance_between_centers = np.linalg.norm(location - existing_location)
-            distance_between_perimeters = distance_between_centers - (diameter + existing_diameter) / 2
-            if distance_between_perimeters < min_distance_between_obstacles:
+                # Generate a random diameter
+                diameter = np.random.uniform(d_min, d_max)
+
+                # Check if the new obstacle is too close to the origin
+                if np.linalg.norm(location) < min_distance_from_origin:
+                    attempts += 1
+                    continue
+
+                # Check if the new obstacle is too close to any existing obstacle
+                intersection = False
+                for existing_diameter, existing_location in obstacles:
+                    distance_between_centers = np.linalg.norm(location - existing_location)
+                    distance_between_perimeters = distance_between_centers - (diameter + existing_diameter) / 2
+                    if distance_between_perimeters < min_distance_between_obstacles:
+                        intersection = True
+                        break
+                
+                # If no intersection, add the obstacle to the list
+                if not intersection:
+                    obstacles.append((diameter, location))
+                    break
+
+                attempts += 1
+
+            # If max attempts reached for this obstacle, break out and try new seed
+            if attempts == max_attempts_per_obstacle:
                 break
-        else:
-            # If no intersection, add the obstacle to the list
-            obstacles.append((diameter, location))
-    
-    return obstacles
+        
+        # If successfully generated all obstacles, return
+        if len(obstacles) == num_obstacles:
+            return obstacles
+
+        # Otherwise, reset and try a different seed
+        seed = np.random.randint(0, 2**32 - 1)  # Generate a new random seed
+
+def confidence_interval(data, confidence=0.95, distance=True):
+    n = data.shape[-1]  # assuming data is a 1D array
+    m = np.mean(data, axis=-1)
+    se = np.std(data, axis=-1, ddof=1) / np.sqrt(n)
+    h = se * stats.t.ppf((1 + confidence) / 2, n - 1)
+    if distance:
+        return m - (m - h), (m + h) - m
+    else:
+        return m - h, m + h
+
+def remove_decimal(value):
+    return str(value).replace(".", "")
+
+def add_decimal(s):
+    if not s:
+        return 0.0
+    return float(s[0] + "." + s[1:])
+
+#############################################
+#
+# Linear Disturbance Observer (LDO) Utils
+#
+#############################################
+
+def create_circ_matrix(nd, Nperiod: int):
+    # Create a block diagonal matrix with Nperiod copies of the identity matrix of size nd
+    # The matrix should be of size (Nperiod*nd, Nperiod*nd)
+    # CHECK nd and Nperiod are integers
+    assert isinstance(nd, int)
+    assert isinstance(Nperiod, int)
+
+    matrix = block_diag(*[np.eye(nd) for _ in range(Nperiod)])
+
+    # Roll the matrix by nd to the right
+    matrix = np.roll(matrix, nd, axis=1)
+
+    return matrix
+
+def get_LDO_disturbance_matrices(Bd, Cd, Nperiod: int):
+    # Get dimensions
+    nd = Bd.shape[1]
+
+    Ashift = create_circ_matrix(nd, Nperiod)
+    Bpick = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
+
+    Bd = Bd @ Bpick
+    Cd = Cd @ Bpick
+
+    return Ashift, Bd, Cd
+
+def get_LDO_LTI(A, B, C, Bd, Cd, Nperiod: int):
+    # Get dimensions
+    nx = A.shape[0]
+    nu = B.shape[1]
+    nd = Bd.shape[1]
+
+    # As ooposed to lift_LTI, we now have Nperiod copies of the disturbance vector
+    # Ashift should be of size (Nperiod*nd, Nperiod*nd)
+    # It should shift the disturbance vector by nd at each period
+    Ashift = create_circ_matrix(nd, Nperiod)
+    # Bpick should be of size (Nperiod*nd, nd)
+    # It should pick out the first nd elements of the state vector
+    Bpick = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
+
+    # Augmented state space model
+    Ae = np.block([[A, Bd @ Bpick], [np.zeros((Nperiod*nd, nx)), Ashift]])
+    Be = np.block([[B], [np.zeros((Nperiod*nd, nu))]])
+    Ce = np.block([[C, Cd @ Bpick]])
+
+    return Ae, Be, Ce

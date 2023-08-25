@@ -51,7 +51,6 @@ class TPWL:
             params = dict()
         # Get configuration parameters for the model
         self.tpwl_method = params.get('tpwl_method', TPWL_METHOD)
-        #self.discr_method = params.get('discr_method', DISCR_METHOD)
         self.beta_weighting = params.get('beta_weighting', None)
         self.dist_weights = params.get('dist_weights')
 

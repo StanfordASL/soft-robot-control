@@ -149,6 +149,7 @@ class KoopmanMPC(TemplateController):
 
         if self.Y is not None and not self.Y.contains(y):
             y = self.Y.project_to_polyhedron(y)
+            
         self.data.add_measurement(y, u_prev)
         if round(sim_time, 4) < round(self.t_delay, 4):
             self.u = self.u0

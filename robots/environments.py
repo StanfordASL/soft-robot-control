@@ -54,8 +54,8 @@ class Trunk(TemplateEnvironment):
                              poissonRatio=poissonRatio, youngModulus=youngModulus)
 
         # Export every 10th step e.g., if dt = 0.01, save every 0.1 sec (defaults saving to disabled)
-        self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
-                             precision='10', name='matrixExporter')
+        # self.robot.addObject('GlobalSystemMatrixExporter', exportEveryNumberOfSteps='10', enable='False',
+        #                      precision='10', name='matrixExporter')
         # Fix the base of the trunk by adding constraints in a region of interest (ROI)
         self.robot.addObject('BoxROI', name='boxROI', box=[[-20, -20, 0], [20, 20, 20]], drawBoxes=False)
         self.robot.addObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness='1e12')

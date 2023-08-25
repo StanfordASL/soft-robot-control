@@ -54,6 +54,7 @@ x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
 z_eq_point = output_model.evaluate(x_eq, qv=False)
 
+modelType = 'linear' # "nonlinear", "linear"
 
 def generate_koopman_data():
     """
@@ -105,7 +106,7 @@ def generate_koopman_data():
         # koopman_old_model = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
         # save_data(join(path, '{}.pkl'.format('koopman_diamond_old_model')), koopman_old_model['model'])
 
-def run_koopman():
+def run_koopman(T=11.):
     """
     In problem_specification add:
 
@@ -118,39 +119,32 @@ def run_koopman():
     """
     from sofacontrol.closed_loop_controller import ClosedLoopController
     from sofacontrol.baselines.koopman import koopman_utils, koopman
+    from robots import environments
     from scipy.io import loadmat
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.utils import Polyhedron
-
-    useVel = False
-    koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
-    raw_model = koopman_data['model']
-    raw_params = koopman_data['params']
+    
+    if modelType == 'linear':
+        koopman_data = loadmat(join(path, 'DMD.mat'))['py_data'][0, 0]
+        raw_model = koopman_data['model']
+        raw_params = koopman_data['params']
+    else:
+        koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
+        raw_model = koopman_data['model']
+        raw_params = koopman_data['params']
+    
     model = koopman_utils.KoopmanModel(raw_model, raw_params, DMD=False)
-    scaling = koopman_utils.KoopmanScaling(scale=model.scale)
 
     prob = Problem()
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
-    # Specify a measurement and output model vel=useVel, qv=useVel)
-    prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
+    cov_q = 0.001 * np.eye(3)
+    prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=prob.Robot.nb_nodes, pos=True, vel=False, S_q=cov_q)
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
 
-    cov_q = 0.001 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    if useVel:
-        cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    else:
-        cov_v = None
-
-    # if velocity is used, then return in qv format
-    prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v,
-                                              vel=useVel, qv=useVel)
-    prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
-
-    # This is a hack to make constraint "feasible" - esp during long horizons
-    # Activate this if optimization infeasible due to constraint
     # Building A matrix
-    # Hz = np.zeros((1, model.n))
+    # Hz = np.zeros((1, 3))
     # Hz[0, 1] = 1
     # b_z = np.array([5])
     # Y = Polyhedron(A=Hz, b=b_z, with_reproject=True)
@@ -158,164 +152,149 @@ def run_koopman():
 
     prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1, Y=Y)
 
-    prob.opt['sim_duration'] = 11.  # Simulation time, optional
+    prob.opt['sim_duration'] = T  # Simulation time, optional
     prob.simdata_dir = path
-    prob.opt['save_prefix'] = 'koopman' #koopman, linear
+    if modelType == 'linear':
+        prob.opt['save_prefix'] = 'DMD'
+    else:
+        prob.opt['save_prefix'] = 'koopman'
 
     return prob
-
 
 def run_koopman_solver():
     """
     python3 diamond_koopman.py run_koopman_solver
     """
-    from scipy.io import loadmat
     from sofacontrol.baselines.koopman import koopman_utils
     from sofacontrol.baselines.ros import runMPCSolverNode
     from sofacontrol.tpwl.tpwl_utils import Target
     from sofacontrol.utils import QuadraticCost
-    from sofacontrol.utils import HyperRectangle, Polyhedron, CircleObstacle
+    from sofacontrol.utils import HyperRectangle, load_data, save_data, qv2x, Polyhedron, CircleObstacle, \
+        drawContinuousPath, resample_waypoints, generateModel, createTargetTrajectory, createControlConstraint, \
+        createObstacleConstraint
+    from scipy.io import loadmat
+    
+    ######## User Options ########
+    saveControlTask = False
+    createNewTask = False
+    N = 3
 
-    koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
-    raw_model = koopman_data['model']
-    raw_params = koopman_data['params']
+    # Control Task Params
+    controlTask = "figure8" # figure8, circle, or custom
+    trajAmplitude = 25
+    trajFreq = 17 # rad/s
+
+    # Trajectory constraint
+    # Obstacle constraints
+    obstacleDiameter = [10, 8]
+    obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
+
+    # Constrol Constraints
+    u_min, u_max = 0.0, 4200.0
+    du_max = None
+
+    ######## Generate Koopman model and setup control task ########
+    if modelType == 'linear':
+        koopman_data = loadmat(join(path, 'DMD.mat'))['py_data'][0, 0]
+        raw_model = koopman_data['model']
+        raw_params = koopman_data['params']
+    else:
+        koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
+        raw_model = koopman_data['model']
+        raw_params = koopman_data['params']
+        
     model = koopman_utils.KoopmanModel(raw_model, raw_params, DMD=False)
     scaling = koopman_utils.KoopmanScaling(scale=model.scale)
+    
+    # Define target trajectory for optimization
+    trajDir = join(path, "control_tasks")
+    taskFile = join(trajDir, controlTask + ".pkl")
+    taskParams = {}
+    
+    if createNewTask:
+        ######## Define the trajectory ########
+        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, freq=trajFreq)
+        z = model.zfyf_to_zy(zf=zf_target)
 
-    cost = QuadraticCost()
+        ######## Define a new state constraint (q, v) format ########
+        ## Format [constraint number, variable/state number]
+        
+        # Obstacle avoidance constraint
+        # X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
+        # No constraint
+        X = None
+
+        ######## Define new control constraint ########
+        U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+        # dU = None
+
+        ######## Save Target Trajectory and Constraints ########
+        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        
+        if saveControlTask:
+            save_data(taskFile, taskParams)
+    else:
+        taskParams = load_data(taskFile)
+        taskParams['z'] += z_eq_point[3:]
+
+        # Control constraints
+        u_ub = u_max * np.ones(model.m)
+        u_lb = u_min * np.ones(model.m)
+        u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+        u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+        U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+
+        if du_max is not None:
+            du_max_scaled = scaling.scale_down(u=du_max).reshape(-1)
+            dU = HyperRectangle(ub=du_max_scaled, lb=0.)
+        else:
+            dU = None
+
+        # State constraints
+        if type(taskParams['X']) is CircleObstacle:
+            Hz = np.zeros((2, model.n))
+            Hz[0, 0] = 1
+            Hz[1, 1] = 1
+
+            obstacleLoc = np.asarray([scaling.scale_down(y=np.append(vector, 0)).reshape(-1)[:2] for vector in taskParams['obstacleLoc']])
+            obstacleDiameter = [scaling.scale_down(y=diameter).reshape(-1)[0] for diameter in taskParams['obstacleDiameter']]
+
+            taskParams['X'] = CircleObstacle(A=Hz, center=obstacleLoc, diameter=obstacleDiameter)
+
+
+    # Define target trajectory for optimization
     target = Target()
+    target.t = taskParams['t']
+    target.z = scaling.scale_down(y=taskParams['z'][:, :model.n])
+    target.u = scaling.scale_down(u=np.zeros(model.m)).reshape(-1)
 
+    ######## Cost Function ########
+    cost = QuadraticCost()
     #############################################
-    # Problem 1, Figure 8 with constraints
+    # Problem 1, X-Y plane cost function
     #############################################
-    M = 1
-    T = 10
-    N = 1000
-    radius = 15.
-    t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    # zf_target = np.zeros((M * N + 1, model.n))
-    zf_target = np.tile(z_eq_point[-3:], (M * N + 1, 1))
-    zf_target[:, 0] += -radius * np.sin(th)
-    zf_target[:, 1] += radius * np.sin(2 * th)
-
-
-    # M = 3
-    # T = 10
-    # N = 500
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M * 2 * np.pi, M*N)
-    # zf_target = np.zeros((M*N, model.n))
-
-    # zf_target[:, 0] = -15. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
-
-    # zf_target[:, 0] = -25. * np.sin(th) + 13.
-    # zf_target[:, 1] = 25. * np.sin(2 * th) + 20.
-
-    # zf_target[:, 0] = -35. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 35. * np.sin(2 * th)
-
-    # zf_target[:, 0] = -5. * np.sin(th) - 7.1
-    # zf_target[:, 1] = 5. * np.sin(2 * th)
-    #
-    # # Offset with constraints
-    # zf_target[:, 0] = -15. * np.sin(th)
-    # zf_target[:, 1] = 15. * np.sin(2 * th)
-    #
-    # zf_target[:, 0] = -15. * np.sin(8 * th) - 7.1
-    # zf_target[:, 1] = 15. * np.sin(16 * th)
-
-    # Cost
     cost.R = .00001 * np.eye(model.m)
     cost.Q = np.zeros((model.n, model.n))
     cost.Q[0, 0] = 100  # corresponding to x position of end effector
     cost.Q[1, 1] = 100  # corresponding to y position of end effector
     cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
 
-    # Control constraints
-    u_ub = 2500. * np.ones(model.m)
-    u_lb = 200. * np.ones(model.m)
-    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-
-    # State constraints
-    # Hz = np.zeros((1, model.n))
-    # Hz[0, 1] = 1
-    # H = Hz @ model.H
-    # b_z = np.array([5])
-    # b_z_ub_norm = scaling.scale_down(y=b_z).reshape(-1)[1]
-    # X = Polyhedron(A=H, b=b_z_ub_norm)
-
-    X = None
-
-    # Hz = np.zeros((2, model.n))
-    # Hz[0, 0] = 1
-    # Hz[1, 1] = 1
-
-    # obstacleDiameter = 10
-    # obstacleLoc = np.array([-12, 12, 0.])
-    # X = CircleObstacle(A=Hz, center=scaling.scale_down(y=obstacleLoc).reshape(-1)[:2], 
-    #                    diameter=scaling.scale_down(y=obstacleDiameter).reshape(-1)[0])
-
-
-    #####################################################
-    # Problem 2, Circle on side (2pi/T = frequency rad/s)
-    #####################################################
-    # Multiply 'th' in sine terms to factor rad/s frequency
-    # M = 3
-    # T = 5
-    # N = 1000
-    # t = np.linspace(0, M*T, M*N)
-    # th = np.linspace(0, M*2*np.pi, M*N)
-    # x_target = np.zeros(M*N)
-    
-    # r = 15
-    # phi = 17
-    # y_target = r * np.sin(phi * T / (2 * np.pi) * th)
-    # z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
-    
-    # # # r = 15
-    # # # y_target = r * np.sin(th)
-    # # # z_target = r - r * np.cos(th) + 107.0
-    # #
-    # # TODO: Modify number of observables
-    # zf_target = np.zeros((M*N, model.n))
-    # zf_target[:, 0] = x_target
-    # zf_target[:, 1] = y_target
-    # zf_target[:, 2] = z_target
-    
-    # # Cost
+    #############################################
+    # Problem 2, X-Y-Z plane cost function
+    #############################################
     # cost.R = .00001 * np.eye(model.m)
-    # cost.Q = np.zeros((model.n, model.n))
-    # cost.Q[0, 0] = 0.0  # corresponding to x position of end effector
+    # cost.Q = np.zeros((3, 3))
+    # cost.Q[0, 0] = 50.0  # corresponding to x position of end effector
     # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
     # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
-    
-    # # Constraints
-    # u_ub = 2500. * np.ones(model.m)
-    # u_lb = 200. * np.ones(model.m)
-    # u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
-    # u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
-    # U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
-    # X = None
-
-    
-    # Define target trajectory for optimization
-    target.t = t
-    target.z = scaling.scale_down(y=zf_target)
-    target.u = scaling.scale_down(u=np.zeros(model.m)).reshape(-1)
 
     # Consider same "scaled" cost parameters as other models
     cost.R *= np.diag(scaling.u_factor[0])
     cost.Q *= np.diag(scaling.y_factor[0])
 
-    N = 3
 
-    runMPCSolverNode(model=model, N=N, cost_params=cost, X=X, target=target, dt=model.Ts, verbose=1,
-                     warm_start=False, U=U, solver='GUROBI')
-
+    runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
+                     warm_start=True, U=U, X=taskParams['X'], dU=dU, solver='GUROBI')
 def run_MPC_OL():
     """
      In problem_specification add:

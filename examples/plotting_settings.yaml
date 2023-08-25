@@ -1,4 +1,4 @@
-robot: "trunk" #trunk, hardware
+robot: "hardware" #trunk, hardware
 save_dir: "plots/"
 file_format: "png"
 
@@ -6,11 +6,10 @@ file_format: "png"
 traj_dir: ""
 
 show: {
-    'ssmr': False, # Full obsevables
-    'ssmr_origin': False, # pos-vel
-    'ssmr_1delay': True, # Single delay embedding
-    'ssmr_2delay': False, # Single delay embedding
-    'linear': True, # Linear model
+    'ssmr_delays': False, # Full obsevables
+    'ssmr_posvel': True, # pos-vel
+    'ssmr_singleDelay': True, # Single delay embedding
+    'ssmr_linear': True, # Linear model
     # Adiabatic SSM settings
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
@@ -18,16 +17,16 @@ show: {
     'ssmr_assm_qp2d_n=100': False,
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': True,
-    'koopman': True,
+    'tpwl': False,
+    'koopman': False,
+    'DMD': False,
     'rompc': False
 }
 display_name: {
-    'ssmr': "SSMR (Full Delay Observables)",
-    'ssmr_origin': "SSMR (Position-Velocity)", # "SSMR (origin)",
-    'ssmr_1delay': "SSMR (Single Time Delay)", # Single delay embedding
-    'ssmr_2delay': "SSMR (Double Time Delay)", # Double delay embedding
-    'linear': "Linear Model (Single Time Delay)", # Linear SSMR Model
+    'ssmr_delays': "SSMR\n(4 Delays)",
+    'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
+    'ssmr_singleDelay': "SSMR\n(1 Delay)", # Single delay embedding
+    'ssmr_linear': "Linear SSMR\n(1 Delay)", # Linear SSMR Model
     'ssmr_nnssm': "ASSMR (NN, N=9)",
     'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
     'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
@@ -35,32 +34,51 @@ display_name: {
     'ssmr_assm_ridge2d_n=100': 'ASSMR (Ridge regression, N=100, degree=3)',
     'ssmr_linssm': "ASSMR (linear, n=9)",
     'tpwl': "TPWL",
-    'koopman': "Koopman",
+    'koopman': "EDMD",
+    'DMD': "DMD",
     'rompc': "ROMPC",
 }
+
+legend_name: {
+    'ssmr_delays': "SSMR (4 Delays)",
+    'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
+    'ssmr_singleDelay': "SSMR (1 Delay)", # Single delay embedding
+    'ssmr_linear': "Linear SSMR (1 Delay)", # Linear SSMR Model
+    'ssmr_nnssm': "ASSMR (NN, N=9)",
+    'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
+    'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
+    'ssmr_assm_idw3d_n=100': "IDW-3D (N=100)", # 'ASSMR (IDW-3D, N=100)',
+    'ssmr_assm_ridge2d_n=100': 'ASSMR (Ridge regression, N=100, degree=3)',
+    'ssmr_linssm': "ASSMR (linear, n=9)",
+    'tpwl': "TPWL",
+    'koopman': "EDMD",
+    'DMD': "DMD",
+    'rompc': "ROMPC",
+}
+
+
 color: {
-    'ssmr': 'tab:blue',
-    'ssmr_origin': 'tab:red',
-    'ssmr_1delay': 'tab:orange',
-    'ssmr_2delay': 'tab:green',
-    'linear': 'tab:purple',
+    'ssmr_delays': 'tab:blue',
+    'ssmr_posvel': 'tab:red',
+    'ssmr_singleDelay': 'tab:orange',
+    'ssmr_linear': 'tab:purple',
     'ssmr_nnssm': 'tab:red',
     'ssmr_ctssm': 'tab:orange',
     'ssmr_assm_qp2d_n=100': 'tab:purple',
     'ssmr_assm_idw3d_n=100': 'tab:green',
     'ssmr_assm_ridge2d_n=100': 'tab:red',
     'ssmr_linssm': 'tab:purple',
-    'tpwl': 'tab:red',
+    'tpwl': 'tab:olive',
     'koopman': 'tab:green',
+    'DMD': "tab:cyan",
     'rompc': 'tab:purple',
     'target': 'black'
 }
 linestyle: {
-    'ssmr': '-',
-    'ssmr_origin': '-',
-    'ssmr_1delay': '-',
-    'ssmr_2delay': '-',
-    'linear': '-',
+    'ssmr_delays': '-',
+    'ssmr_posvel': '-',
+    'ssmr_singleDelay': '-',
+    'ssmr_linear': '-',
     'ssmr_nnssm': '-',
     'ssmr_ctssm': '-',
     'ssmr_assm_qp2d_n=100': '-',
@@ -69,15 +87,34 @@ linestyle: {
     'ssmr_linssm': '-',
     'tpwl': '-',
     'koopman': '-',
+    'DMD': '-',
     'rompc': '-',
     'target': '--'
 }
+
+altlinestyle: {
+    'ssmr_delays': '-o',
+    'ssmr_posvel': '-*',
+    'ssmr_singleDelay': '-D',
+    'ssmr_linear': '-^',
+    'ssmr_nnssm': '-',
+    'ssmr_ctssm': '-',
+    'ssmr_assm_qp2d_n=100': '-',
+    'ssmr_assm_idw3d_n=100': '-',
+    'ssmr_assm_ridge2d_n=100': '-',
+    'ssmr_linssm': '-',
+    'tpwl': '-+',
+    'koopman': '-|',
+    'DMD': '-s',
+    'rompc': '-',
+    'target': '--'
+}
+
 linewidth: {
-    'ssmr': 2,
-    'ssmr_origin': 2,
-    'ssmr_1delay': 3,
-    'ssmr_2delay': 2,
-    'linear': 2,
+    'ssmr_delays': 2,
+    'ssmr_posvel': 2,
+    'ssmr_singleDelay': 3,
+    'ssmr_linear': 2,
     'ssmr_nnssm': 2,
     'ssmr_ctssm': 2,
     'ssmr_assm_qp2d_n=100': 2,
@@ -86,12 +123,25 @@ linewidth: {
     'ssmr_linssm': 2,
     'tpwl': 2,
     'koopman': 2,
+    'DMD': 2,
     'rompc': 2,
     'target': 1
 }
 
-# select_target: "circle"
-select_target: "custom"
+alpha: {
+    'ssmr_delays': 0.7,
+    'ssmr_posvel': 0.7,
+    'ssmr_singleDelay': 0.7,
+    'ssmr_linear': 1,
+    'tpwl': 0.7,
+    'koopman': 0.7,
+    'DMD': 0.5,
+    'rompc': 1,
+    'target': 1.5
+}
+
+select_target: "circle"
+# select_target: "figure8"
 # Figure8 target
 define_targets: {
     figure8: {
@@ -120,6 +170,21 @@ define_targets: {
         z_ub: null
     },
     custom: {
+        z_const: 0, # -10, # 0, # 
+        z_lb: null,
+        z_ub: null
+    },
+    ASL: {
+        z_const: 0, # -10, # 0, # 
+        z_lb: null,
+        z_ub: null
+    },
+    stanford: {
+        z_const: 0, # -10, # 0, # 
+        z_lb: null,
+        z_ub: null
+    },
+    star: {
         z_const: 0, # -10, # 0, # 
         z_lb: null,
         z_ub: null

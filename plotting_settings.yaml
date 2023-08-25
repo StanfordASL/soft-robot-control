@@ -1,0 +1,148 @@
+robot: "trunk" #trunk, hardware
+save_dir: "plots/"
+file_format: "png"
+
+#traj_dir: "sim_trajs/circle_z=-10" # figure8" #
+traj_dir: ""
+
+show: {
+    'ssmr': False, # Full obsevables
+    'ssmr_origin': False, # pos-vel
+    'ssmr_1delay': True, # Single delay embedding
+    'ssmr_2delay': False, # Single delay embedding
+    'linear': True, # Linear model
+    # Adiabatic SSM settings
+    'ssmr_nnssm': False,
+    'ssmr_ctssm': False,
+    'ssmr_linssm': False,
+    'ssmr_assm_qp2d_n=100': False,
+    'ssmr_assm_idw3d_n=100': False,
+    'ssmr_assm_ridge2d_n=100': False,
+    'tpwl': True,
+    'koopman': True,
+    'rompc': False
+}
+display_name: {
+    'ssmr': "SSMR (Full Delay Observables)",
+    'ssmr_origin': "SSMR (Position-Velocity)", # "SSMR (origin)",
+    'ssmr_1delay': "SSMR (Single Time Delay)", # Single delay embedding
+    'ssmr_2delay': "SSMR (Double Time Delay)", # Double delay embedding
+    'linear': "Linear Model (Single Time Delay)", # Linear SSMR Model
+    'ssmr_nnssm': "ASSMR (NN, N=9)",
+    'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
+    'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
+    'ssmr_assm_idw3d_n=100': "IDW-3D (N=100)", # 'ASSMR (IDW-3D, N=100)',
+    'ssmr_assm_ridge2d_n=100': 'ASSMR (Ridge regression, N=100, degree=3)',
+    'ssmr_linssm': "ASSMR (linear, n=9)",
+    'tpwl': "TPWL",
+    'koopman': "Koopman",
+    'rompc': "ROMPC",
+}
+color: {
+    'ssmr': 'tab:blue',
+    'ssmr_origin': 'tab:red',
+    'ssmr_1delay': 'tab:orange',
+    'ssmr_2delay': 'tab:green',
+    'linear': 'tab:purple',
+    'ssmr_nnssm': 'tab:red',
+    'ssmr_ctssm': 'tab:orange',
+    'ssmr_assm_qp2d_n=100': 'tab:purple',
+    'ssmr_assm_idw3d_n=100': 'tab:green',
+    'ssmr_assm_ridge2d_n=100': 'tab:red',
+    'ssmr_linssm': 'tab:purple',
+    'tpwl': 'tab:red',
+    'koopman': 'tab:green',
+    'rompc': 'tab:purple',
+    'target': 'black'
+}
+linestyle: {
+    'ssmr': '-',
+    'ssmr_origin': '-',
+    'ssmr_1delay': '-',
+    'ssmr_2delay': '-',
+    'linear': '-',
+    'ssmr_nnssm': '-',
+    'ssmr_ctssm': '-',
+    'ssmr_assm_qp2d_n=100': '-',
+    'ssmr_assm_idw3d_n=100': '-',
+    'ssmr_assm_ridge2d_n=100': '-',
+    'ssmr_linssm': '-',
+    'tpwl': '-',
+    'koopman': '-',
+    'rompc': '-',
+    'target': '--'
+}
+linewidth: {
+    'ssmr': 2,
+    'ssmr_origin': 2,
+    'ssmr_1delay': 3,
+    'ssmr_2delay': 2,
+    'linear': 2,
+    'ssmr_nnssm': 2,
+    'ssmr_ctssm': 2,
+    'ssmr_assm_qp2d_n=100': 2,
+    'ssmr_assm_idw3d_n=100': 2,
+    'ssmr_assm_ridge2d_n=100': 2,
+    'ssmr_linssm': 2,
+    'tpwl': 2,
+    'koopman': 2,
+    'rompc': 2,
+    'target': 1
+}
+
+# select_target: "circle"
+select_target: "custom"
+# Figure8 target
+define_targets: {
+    figure8: {
+        M: 1,
+        T: 10,
+        N: 1000,
+        radius: 30, # 20, # 30, # 
+        z_const: 0, # -10, # 0, # 
+        # state constraints
+        z_lb: null, # [-16, -16],
+        z_ub: null  # [16, 5]
+    },
+    circle: {
+        M: 1,
+        T: 10,
+        N: 1000,
+        radius: 20,
+        z_const: -10,
+        # state constraints
+        z_lb: null, # [-16, -16],
+        z_ub: null  # [16, 5]
+    },
+    pacman: {
+        z_const: 0, # -10, # 0, # 
+        z_lb: null,
+        z_ub: null
+    },
+    custom: {
+        z_const: 0, # -10, # 0, # 
+        z_lb: null,
+        z_ub: null
+    }
+}
+
+plot_mpc_rollouts: False
+
+
+# TODO
+##############################################
+# Problem 2, Circle on side
+##############################################
+# M = 3
+# T = 5
+# N = 1000
+# t_target = np.linspace(0, M*T, M*N)
+# th = np.linspace(0, M*2*np.pi, M*N)
+#
+# r = 15
+# phi = 17
+# x_target = np.zeros(M*N)
+# y_target = r * np.sin(phi * T / (2 * np.pi) * th)
+# z_target = r - r * np.cos(phi * T / (2 * np.pi) * th) + 107.0
+
+# NAME = 'circle'

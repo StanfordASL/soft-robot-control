@@ -248,7 +248,7 @@ def run_ilqr():
 
     return prob
 
-def run_scp():
+def run_scp(T=11.):
     """
      In problem_specification add:
 
@@ -289,7 +289,7 @@ def run_scp():
     # Set up an EKF observer
     dt_char = model.get_characteristic_dx(dt)
     W = np.diag(dt_char)
-    V = 0.0 * np.eye(model.get_meas_dim())
+    V = 0.1 * np.eye(model.get_meas_dim())
     EKF = DiscreteEKFObserver(model, W=W, V=V)
 
     cost = QuadraticCost()
@@ -300,11 +300,11 @@ def run_scp():
     cost.Q = model.H.T @ Qz @ model.H
     cost.R = .00001 * np.eye(model.input_dim)
 
-    # Define controller (wait 2 seconds of simulation time to start)
+    # Define controller (wait 1 second of simulation time to start)
     prob.controller = scp(model, cost, dt, N_replan=10, observer=EKF, delay=1)
 
     # Saving paths
-    prob.opt['sim_duration'] = 11.
+    prob.opt['sim_duration'] = T
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'tpwl'
 
@@ -324,10 +324,10 @@ def run_gusto_solver():
     saveControlTask = False
     createNewTask = False
     dt = 0.1
-    N = 3
+    N = 5
 
     # Control Task Params
-    controlTask = "custom" # figure8, circle, pacman, or custom
+    controlTask = "stanford" # ASL, pacman, or stanford
     trajAmplitude = 15
     trajFreq = 17 # rad/s
     flipCoords = True # Use this only when the saved trajectory is from SSM run
@@ -338,8 +338,8 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 200.0, 800.0
-    du_max = 0.
+    u_min, u_max = 0.0, 800.0
+    du_max = 100.
 
     ######## Generate SSM model and setup control task ########
     output_model = linearModel(nodes=[51], num_nodes=709)
@@ -381,14 +381,17 @@ def run_gusto_solver():
             save_data(taskFile, taskParams)
     else:
         taskParams = load_data(taskFile)
-        # U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
-        # taskParams['U'], taskParams['dU'] = U, dU
+        taskParams['U'], taskParams['dU'] = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
 
         if flipCoords:
             if taskParams['z'].shape[1] == model.output_dim:
                 taskParams['z'][:, :3], taskParams['z'][:, 3:] = taskParams['z'][:, 3:].copy(), taskParams['z'][:, :3].copy()
             else:
                 taskParams['z'] = np.hstack((np.zeros((taskParams['z'].shape[0], 3)), taskParams['z']))
+            
+            # TODO: Ensure we are using the trunk coordinates
+            taskParams['z'] += z_eq_point
+            taskParams['z'] = model.zfyf_to_zy(zf=taskParams['z'])
             
             # Need to flip all state/obstacle constraints
             if type(taskParams['X']) is CircleObstacle:
@@ -398,6 +401,71 @@ def run_gusto_solver():
                 H = Hz @ model.H
         
                 taskParams['X'] = CircleObstacle(A=H, center=taskParams['obstacleLoc'] - Hz @ model.z_ref, diameter=taskParams['obstacleDiameter'])
+    print(taskParams['z'][0, :])
+    ######## Cost Function ########
+    #############################################
+    # Problem 1, X-Y plane cost function
+    #############################################
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100  # corresponding to x position of end effector
+    Qz[4, 4] = 100  # corresponding to y position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
+
+    #############################################
+    # Problem 2, X-Y-Z plane cost function
+    #############################################
+    # R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100.0  # corresponding to x position of end effector
+    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
+
+    # Define initial condition to be x_ref for initial solve
+    x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
+
+    gusto_model = TPWLGuSTO(model)
+    gusto_model.pre_discretize(dt)
+    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
+                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
+                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
+    
+def run_gusto_solver_call(taskParams):
+    """
+    Call in launch_sofa_closedLoopAnalysis.py
+        :taskParams: dictionary of task parameters (Always in SSM coordinates)
+    """
+    from sofacontrol.scp.models.tpwl import TPWLGuSTO
+    from sofacontrol.measurement_models import linearModel
+    from sofacontrol.scp.ros import runGuSTOSolverNode
+    from sofacontrol.tpwl import tpwl_config, tpwl
+    from sofacontrol.utils import createTargetTrajectory, createControlConstraint, save_data, load_data, CircleObstacle
+
+     ######## User Options ########
+    dt = 0.1
+    N = 3
+
+    ######## Generate SSM model and setup control task ########
+    output_model = linearModel(nodes=[51], num_nodes=709)
+
+    # Load and configure the TPWL model from data saved
+    tpwl_model_file = join(path, 'tpwl_model_snapshots.pkl')
+    config = tpwl_config.tpwl_dynamics_config()
+    model = tpwl.TPWLATV(data=tpwl_model_file, params=config.constants_sim, Hf=output_model.C,
+                         discr_method='zoh')
+
+    if taskParams['z'].shape[1] == model.output_dim:
+        taskParams['z'][:, :3], taskParams['z'][:, 3:] = taskParams['z'][:, 3:].copy(), taskParams['z'][:, :3].copy()
+    else:
+        taskParams['z'] = np.hstack((np.zeros((taskParams['z'].shape[0], 3)), taskParams['z']))
+    
+    # Need to flip all state/obstacle constraints
+    Hz = np.zeros((2, model.output_dim))
+    Hz[0, 3] = 1
+    Hz[1, 4] = 1
+    H = Hz @ model.H
+
+    taskParams['X'] = CircleObstacle(A=H, center=taskParams['obstacleLoc'] - Hz @ model.z_ref, diameter=taskParams['obstacleDiameter'])
 
     ######## Cost Function ########
     #############################################

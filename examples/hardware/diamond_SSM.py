@@ -19,142 +19,8 @@ DEFAULT_OUTPUT_NODES = [1354]
 TIP_NODE = 1354
 N_NODES = 1628
 
-def module_test_continuous():
-    from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.SSM import ssm
-    from sofacontrol.utils import load_data, qv2x, x2qv
-    from sofacontrol.measurement_models import linearModel, OutputModel
-    from scipy.io import loadmat
-
-    dt = 0.01
-
-    # 1) Setup model: Grab equilibrium point (x then z)
-    rest_file = join(path, 'rest_qv.pkl')
-    rest_data = load_data(rest_file)
-    qv_equilibrium = np.array(rest_data['rest'])
-
-    x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-    #outputModel = linearModel([TIP_NODE], 1628)
-    outputModel = linearModel([TIP_NODE], 1628, vel=False)
-
-    # TODO: This evaluation is a mess - qv option fails terribly if observation is only position (i.e., 3 dim)
-    z_eq_point = outputModel.evaluate(x_eq, qv=False)
-
-    # load SSM model as computed using SSMLearn (.mat file)
-    pathToModel = path + '/SSMmodels/'
-    #SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    # SSM_data = loadmat(join(pathToModel, 'SSM_model_delay.mat'))['py_data'][0, 0]
-    SSM_data = loadmat(join(pathToModel, 'SSM_model_simulation.mat'))['py_data'][0, 0]
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    outputSSMModel = OutputModel(6, 3)
-    model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=None)
-    n = raw_params['state_dim'][0, 0][0, 0]
-
-    # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
-    # with true response of system (need to extract z from simulation and load here). Plot comparison
-
-    # Load files to run tests
-    pathToTraj = path + '/checkModel/'
-    z_true_file = join(pathToTraj, 'z_big.csv')
-    z_true = np.genfromtxt(z_true_file, delimiter=',')
-    zq_true, zv_true = x2qv(z_true)
-    u_true_file = join(pathToTraj, 'u_big.csv')
-    u_true = np.genfromtxt(u_true_file, delimiter=',')
-
-    T = 10.01
-    N = int(T / dt)
-    t_original = np.linspace(0, T, int(T/0.01)+1)
-    t_interp = np.linspace(0, T, N+1)
-    u_interp = interp1d(t_original, u_true, axis=0)(t_interp)
-    p0 = np.zeros((n,))
-    p_traj, z_traj = model.rollout(p0, u_interp, dt)
-
-    xbar_traj = np.zeros(np.shape(p_traj))
-    zbar_traj = np.zeros(np.shape(z_traj))
-    for idx in range(np.shape(xbar_traj)[0]):
-        xbar_traj[idx, :] = model.V_map(model.zfyf_to_zy(z_traj)[idx])
-        zbar_traj[idx, :] = model.x_to_zfyf(xbar_traj[idx])
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot3D(z_traj[:, 3], z_traj[:, 4], z_traj[:, 5], label='Predicted Trajectory')
-    ax.plot3D(zq_true[:, 0], zq_true[:, 1], zq_true[:, 2], label='Actual Trajectory')
-    ax.plot3D(zbar_traj[:, 3], zbar_traj[:, 4], zbar_traj[:, 5], label='Manifold Projected Trajectory')
-    plt.legend()
-    plt.title('SSM Open Loop Trajectory')
-
-    z_true_qv = interp1d(t_original, np.hstack((zq_true, zv_true)), axis=0)(t_interp)
-    #err_SSM = z_true_qv - z_traj[:-1]
-    err_SSM = z_true_qv[:, 0:3] - z_traj[:-1, 3:]
-    SSM_RMSE = np.linalg.norm(np.linalg.norm(err_SSM, axis=1))**2 / err_SSM.shape[0]
-    print('------ Mean Squared Errors (MSEs)----------')
-    print('Ours (SSM): {}'.format(SSM_RMSE))
-    plt.show()
-
-    print('Testing rollout functions')
-
-def module_test():
-    from sofacontrol.closed_loop_controller import ClosedLoopController
-    from sofacontrol.SSM import ssm
-    from sofacontrol.utils import load_data, qv2x, x2qv
-    from sofacontrol.measurement_models import linearModel
-    from scipy.io import loadmat
-
-    # 1) Setup model
-    rest_file = join(path, 'rest_qv.pkl')
-    rest_data = load_data(rest_file)
-    qv_equilibrium = np.array(rest_data['rest'])
-
-    x_eq = qv2x(q=qv_equilibrium[0], v=qv_equilibrium[1])
-    outputModel = linearModel([TIP_NODE], 1628)
-    z_eq_point = outputModel.evaluate(x_eq, qv=True)
-
-    pathToModel = path + '/SSMmodels/'
-    SSM_data = loadmat(join(pathToModel, 'SSM_model.mat'))['py_data'][0, 0]
-    raw_model = SSM_data['model']
-    raw_params = SSM_data['params']
-
-    n = raw_params['state_dim'][0, 0][0, 0]
-    model = ssm.SSMDynamics(z_eq_point, discrete=True, discr_method='be',
-                            model=raw_model, params=raw_params)
-    dt = 0.01
-
-
-    # Reuse inputs from TPWL model. Test rollout function and compare figure of rollout figure 8
-    # with true response of system (need to extract z from simulation and load here). Plot comparison
-
-    # Load files to run tests
-    pathToTraj = path + '/checkModel/'
-    z_true_file = join(pathToTraj, 'z_big.csv')
-    z_true = np.genfromtxt(z_true_file, delimiter=',')
-    zq_true, zv_true = x2qv(z_true)
-    u_true_file = join(pathToTraj, 'u_big.csv')
-    u_true = np.genfromtxt(u_true_file, delimiter=',')
-
-    T = 10.01
-    N = int(T / dt)
-    t_original = np.linspace(0, T, int(T/0.01)+1)
-    t_interp = np.linspace(0, T, N+1)
-    u_interp = interp1d(t_original, u_true, axis=0)(t_interp)
-    p0 = np.zeros((n,))
-    p_traj, z_traj = model.rollout(p0, u_interp, dt)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot3D(z_traj[:, 0], z_traj[:, 1], z_traj[:, 2], label='Predicted Trajectory')
-    ax.plot3D(zq_true[:, 0], zq_true[:, 1], zq_true[:, 2], label='Actual Trajectory')
-    plt.legend()
-
-    z_true_qv = interp1d(t_original, np.hstack((zq_true, zv_true)), axis=0)(t_interp)
-    err_SSM = z_true_qv - z_traj[:-1]
-    SSM_RMSE = np.linalg.norm(np.linalg.norm(err_SSM, axis=1))**2 / err_SSM.shape[0]
-    print('------ Mean Squared Errors (MSEs)----------')
-    print('Ours (SSM): {}'.format(SSM_RMSE))
-    plt.show()
-
+modelType = 'posvel' # "delays", "posvel", "singleDelay", "linear"
+dt = 0.02 # This dt for when to recalculate control
 
 
 def run_scp():
@@ -182,11 +48,9 @@ def run_scp():
     # Set directory for SSM Models and import
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
-    # This dt for when to recalculate control
-    dt = 0.02
     # Simulation settings
     sim_duration = 11
-    save_prefix = 'ssmr_linear'
+    save_prefix = 'ssmr_' + modelType
 
     ######## Setup the Robot Environment and Type of Controller ########
     prob = Problem()
@@ -194,7 +58,7 @@ def run_scp():
     prob.ControllerClass = ClosedLoopController
 
     ######## Generate SSM Model ########
-    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES)
+    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType)
 
     ######## Specify a measurement of what we observe during simulation ########
     cov_q = 0.001 * np.eye(3)
@@ -214,7 +78,7 @@ def run_scp():
     # observer = DiscreteEKFObserver(model, W=W, V=V)
 
     # Define controller (wait 1 second of simulation time to start)
-    prob.controller = scp(model, QuadraticCost(), dt, N_replan=2, delay=1, feedback=False, EKF=observer)
+    prob.controller = scp(model, QuadraticCost(), dt, N_replan=1, delay=1, feedback=False, EKF=observer)
 
     # Saving paths
     prob.opt['sim_duration'] = sim_duration
@@ -239,15 +103,33 @@ def run_gusto_solver():
     import pickle
     
     ######## User Options ########
-    saveControlTask = True
-    createNewTask = True
-    dt = 0.02
+    saveControlTask = False
+    createNewTask = False
     N = 3
 
+    ###### Circle Parameters ######
     # Control Task Params
-    controlTask = "figure8" # figure8, circle, or custom
-    trajAmplitude = 15
-    trajFreq = 17 # rad/s
+    controlTask = "circle" # figure8, circle, or custom
+    trajAmplitude = 10
+    trajFreq = 20 # rad/s # 15, 20, 25, 30, 35
+
+    # Star trajectory - only used when custom trajectory is selected
+    pathToTraceImage = "/home/jalora/Desktop/star.png"
+    outdofs = [0, 1, 2]
+    z_offset = 107.
+    repeat_traj = None
+
+    # ###### Other Traj Parameters ######
+    # # Control Task Params
+    # controlTask = "circle" # figure8, circle, or custom
+    # trajAmplitude = 10
+    # trajFreq = 17 # rad/s
+
+    # # Star trajectory - only used when custom trajectory is selected
+    # pathToTraceImage = "/home/jalora/Desktop/star.png"
+    # outdofs = [0, 1, 2] # outdofs = [0, 1, 2]
+    # z_offset = 12. + 107. # 107.
+    # repeat_traj = 2
 
     # Trajectory constraint
     # Obstacle constraints
@@ -255,14 +137,14 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 200.0, 2500.0
+    u_min, u_max = 0.0, 4200.0
     du_max = None
 
     ######## Generate SSM model and setup control task ########
     # Set directory for SSM Models
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
-    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES)
+    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType, isLinear=True if modelType == 'linear' else False)
     
     # Define target trajectory for optimization
     trajDir = join(path, "control_tasks")
@@ -271,7 +153,9 @@ def run_gusto_solver():
     
     if createNewTask:
         ######## Define the trajectory ########
-        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, freq=trajFreq)
+        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, 
+                                              freq=trajFreq, pathToImage=pathToTraceImage, outdofs=outdofs, z_offset=z_offset,
+                                              repeat_traj=repeat_traj)
         z = model.zfyf_to_zy(zf=zf_target)
 
         ######## Define a new state constraint (q, v) format ########
@@ -293,24 +177,29 @@ def run_gusto_solver():
     else:
         taskParams = load_data(taskFile)
 
+        taskParams['U'], taskParams['dU'] = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+
+        if taskParams['z'].shape[1] < model.output_dim:
+            taskParams['z'] = np.hstack((taskParams['z'], np.zeros((taskParams['z'].shape[0], model.output_dim - taskParams['z'].shape[1]))))
+
     ######## Cost Function ########
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100  # corresponding to x position of end effector
-    Qz[1, 1] = 100  # corresponding to y position of end effector
-    Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100  # corresponding to x position of end effector
+    # Qz[1, 1] = 100  # corresponding to y position of end effector
+    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    # R = .00001 * np.eye(model.input_dim)
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
-    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    Qz[2, 2] = 100.0  # corresponding to z position of end effector
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)
@@ -319,7 +208,7 @@ def run_gusto_solver():
     gusto_model = SSMGuSTO(model)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
+                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
 
 
 def run_scp_OL():

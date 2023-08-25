@@ -30,6 +30,7 @@ class SSM:
 
         self.model = kwargs.pop('model', None)
         self.params = kwargs.pop('params', None)
+        self.isLinear = kwargs.pop('isLinear', False)
 
         self.state_dim = self.params['state_dim'] # [0, 0][0, 0]
         self.input_dim = self.params['input_dim'] # [0, 0][0, 0]
