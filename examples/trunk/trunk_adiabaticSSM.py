@@ -33,10 +33,8 @@ MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PAT
 #         USE_MODELS = pickle.load(f)
 # else:
 #     raise FileNotFoundError("No use_models.pkl file found in model directory")
-# USE_MODELS = [int(i) for i in []] # ['096', '077', '098', '053', '032', '018', '064', '082', '031', '061']]
-USE_MODELS = list(range(len(MODEL_NAMES)))
-# USE_MODELS = [0, 1, 2, 5, 6, 8, 9, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 33, 36, 42, 46, 47, 49, 53, 59, 60, 61, 62, 63, 66, 67, 68, 69, 70, 71, 76, 77, 80, 81, 83, 87, 89, 91, 93, 96, 98]
-# USE_MODELS = [0, 1, 2, 5, 6, 8, 9, 11, 12, 13, 14, 16, 19, 21, 22, 23, 26, 30, 36, 41, 42, 47, 50, 53, 57, 58, 59, 61, 63, 66, 67, 68, 69, 70, 71, 76, 77, 81, 87, 89, 91, 94, 96]
+# USE_MODELS = list(range(len(MODEL_NAMES)))
+USE_MODELS = []
 MODEL_NAMES = [MODEL_NAMES[i] for i in USE_MODELS]
 print("Using models: ", MODEL_NAMES)
 
@@ -99,7 +97,7 @@ cost = QuadraticCost()
 Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
-Qz[2, 2] = 100.  # corresponding to z position of end effector
+# Qz[2, 2] = 100.  # corresponding to z position of end effector
 R = 0.0001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
@@ -112,17 +110,17 @@ cost.Q = model.H.T @ Qz @ model.H
 
 # Define target trajectory for optimization
 # === figure8 (2D) ===
-# M = 1
-# T = 10
-# N = 1000
-# radius = 30.
-# tf = np.linspace(0, M * T, M * N + 1)
-# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
-# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# # zf_target = np.zeros((M * N, model.output_dim))
-# zf_target[:, 0] += -radius * np.sin(th)
-# zf_target[:, 1] += radius * np.sin(2 * th)
-# # zf_target[:, 2] += -np.ones(len(t)) * 10
+M = 1
+T = 10
+N = 1000
+radius = 30.
+tf = np.linspace(0, M * T, M * N + 1)
+th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
+zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+# zf_target = np.zeros((M * N, model.output_dim))
+zf_target[:, 0] += -radius * np.sin(th)
+zf_target[:, 1] += radius * np.sin(2 * th)
+# zf_target[:, 2] += -np.ones(len(t)) * 10
 
 # === circle with constant z (3D) ===
 # M = 1
@@ -138,20 +136,20 @@ cost.Q = model.H.T @ Qz @ model.H
 # zf_target[:, 2] += -np.ones(len(tf)) * 10
 
 # === Pac-Man (3D) ===
-M = 1
-T = 10
-N = 1000
-radius = 20.
-tf = np.linspace(0, M * T, M * N + 1)
-th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# zf_target = np.zeros((M * N, model.output_dim))
-zf_target[:, 0] += radius * np.cos(th)
-zf_target[:, 1] += radius * np.sin(th)
-zf_target[:, 2] += -np.ones(len(tf)) * 10
-t_in_pacman, t_out_pacman = 1., 1.
-zf_target[tf < t_in_pacman, :] = z_eq_point + (zf_target[tf < t_in_pacman][-1, :] - z_eq_point) * (tf[tf < t_in_pacman] / t_in_pacman)[..., None]
-zf_target[tf > T - t_out_pacman, :] = z_eq_point + (zf_target[tf > T - t_out_pacman][0, :] - z_eq_point) * (1 - (tf[tf > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
+# M = 1
+# T = 10
+# N = 1000
+# radius = 20.
+# tf = np.linspace(0, M * T, M * N + 1)
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+# # zf_target = np.zeros((M * N, model.output_dim))
+# zf_target[:, 0] += radius * np.cos(th)
+# zf_target[:, 1] += radius * np.sin(th)
+# zf_target[:, 2] += -np.ones(len(tf)) * 10
+# t_in_pacman, t_out_pacman = 1., 1.
+# zf_target[tf < t_in_pacman, :] = z_eq_point + (zf_target[tf < t_in_pacman][-1, :] - z_eq_point) * (tf[tf < t_in_pacman] / t_in_pacman)[..., None]
+# zf_target[tf > T - t_out_pacman, :] = z_eq_point + (zf_target[tf > T - t_out_pacman][0, :] - z_eq_point) * (1 - (tf[tf > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 
@@ -226,8 +224,8 @@ def run_gusto_solver(t=None, z=None):
     u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
-    dU = HyperRectangle([1] * model.input_dim, [-1] * model.input_dim) # None # 
-    # dU = None
+    # dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim)
+    dU = None
     # State constraints
     X = None
 
@@ -236,7 +234,7 @@ def run_gusto_solver(t=None, z=None):
 
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
                     verbose=0, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                    max_gusto_iters=3, input_nullspace=None, dU=dU, jit=False)
+                    max_gusto_iters=0, input_nullspace=None, dU=dU, jit=False)
 
 
 if __name__ == '__main__':

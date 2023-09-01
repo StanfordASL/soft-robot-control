@@ -297,10 +297,10 @@ def run_scp():
     Qz[4, 4] = 100  # corresponding to y position of end effector
     # Qz[5, 5] = 100  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
-    cost.R = .00001 * np.eye(model.input_dim)
+    cost.R = .0001 * np.eye(model.input_dim)
 
     # Define controller (wait 2 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=30, observer=EKF, delay=1) # , feedback=False
+    prob.controller = scp(model, cost, dt, N_replan=10, observer=EKF, delay=1) # , feedback=False
 
     # Saving paths
     prob.opt['sim_duration'] = 11.
@@ -332,8 +332,10 @@ def run_gusto_solver():
     radius = 30.
     t = np.linspace(0, M * T, M * N + 1)
     th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-    # zf_target = np.zeros((M * N, model.output_dim))
-    zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    print("model.output_dim:", model.output_dim)
+    # zf_target = np.zeros((M * N + 1, model.output_dim))
+    # print("z_eq_point:", z_eq_point)
+    zf_target = np.tile(z_eq_point, (M * N + 1, 1))
     zf_target[:, 3] += -radius * np.sin(th)
     zf_target[:, 4] += radius * np.sin(2 * th)
 
@@ -361,27 +363,27 @@ def run_gusto_solver():
     # # zf_target = np.zeros((M * N, model.output_dim))
     # zf_target[:, 3] += radius * np.cos(th)
     # zf_target[:, 4] += radius * np.sin(th)
-    # zf_target[:, 5] += -np.ones(len(t)) * 10
+    # zf_target[:, 5] += -np.ones(len(th)) * 10
     # t_in_pacman, t_out_pacman = 1., 1.
     # zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
     # zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
     z = model.zfyf_to_zy(zf=zf_target)
 
-    R = .00001 * np.eye(model.input_dim)
+    R = .0001 * np.eye(model.input_dim)
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[3, 3] = 100.  # corresponding to x position of end effector
     Qz[4, 4] = 100.  # corresponding to y position of end effector
     # Qz[5, 5] = 100.  # corresponding to z position of end effector
     
-    dt = 0.1
+    dt = 0.05
     N = 5
     
     # Control constraints
     u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
-    # dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim) # None # 
+    # dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim)
     # dU = None
     # State constraints
     X = None

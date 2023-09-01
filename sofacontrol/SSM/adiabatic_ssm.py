@@ -11,10 +11,8 @@ import pickle
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "modified_idw" # "natural_neighbor" # "linear", "ct", "nn", "tps", "rbf", "idw", "krg", "qp"
+INTERPOLATION_METHOD = "qp" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
 ORIGIN_IDX = 0
-
-DISCR_DICT = {'fe': 'forward Euler', 'be': 'implicit Euler', 'bil': 'bilinear transform', 'zoh': 'zero-order hold'}
 
 
 class AdiabaticSSM:
@@ -29,17 +27,19 @@ class AdiabaticSSM:
         self.discrete = discrete
         self.discr_method = discr_method
 
+        self.interp_method = INTERPOLATION_METHOD
+
         self.models = models
         self.params = params
 
         self.adiabatic = True
-        # if INTERPOLATION_METHOD in ["idw", "modified_idw"]: # "krg", "rbf", "tps", "nn"]:
+        # if self.interp_method in ["idw", "modified_idw"]: # "krg", "rbf", "tps", "nn"]:
         #     self.interp_3d = True
         # else:
         #     self.interp_3d = False
-        if INTERPOLATION_METHOD in ["idw", "modified_idw", "nn"]:
+        if self.interp_method in ["idw", "modified_idw", "nn"]:
             self.interp_slice = np.s_[:]
-        elif INTERPOLATION_METHOD in ["krg", "rbf", "tps"]:
+        elif self.interp_method in ["krg", "rbf", "tps"]:
             self.interp_slice = np.s_[:3]
         else:
             self.interp_slice = np.s_[:2]
@@ -89,7 +89,7 @@ class AdiabaticSSM:
         if self.v_coeff[0] is not None:
             self.coeff_dict['V'] = self.v_coeff
 
-        self.interpolator = InterpolatorFactory(INTERPOLATION_METHOD, [(self.V[0].T @ np.tile(q, 5))[self.interp_slice] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        self.interpolator = InterpolatorFactory(self.interp_method, [(self.V[0].T @ np.tile(q, 5))[self.interp_slice] for q in self.q_bar], self.coeff_dict).get_interpolator()
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output

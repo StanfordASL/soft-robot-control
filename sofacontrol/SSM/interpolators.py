@@ -4,6 +4,7 @@ from scipy.interpolate import NearestNDInterpolator
 from scipy.interpolate import LinearNDInterpolator
 from scipy.interpolate import CloughTocher2DInterpolator
 from scipy.spatial import Delaunay
+from scipy.interpolate import interp1d
 from tps import ThinPlateSpline
 from smt.surrogate_models import RBF, IDW, KRG, QP, LS, RMTB
 
@@ -23,20 +24,37 @@ from scipy.spatial import cKDTree
 
 np.set_printoptions(linewidth=200)
 
+plt.rcParams.update({'font.family': 'serif'})
+plt.rcParams.update({'font.serif': 'FreeSerif'})
+plt.rcParams.update({'mathtext.fontset': 'cm'})
+
+FONTSCALE = 1.2
+
+plt.rc('font', size=12*FONTSCALE)          # controls default text sizes
+plt.rc('axes', titlesize=15*FONTSCALE)     # fontsize of the axes title
+plt.rc('axes', labelsize=13*FONTSCALE)     # fontsize of the x and y labels
+plt.rc('xtick', labelsize=12*FONTSCALE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=12*FONTSCALE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=11*FONTSCALE)    # legend fontsize
+plt.rc('figure', titlesize=15*FONTSCALE)   # fontsize of the figure title
+suptitlesize = 20*FONTSCALE
+
+plt.rc('figure', autolayout=True)
 
 DISPLAY_NAMES = {
     "origin_only": "origin only",
-    "idw": "Inverse Distance Weighting",
+    "idw": "Inverse distance weighting",
+    "modified_idw": "Modified IDW",
     "linear": "Barycentric linear",
-    "nn": "Nearest Neighbor",
+    "nn": "Nearest neighbor",
     "ct": "Clough-Tocher",
-    "tps": "Thin Plate Spline",
-    "rbf": "Radial Basis Function",
+    "tps": "Thin plate spline",
+    "rbf": "Radial basis function",
     "krg": "Kriging",
-    "qp": "Quadratic Polynomial Regression",
-    "ls": "Linear Regression",
+    "qp": "Quadratic polynomial regression",
+    "ls": "Linear regression",
     "rmts": "RMTS",
-    "natural_neighbor": "Natural Neighbor"
+    "natural_neighbor": "Natural neighbor"
 }
 
 class InterpolatorFactory():
@@ -251,7 +269,7 @@ class ModifiedIDWInterpolator(Interpolator):
 
     def transform(self, q, coeff_name):
         weights = self.calc_weights(q)
-        if coeff_name in ["q_bar", "u_bar"]:
+        if coeff_name in ["q_bar", "x_bar", "u_bar"]:
             return np.einsum("i, ij -> j", weights, self.coeff_dict[coeff_name])
         else:
             return np.einsum("i, ijk -> jk", weights, self.coeff_dict[coeff_name])
@@ -377,41 +395,50 @@ class NaturalNeighborInterpolator(Interpolator):
 
 
 def testInterpolators1D():
-    interpolation_methods = ["nn", "idw", "krg", "rbf", "qp", "ls"]
-    np.random.seed(seed=20)
-    x = np.concatenate([[0], np.random.uniform(-1, 1, 10)])
+    interpolation_methods = ["nn", "idw", "modified_idw", "linear", "ct", "qp"]
+    np.random.seed(seed=15) # 8, 10, 2023, 
+    x = np.concatenate([[0], np.random.uniform(-1, 1, 10)]) * 2
     y = []
     y.append(np.sin(2*np.pi*x))
     y.append([-0.3, 0.2, -0.7, -0.4, 0.5, 0.0, 1.0, 1.5, 0.9, 1.0, 1.2])
     y = np.vstack(y).T
-    xq = np.linspace(-1, 1, 100)
+    xq = np.linspace(-2, 2, 1001)
     ytrue = []
     ytrue.append(np.sin(2*np.pi*xq))
     ytrue.append(np.full(len(xq), np.nan))
     ytrue = np.vstack(ytrue).T
     coeff_dict = {"q_bar": y}
 
-    fig1, axs1 = plt.subplots(len(interpolation_methods)//2, 2, figsize=(3*len(interpolation_methods), 3))
-    fig2, axs2 = plt.subplots(len(interpolation_methods)//2, 2, figsize=(3*len(interpolation_methods), 3))
+    fig1, axs1 = plt.subplots(len(interpolation_methods)//2, 2, figsize=(8, 7))
+    fig2, axs2 = plt.subplots(len(interpolation_methods)//2, 2, figsize=(8, 7), sharex=True, sharey=True)
 
     for j, interpolation_method in enumerate(interpolation_methods):
-        if interpolation_method == "nn":
+        if interpolation_method in ["nn", "linear"]:
             pass
+        elif interpolation_method == "ct":
+            yq = interp1d(x, y.T, kind="cubic", bounds_error=False)(xq).T
         else:
             interpolator = InterpolatorFactory(interpolation_method, np.atleast_2d(x).T, coeff_dict).get_interpolator()
             yq = np.array([interpolator.transform(xi, "q_bar") for xi in xq])
         for i, axs in enumerate([axs1, axs2]):
             axs = axs.flatten()
-            axs[j].plot(xq, ytrue[:, i], '--', color="k", alpha=0.5)
+            axs[j].plot(xq, ytrue[:, i], '--', color="#a8a8a8")
             if interpolation_method == "nn":
                 sort_idx = np.argsort(x)
                 axs[j].plot(x[sort_idx], y[sort_idx, i], '-', color="tab:blue", ds="steps-mid")
+            elif interpolation_method == "linear":
+                sort_idx = np.argsort(x)
+                axs[j].plot(x[sort_idx], y[sort_idx, i], '-', color="tab:blue")
             else:
                 axs[j].plot(xq, yq[:, i], '-', color="tab:blue")
             axs[j].plot(x, y[:, i], 'o', color="tab:orange", zorder=3)
             axs[j].set_title(DISPLAY_NAMES[interpolation_method])
-            axs[j].set_ylim(-3, 3)
-    
+            axs[j].set_ylim(-2.5, 2.5)
+            axs[j].set_xlim(-2, 2)
+            axs[j].tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
+
+    fig1.savefig("interpolation_1d_sin-wave.eps", dpi=300)
+    fig2.savefig("interpolation_1d_random.eps", dpi=300)
     plt.show()
 
 

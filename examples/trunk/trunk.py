@@ -34,12 +34,15 @@ def sim_OL():
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.utils import SnapshotData
 
+    ALPHA = 0.1
+
     path = "/media/jonas/Backup Plus/jonas_soft_robot_data/autonomous_ASSM_tests"
-    with open(join(path, 'u_perturbed_1ms.pkl'), 'rb') as f:
+    with open(join(path, "OL_sim_perturbed", f"alpha={ALPHA:.1f}", 'u_perturbed.pkl'), 'rb') as f:
+    # with open(join(path, "OL_sim_perturbed" 'u_perturbed.pkl'), 'rb') as f:
         u = pickle.load(f)
     
     # t0 = 3.0
-    dt = 0.001
+    dt = 0.01
     prob = Problem()
     prob.Robot = trunkRobot()
     prob.ControllerClass = OpenLoopController
@@ -55,8 +58,8 @@ def sim_OL():
     u, save, t = Sequences.augment_input_with_base(u, save_data=True)
     prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt)
     prob.snapshots = SnapshotData(save_dynamics=False)
-    prob.opt['sim_duration'] = 11.
-    prob.snapshots_dir = path
+    prob.opt['sim_duration'] = len(t) * dt
+    prob.snapshots_dir = join(path, "OL_sim_perturbed", f"alpha={ALPHA:.1f}")
     prob.opt['save_prefix'] = 'OL_sim'
 
     return prob

@@ -24,8 +24,9 @@ def createScene(rootNode, prob=None):
     # rootNode.addObject('DefaultAnimationLoop', name='loop')
     rootNode.addObject("GenericConstraintSolver", maxIterations=100, tolerance=1e-5)
 
-    rootNode.addObject('BackgroundSetting', color='0 0.168627 0.211765')
+    rootNode.addObject('BackgroundSetting', color='0.082353 0.36862745 0.3294118') # color='1 1 1') # color='0 0.168627 0.211765') # 
     rootNode.addObject('OglSceneFrame', style="Arrows", alignment="TopRight")
+    # rootNode.addObject('OglViewport', screenPosition="0 0", screenSize="600 600", cameraPosition="100 0 0", cameraOrientation="0 0 0 1") 
 
     # Define the specific instance via the problem_specification script
     if prob is None:

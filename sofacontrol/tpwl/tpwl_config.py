@@ -45,7 +45,7 @@ class tpwl_dynamics_config(tpwl_config):
         tpwl_method = 'nn'
 
         # Method for discetizing the dynamics, either 'fe', 'be', 'bil', 'zoh'
-        discr_method = 'zoh'
+        discr_method = 'be'
 
         # Value that parameterizes the weight distribution if tpwl_method = 'weighting', a high
         # value gives more weight to the closest point (approaches nearest neighbor behavior)

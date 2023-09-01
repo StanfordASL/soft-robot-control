@@ -18,6 +18,8 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 
+# slowness of target trajectory
+ALPHA = 3.0 # [0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 3.0] -> T = 2pi/alpha
 
 def run_scp():
     """
@@ -54,7 +56,7 @@ def run_scp():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/origin/SSMmodel_delay-embedding" # join(path, "SSMmodels", "model_004")
+    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9/000/SSMmodel_delay-embedding_ROMOrder=3_localV_fixed-delay"
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3)
@@ -94,15 +96,15 @@ def run_scp():
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.  # corresponding to x position of end effector
     Qz[1, 1] = 100.  # corresponding to y position of end effector
-    Qz[2, 2] = 0.  # corresponding to z position of end effector
+    Qz[2, 2] = 100.  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
-    cost.R = 0.001 * np.eye(model.input_dim)
+    cost.R = 0.0001 * np.eye(model.input_dim)
 
     # Define controller (wait 1 second of simulation time to start)
     prob.controller = scp(model, cost, dt, N_replan=2, delay=1, feedback=False, EKF=observer)
 
     # Saving paths
-    prob.opt['sim_duration'] = 11.
+    prob.opt['sim_duration'] = 11. # (2. * np.pi / ALPHA) + 2. + 1. # T + idle + delay
     prob.simdata_dir = path
     prob.opt['save_prefix'] = 'ssmr'
 
@@ -131,7 +133,7 @@ def run_gusto_solver():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic/origin/SSMmodel_delay-embedding" # join(path, "SSMmodels", "model_004")
+    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9/000/SSMmodel_delay-embedding_ROMOrder=3_localV_fixed-delay"
 
     # load SSM model
     with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
@@ -169,34 +171,50 @@ def run_gusto_solver():
     # # zf_target = np.zeros((M*N+1, 6))
     # zf_target[:, 0] += -radius * np.sin(th)
     # zf_target[:, 1] += radius * np.sin(2 * th)
-    # zf_target[:, 2] += -np.ones(len(t)) * 20
+    # # zf_target[:, 2] += -np.ones(len(t)) * 20
 
     # === circle (with constant z) ===
+    # M = 1
+    # T = 2 * np.pi / ALPHA # 10
+    # N = int(T * 100) # 900 # 1000
+    # radius = 30.
+    # t = np.linspace(0, M * T, M * N + 1)
+    # th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2 # east: 0, north: pi/2, west: pi, south: 3pi/2
+    # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+    # # zf_target = np.zeros((M*N+1, 6))
+    # zf_target[:, 0] += radius * np.cos(th)
+    # zf_target[:, 1] += radius * np.sin(th)
+    # # zf_target[:, 2] += -np.ones(len(t)) * 20
+    # print(zf_target[0, :].shape)
+    # idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(2/0.01), axis=0)
+    # print(idle.shape)
+    # zf_target = np.vstack([idle, zf_target])
+    # print(zf_target.shape)
+    # t = np.linspace(0, M * (2 + T), 2 * 100 + N + 1)
+
+    # === Pac-Man (3D) ===
     M = 1
-    T = 9 # 10
-    N = 900 # 1000
-    radius = 30.
+    T = 10
+    N = 1000
+    radius = 20.
     t = np.linspace(0, M * T, M * N + 1)
-    th = np.linspace(0, M * 2 * np.pi, M * N + 1) + np.pi/2
+    th = np.linspace(0, M * 2 * np.pi, M * N + 1)
     zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-    # zf_target = np.zeros((M*N+1, 6))
+    # zf_target = np.zeros((M * N, model.output_dim))
     zf_target[:, 0] += radius * np.cos(th)
     zf_target[:, 1] += radius * np.sin(th)
-    # zf_target[:, 2] += -np.ones(len(t)) * 20
-    print(zf_target[0, :].shape)
-    idle = np.repeat(np.atleast_2d(zf_target[0, :]), int(1/0.01), axis=0)
-    print(idle.shape)
-    zf_target = np.vstack([idle, zf_target])
-    print(zf_target.shape)
-    t = np.linspace(0, M * 10, M * 1000 + 1)
+    zf_target[:, 2] += -np.ones(len(t)) * 10
+    t_in_pacman, t_out_pacman = 1., 1.
+    zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
+    zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
     z = model.zfyf_to_zy(zf=zf_target)
 
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[0, 0] = 100.   # corresponding to x position of end effector
     Qz[1, 1] = 100.   # corresponding to y position of end effector
-    Qz[2, 2] = 0.   # corresponding to z position of end effector
-    R = 0.001 * np.eye(model.input_dim)
+    Qz[2, 2] = 100.   # corresponding to z position of end effector
+    R = 0.0001 * np.eye(model.input_dim)
 
     dt = 0.02
     N = 3

@@ -111,6 +111,7 @@ zf_target[:, 1] += radius * np.sin(2 * th)
 # th = np.linspace(0, M * 2 * np.pi, M * N + 1)
 # zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N + 1, 1))
 # # zf_target = np.zeros((M * N, model.output_dim))
+# print("z_eq_point:", z_eq_point)
 # zf_target[:, 0] += radius * np.cos(th)
 # zf_target[:, 1] += radius * np.sin(th)
 # zf_target[:, 2] += -np.ones(len(t)) * 10
@@ -119,7 +120,7 @@ zf_target[:, 1] += radius * np.sin(2 * th)
 # zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
 # Cost
-cost.R = .00001 * np.eye(model.m)
+cost.R = .0001 * np.eye(model.m)
 cost.Q = np.zeros((model.n, model.n))
 cost.Q[0, 0] = 100  # corresponding to x position of end effector
 cost.Q[1, 1] = 100  # corresponding to y position of end effector
@@ -177,6 +178,7 @@ def run_koopman():
     prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
 
+    print("Koopman controller dt:", model.Ts)
     prob.controller = koopman.KoopmanMPC(dyn_sys=model, dt=model.Ts, delay=1, rollout_horizon=1)
 
     prob.opt['sim_duration'] = 11.  # Simulation time, optional
@@ -209,11 +211,13 @@ def run_koopman_solver():
     print(u_ub_norm)
     print(u_lb_norm)
     U = HyperRectangle(ub=u_ub_norm, lb=u_lb_norm)
+    # dU = HyperRectangle(scaling.scale_down(u=[10] * model.m).reshape(-1), scaling.scale_down(u=[-10] * model.m).reshape(-1))
+    dU = None
 
     N = 3
 
     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
-                     warm_start=True, U=U) # , solver='GUROBI')
+                     warm_start=True, U=U, dU=dU) # , solver='GUROBI')
 
 
 

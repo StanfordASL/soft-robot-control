@@ -328,6 +328,7 @@ class scp(TemplateController):
 
         # LQR
         i_near = self.dyn_sys.calc_nearest_point(self.x_bar(t_step))
+        print('i_near = {}'.format(i_near))
         u = np.clip(self.u_bar(t_step) + self.K[i_near] @ (x_belief - self.x_bar(t_step)), np.ones(8)*0., np.ones(8)*800)
 
         return u

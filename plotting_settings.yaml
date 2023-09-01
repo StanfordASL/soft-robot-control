@@ -1,39 +1,42 @@
 robot: "trunk"
 save_dir: "plots/"
-file_format: "png"
+file_format: "eps"
 
-traj_dir: "sim_trajs/pac-man" # figure8" # circle_z=-10" # 
+traj_dir: "sim_trajs/pac-man/" # figure8" # pac-man" # circle_z=-10" # 
 
 show: {
     'ssmr': False,
-    'ssmr_origin': True,
-    'ssmr_adiabatic_ct': False,
-    'ssmr_adiabatic_nn': False,
-    'ssmr_adiabatic_qp': True,
     'ssmr_adiabatic_idw': False,
-    'ssmr_adiabatic_modified-idw': True,
+    'ssmr_adiabatic_modified_idw': True,
+    'ssmr_adiabatic_qp': True,
+    'ssmr_adiabatic_nn': False,
+    'ssmr_adiabatic_linear': False,
+    'ssmr_adiabatic_ct': False,
+    'ssmr_origin': True,
     'tpwl': True,
-    'koopman': False,
+    'koopman': True,
 }
 display_name: {
     'ssmr': "ASSMR (current model)",
-    'ssmr_origin': "Origin (N=1)",
-    'ssmr_adiabatic_ct': "CT (2D, N=9)",
-    'ssmr_adiabatic_nn': "NN (N=100)",
-    'ssmr_adiabatic_qp': "QP-2D (N=100)",
-    'ssmr_adiabatic_idw': "IDW-6D (N=100)",
-    'ssmr_adiabatic_modified-idw': "Modified-IDW-6D (N=100)",
+    'ssmr_origin': "Origin",
+    'ssmr_adiabatic_linear': "LB",
+    'ssmr_adiabatic_ct': "CT",
+    'ssmr_adiabatic_nn': "NN",
+    'ssmr_adiabatic_qp': "QPR",
+    'ssmr_adiabatic_idw': "IDW",
+    'ssmr_adiabatic_modified_idw': "MIDW",
     'tpwl': "TPWL",
     'koopman': "Koopman",
 }
 color: {
     'ssmr': "tab:pink",
     'ssmr_origin': "tab:blue",
-    'ssmr_adiabatic_ct': "tab:red",
+    'ssmr_adiabatic_linear': "tab:green",
+    'ssmr_adiabatic_ct': "tab:blue",
     'ssmr_adiabatic_nn': "tab:brown",
     'ssmr_adiabatic_qp': "tab:purple",
     'ssmr_adiabatic_idw': "tab:red",
-    'ssmr_adiabatic_modified-idw': "tab:red",
+    'ssmr_adiabatic_modified_idw': "tab:red",
     'tpwl': 'tab:green',
     'koopman': 'tab:orange',
     'target': 'black'
@@ -43,10 +46,26 @@ linestyle: {
     'koopman': '-',
     'target': '--'
 }
+
+markers: {
+    'ssmr_origin': 's',
+    'ssmr_adiabatic_linear': 'v',
+    'ssmr_adiabatic_ct': '^',
+    'ssmr_adiabatic_nn': 's',
+    'ssmr_adiabatic_qp': 'o',
+    'ssmr_adiabatic_idw': None,
+    'ssmr_adiabatic_modified_idw': 'd',
+    'tpwl': 'v',
+    'koopman': '^',
+    'target': None
+}
+
 linewidth: {
-    'tpwl': 2,
-    'koopman': 2,
-    'target': 1
+    'tpwl': 1,
+    'koopman': 1,
+    'target': 1,
+    'ssmr_adiabatic_qp': 2,
+    'ssmr_adiabatic_modified_idw': 2,
 }
 
 define_targets: {
