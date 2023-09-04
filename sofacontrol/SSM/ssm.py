@@ -8,6 +8,9 @@ import jax.scipy as jsp
 import jax
 from functools import partial
 from sofacontrol.utils import norm2Diff
+from scipy.linalg import block_diag
+import mpctools as mpc
+from os.path import join, exists
 
 ###  DEFAULT VALUES
 DISCR_METHOD = 'zoh'  # other options: be, zoh, bil. Forward Euler, Backward Euler, Bilinear transf. or Zero-Order Hold
@@ -31,10 +34,11 @@ class SSM:
         self.model = kwargs.pop('model', None)
         self.params = kwargs.pop('params', None)
         self.isLinear = kwargs.pop('isLinear', False)
+        self.Nper = kwargs.pop('Nper', None)    # For LDO
 
         self.state_dim = self.params['state_dim'] # [0, 0][0, 0]
         self.input_dim = self.params['input_dim'] # [0, 0][0, 0]
-        self.output_dim = int(self.params['output_dim']) # [0, 0][0, 0]) #This is also performance dimension
+        self.output_dim = int(self.params['output_dim']) # [0, 0][0, 0]) # This is also performance dimension
         self.SSM_order = self.params['SSM_order'] # [0, 0][0, 0]
         self.ROM_order = self.params['ROM_order'] # [0, 0][0, 0]
         # TODO: This is new
@@ -218,6 +222,49 @@ class SSMDynamics(SSM):
     """
     def __init__(self, eq_point, discrete=False, discr_method='fe', C=None, **kwargs):
         super(SSMDynamics, self).__init__(eq_point, discrete=discrete, discr_method=discr_method, C=C, **kwargs)
+
+        # Construct LDO parameters, if desired
+        if self.Nper is not None:
+            self.LDO = True
+            dt = kwargs.get('dt')
+            gains_path = join(kwargs.get('gains_path'), 'Lgains.pkl')
+            if self.isLinear:
+                self.Nid = self.output_dim # TODO: Set this
+
+                # Define design matrices
+                self.Bd = np.zeros((self.state_dim, self.Nid))
+                self.Cd = np.eye(self.Nid)
+
+                # TODO: Modify gains here!!!!! Define LDO cost for LQE
+                Qw_per = block_diag(np.eye(self.state_dim), 1. * np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
+                Rv_per = np.eye(self.output_dim)
+
+                # Get shifting matrix
+                self.Sd = scutils.get_LDO_disturbance_matrices(self.Bd, self.Nper)
+                
+                if exists(gains_path):
+                    gains = scutils.load_data(gains_path)
+                    self.Lx, self.Ld = gains['Lx'], gains['Ld']
+                else:
+                    # Extract discrete time matrices for linear system 
+                    A, B, _ = self.get_jacobians(np.zeros(self.state_dim), np.zeros(self.input_dim), dt)
+                    # C = self.w_coeff
+                    C, _ = self.get_observer_jacobians(np.zeros(self.state_dim))
+                    A_aug, B_aug, C_aug = scutils.get_LDO_LTI(A, B, C, self.Bd, self.Cd, self.Nper)
+
+                    # Get Kalman Filter gains
+                    L_per, _ = mpc.util.dlqe(A_aug, C_aug, Qw_per, Rv_per)
+
+                    # Extract gains then save. Takes a while to calculate
+                    gains = {'Lx': L_per[:self.state_dim, :], 'Ld': L_per[self.state_dim:, :]}
+                    scutils.save_data(gains_path, gains)
+
+                    self.Lx = gains['Lx']
+                    self.Ld = gains['Ld']
+            else:
+                raise NotImplementedError("Nonlinear LDO not implemented yet")
+        else:
+            self.LDO = False
 
     def update_state(self, x, u, dt):
         """

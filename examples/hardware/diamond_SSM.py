@@ -19,9 +19,14 @@ DEFAULT_OUTPUT_NODES = [1354]
 TIP_NODE = 1354
 N_NODES = 1628
 
-modelType = 'posvel' # "delays", "posvel", "singleDelay", "linear"
+modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.02 # This dt for when to recalculate control
 
+######## Generate LDO Parameters ########
+Mper = 10   # Number of periods to simulate
+Tper = 2.  # Period of trajectory
+Nper = int(Tper / dt) + 1    # Number of points per period (this will be trigger for doing LDO)
+# Nper = None
 
 def run_scp():
     """
@@ -49,7 +54,7 @@ def run_scp():
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
     # Simulation settings
-    sim_duration = 11
+    sim_duration = 11.
     save_prefix = 'ssmr_' + modelType
 
     ######## Setup the Robot Environment and Type of Controller ########
@@ -87,7 +92,6 @@ def run_scp():
 
     return prob
 
-
 def run_gusto_solver():
     """
     python3 diamond.py run_gusto_solver
@@ -121,9 +125,9 @@ def run_gusto_solver():
 
     # ###### Other Traj Parameters ######
     # # Control Task Params
-    # controlTask = "circle" # figure8, circle, or custom
-    # trajAmplitude = 10
-    # trajFreq = 17 # rad/s
+    # controlTask = "figure8" # figure8, circle, or custom
+    # trajAmplitude = 15
+    # trajFreq = None # rad/s
 
     # # Star trajectory - only used when custom trajectory is selected
     # pathToTraceImage = "/home/jalora/Desktop/star.png"
@@ -210,6 +214,181 @@ def run_gusto_solver():
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
                        max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
 
+def run_scp_LDO():
+    """
+     In problem_specification add:
+
+     from examples.hardware import diamond
+     problem = diamond.run_scp
+
+     then run:
+
+     python3 launch_sofa.py
+     """
+    from sofacontrol.closed_loop_controller import ClosedLoopController
+    from sofacontrol.measurement_models import MeasurementModel
+    from sofacontrol.measurement_models import linearModel, OutputModel
+    from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron, generateModel
+    from sofacontrol.SSM import ssm
+    from sofacontrol.SSM.observer import SSMObserver, SSMObserverLDO
+    from sofacontrol.SSM.controllers import scp
+    from scipy.io import loadmat
+    import pickle
+
+    ######## User Options ########
+    # Set directory for SSM Models and import
+    pathToModel = path + '/SSMmodels/'
+    # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
+    # Simulation settings
+    sim_duration = 21.
+    save_prefix = 'ssmr_' + modelType
+
+    ######## Setup the Robot Environment and Type of Controller ########
+    prob = Problem()
+    prob.Robot = diamondRobot()
+    prob.ControllerClass = ClosedLoopController
+
+    ######## Generate SSM Model ########
+    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType, isLinear=True if modelType == 'linear' else False,
+                          Nper=Nper, dt=dt, gains_path=path)
+
+    ######## Specify a measurement of what we observe during simulation ########
+    cov_q = 0.0 * np.eye(3)
+    cov_v = 0.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
+    if model.params['delay_embedding']:
+        prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
+    else:
+        prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=True, S_q=cov_q, S_v=cov_v)
+    
+    # Pure SSM Manifold Observer
+    if model.LDO:
+        observer = SSMObserverLDO(model)
+    else:
+        observer = SSMObserver(model)
+
+    # Set up an EKF observer
+    # W = np.diag(np.ones(model.state_dim))
+    # V = 0.1 * np.eye(model.output_dim)
+    # observer = DiscreteEKFObserver(model, W=W, V=V)
+
+    # Define controller (wait 1 second of simulation time to start)
+    prob.controller = scp(model, QuadraticCost(), dt, N_replan=1, delay=1, feedback=False, EKF=observer)
+
+    # Saving paths
+    prob.opt['sim_duration'] = sim_duration
+    prob.simdata_dir = path
+    prob.opt['save_prefix'] = save_prefix
+
+    return prob
+
+def run_gusto_solver_LDO():
+    """
+    python3 diamond_SSM.py run_gusto_solver_LDO
+    """
+    from sofacontrol.scp.models.ssm import SSMGuSTO
+    from sofacontrol.measurement_models import linearModel, OutputModel
+    from sofacontrol.scp.ros import runGuSTOSolverNode
+    from sofacontrol.utils import HyperRectangle, load_data, save_data, qv2x, Polyhedron, CircleObstacle, \
+        drawContinuousPath, resample_waypoints, generateModel, createTargetTrajectory, createControlConstraint, \
+        createObstacleConstraint
+    from sofacontrol.SSM import ssm
+    from scipy.io import loadmat
+    import pickle
+    
+    ######## User Options ########
+    saveControlTask = True
+    createNewTask = True
+    N = 3
+
+    ###### Circle Parameters ######
+    # Control Task Params
+    controlTask = "figure8" # figure8, circle, or custom
+    trajAmplitude = 30.
+    trajFreq = None # rad/s # 15, 20, 25, 30, 35
+    z_offset = None
+    
+    # controlTask = "circle" # figure8, circle, or custom
+    # trajAmplitude = 10.
+    # trajFreq = None # rad/s # 15, 20, 25, 30, 35
+    # z_offset = 107.
+    
+    outdofs = [0, 1, 2]
+
+    # Constrol Constraints
+    u_min, u_max = 0.0, 4200.0
+    du_max = None
+
+
+    ######## Generate SSM model and setup control task ########
+    # Set directory for SSM Models
+    pathToModel = path + '/SSMmodels/'
+    # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
+    model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType, isLinear=True if modelType == 'linear' else False, 
+                          Nper=Nper, dt=dt, gains_path=path)
+    
+    # Define target trajectory for optimization
+    trajDir = join(path, "control_tasks")
+    taskFile = join(trajDir, controlTask + ".pkl")
+    taskParams = {}
+    
+    if createNewTask:
+        ######## Define the trajectory ########
+        zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, 
+                                              freq=trajFreq, Mper=Mper, Tper=Tper, outdofs=outdofs, z_offset=z_offset)
+        z = model.zfyf_to_zy(zf=zf_target)
+
+        ######## Define a new state constraint (q, v) format ########
+        ## Format [constraint number, variable/state number]
+        
+        # Obstacle avoidance constraint
+        # X = createObstacleConstraint(model.output_dim, model.y_ref, obstacleDiameter, obstacleLoc)
+        # No constraint
+        X = None
+
+        ######## Define new control constraint ########
+        U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+        # U, dU = None, None
+
+        ######## Save Target Trajectory and Constraints ########
+        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        if saveControlTask:
+            save_data(taskFile, taskParams)
+    else:
+        taskParams = load_data(taskFile)
+
+        taskParams['U'], taskParams['dU'] = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+
+        if taskParams['z'].shape[1] < model.output_dim:
+            taskParams['z'] = np.hstack((taskParams['z'], np.zeros((taskParams['z'].shape[0], model.output_dim - taskParams['z'].shape[1]))))
+
+    ######## Cost Function ########
+    #############################################
+    # Problem 1, X-Y plane cost function
+    #############################################
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    R = .000001 * np.eye(model.input_dim)
+
+    #############################################
+    # Problem 2, X-Y-Z plane cost function
+    #############################################
+    # R = 0.0 * np.eye(model.input_dim) # 0.00001
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
+
+    # Define initial condition to be x_ref for initial solve
+    x0 = np.zeros(model.state_dim)
+
+    # Define GuSTO model
+    gusto_model = SSMGuSTO(model)
+    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
+                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
+                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
 
 def run_scp_OL():
     """
@@ -415,5 +594,7 @@ if __name__ == '__main__':
         module_test()
     elif sys.argv[1] == 'run_gusto_solver':
         run_gusto_solver()
+    elif sys.argv[1] == 'run_gusto_solver_LDO':
+        run_gusto_solver_LDO()
     else:
         raise RuntimeError('Not a valid function argument')

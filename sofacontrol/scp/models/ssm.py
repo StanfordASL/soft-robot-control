@@ -29,6 +29,10 @@ class SSMGuSTO(TemplateModel):
         self.n_u = self.dyn_sys.get_input_dim()
         self.n_z = self.H.shape[0]
 
+        if self.dyn_sys.LDO:
+            self.n_d = self.dyn_sys.Nid
+            self.Nper = self.dyn_sys.Nper
+
         # Observer Type
         self.nonlinear_observer = self.dyn_sys.nonlinear_observer
 

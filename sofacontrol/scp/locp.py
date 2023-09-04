@@ -39,11 +39,14 @@ class LOCP:
         self.verbose = verbose
         self.warm_start = warm_start
         self.nonlinear_observer = kwargs.pop('nonlinear_observer', False)
+        # self.LDO = kwargs.pop('LDO', False)
+
 
         # Ensure we have a self.H in SSM class such that 2nd dim is dim of RO state
         self.n_x = H.shape[1]
         self.n_z = Qz.shape[0]
         self.n_u = R.shape[0]
+        self.n_d = self.n_z # TODO: Assume disturbance is same dimension as state
 
         # Characteristic values for scaling
         if x_char is None:
@@ -82,6 +85,9 @@ class LOCP:
             self.Bd = [cp.Parameter((self.n_x, self.n_u)) for i in range(self.N)]
             self.dd = cp.Parameter(self.N * self.n_x)
 
+            # Disturbance variable
+            self.d = cp.Parameter((self.N + 1) * self.n_d)
+
             # Adding observer linearization parameters here. Expect parameters to be None
             # if dynamics class has nonlinear_observer = False. In this case this class should
             # use self.H as shown above. This seems to be different from when not warm_starting
@@ -103,7 +109,7 @@ class LOCP:
             self.problem_setup()
             print('First solve may take a while due to factorization and caching.')
 
-    def update(self, Ad, Bd, dd, x0, xk, delta, omega, z=None, zf=None, u=None, full=True, **kwargs):
+    def update(self, Ad, Bd, dd, x0, xk, delta, omega, z=None, zf=None, u=None, d=None, full=True, **kwargs):
         """
         Update the potentially changing LOCP data. xk is updated solution trajectory
         """
@@ -116,6 +122,11 @@ class LOCP:
                     self.z.value = np.ravel(z)
                 else:
                     self.z.value = np.zeros((self.N + 1) * self.n_z)  # default set to 0
+
+                if d is not None:
+                    self.d.value = np.ravel(d)
+                else:
+                    self.d.value = np.zeros((self.N + 1) * self.n_d)
 
                 if u is not None:
                     self.u_des.value = np.ravel(u)
@@ -165,6 +176,11 @@ class LOCP:
                 self.z = np.ravel(z)
             else:
                 self.z = np.zeros((self.N + 1) * self.n_z)
+            
+            if d is not None:
+                self.d.value = np.ravel(d)
+            else:
+                self.d.value = np.zeros((self.N + 1) * self.n_d)
 
             if u is not None:
                 self.u_des = np.ravel(u)
@@ -249,6 +265,8 @@ class LOCP:
         # Performance cost (we expect all trajectories to be non-shifted i.e., about origin)
         # Assuming a map from reduced-ordered state to performance variable (which we linearize)
         Qzfull = sp.csc_matrix(block_diag(*[self.Qz for j in range(self.N + 1)]))
+
+        # TODO: (LDO) Add affine disturbance term here or build QP based on Eqn 18 in paper
         if self.nonlinear_observer:
             cdfull = np.reshape(self.cd, ((self.N+1)*self.n_z,)) if isinstance(self.cd, list) else \
                 reshape(self.cd, ((self.N+1)*self.n_z,))
@@ -262,10 +280,10 @@ class LOCP:
                 Hfull = cp.bmat(Hfull)
             else:
                 Hfull = block_diag(*[self.Hd[j] for j in range(self.N + 1)])
-            J += cp.quad_form(Hfull @ self.x + cdfull - self.z, Qzfull)
+            J += cp.quad_form(Hfull @ self.x + cdfull + self.d - self.z, Qzfull)
         else:
             Hfull = block_diag(*[self.H for j in range(self.N + 1)])
-            J += cp.quad_form(Hfull @ self.x - self.z, Qzfull)
+            J += cp.quad_form(Hfull @ self.x + self.d - self.z, Qzfull)
 
         # Add optional terminal cost
         if self.Qzf is not None:
@@ -304,6 +322,7 @@ class LOCP:
             Adfull = block_diag(*self.Ad)
             Bdfull = block_diag(*self.Bd)
 
+        # constr += [self.x[self.n_x:] == Adfull @ self.x[:-self.n_x] + Bdfull @ self.u + self.dd + self.d[:-self.n_d]]
         constr += [self.x[self.n_x:] == Adfull @ self.x[:-self.n_x] + Bdfull @ self.u + self.dd]
 
         # Trust region constraints

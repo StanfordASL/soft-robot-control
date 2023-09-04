@@ -48,6 +48,75 @@ class SSMObserver:
         else:
             self.x = self.dyn_sys.V_map(y)
 
+class SSMObserverLDO:
+    def __init__(self, dyn_sys):
+        self.z = None
+        self.x = None
+        self.d = None
+        self.dyn_sys = dyn_sys
+        self.err = None
+
+        # Initialize based on observable equilibrium position
+        self.initialize(jnp.zeros(self.dyn_sys.obs_dim))
+    
+    def initialize(self, y):
+        """
+        Initialize the reduced order state estimate. By default the state is initialized in __init__
+        to x_ref, but the user can override if desired
+        """
+        # Compute x based on current observation (q, v)
+        y = jnp.asarray(y)
+        self.x = self.dyn_sys.observed_to_reduced(y)
+        self.d = jnp.zeros(self.dyn_sys.Nid * self.dyn_sys.Nper)
+        self.err = jnp.zeros(self.dyn_sys.output_dim)
+    
+    def predict_state(self, u, dt):
+        """
+        Predictor update step
+        :param u: input at timestep k
+        :dt: timestep (s)
+        """
+        # Get linearizations of reduced dynamics at current state x
+        u = jnp.asarray(u)
+        A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, u, dt)
+
+        # Get current timestep disturbance
+        d_curr = self.d[:self.dyn_sys.Nid]
+
+        self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bd @ d_curr
+        self.d = self.dyn_sys.Sd @ self.d
+    
+    def update(self, u, y, dt, **kwargs):
+        """
+        Full EKF
+        :param u: input at timestep k
+        :param y: measurement at timestep k+1
+        :dt: timestep (s)
+        """
+        u = jnp.asarray(u)
+        y = jnp.asarray(y)
+        self.predict_state(u, dt)
+        self.update_state(y)
+    
+    def update_state(self, y):
+        """
+        Filter update step
+        for details
+        :param y: (centered) measurement at timestep k+1
+        :return x: updated state based on measurement (x_{k+1|k+1})
+        """
+
+        # Jacobian of manifold mapping (This is predicted x)
+        y = jnp.asarray(y)
+        d_curr = self.d[:self.dyn_sys.Nid]
+
+        self.err = self.dyn_sys.C @ y - self.dyn_sys.reduced_to_output(jnp.array(self.x)) - self.dyn_sys.Cd @ d_curr
+
+        self.x = self.x + self.dyn_sys.Lx @ self.err
+        self.d = self.d + self.dyn_sys.Ld @ self.err
+
+        return self.x
+
 class DiscreteEKFObserver:
     """
     Updates the belief state mean and covariance using the Extended Kalman Filter framework. We consider C is

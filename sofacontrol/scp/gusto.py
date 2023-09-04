@@ -60,6 +60,7 @@ class GuSTO:
         self.n_x = x0.shape[0]
         self.n_u = R.shape[0]
         self.n_z = Qz.shape[0]
+        self.n_d = self.n_x # TODO: Assumes disturbace is same dimension as state
         self.dt = dt
         self.N = N  # time horizon
 
@@ -313,7 +314,7 @@ class GuSTO:
 
         return G_d, b_d
 
-    def solve(self, x0, u_init, x_init, z=None, zf=None, u=None):
+    def solve(self, x0, u_init, x_init, z=None, zf=None, u=None, d=None):
         """
         :x0: initial condition np.array
         :u_init: control initial guess (N, n_u)
@@ -321,6 +322,7 @@ class GuSTO:
         :z: (optional) desired tracking trajectory for objective function (N+1, n_z)
         :zf: (optional) desired terminal state for objective function (n_z,)
         :u: (optional) desired control for objective function (N, n_z)
+        :d: (optional) estimated disturbance state (n_d * Nper,)
         """
         # Timing information to be stored
         t0 = time.time()
@@ -348,6 +350,11 @@ class GuSTO:
             G_d, b_d = self.get_obstacleConstraint_linearization(self.x_k, self.X.center)
         else:
             G_d, b_d = None, None
+        
+        if d is not None:
+            d_k = d[:self.model.dyn_sys.Nid * (self.N + 1)] # TODO: ensure dyn_sys.Nid exists
+        else:
+            d_k = None
 
         t_jac = time.time()
         # TODO: Timing computations
@@ -375,14 +382,15 @@ class GuSTO:
             omega_cur = omega  # just for printing
 
             # Update the LOCP with new parameters and solve
+            # TODO: Pass d_k as an argument to update
             if new_solution:
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
-                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d)
+                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, d=d_k)
                 new_solution = False
             else:
                 # Build new problem if no new solution
                 self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
-                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, full=False)
+                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, d=d_k, full=False)
 
             # TODO: Timing computations
             print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))

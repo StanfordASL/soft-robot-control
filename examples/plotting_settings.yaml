@@ -7,8 +7,8 @@ traj_dir: ""
 
 show: {
     'ssmr_delays': False, # Full obsevables
-    'ssmr_posvel': True, # pos-vel
-    'ssmr_singleDelay': True, # Single delay embedding
+    'ssmr_posvel': False, # pos-vel
+    'ssmr_singleDelay': False, # Single delay embedding
     'ssmr_linear': True, # Linear model
     # Adiabatic SSM settings
     'ssmr_nnssm': False,
@@ -140,8 +140,8 @@ alpha: {
     'target': 1.5
 }
 
-select_target: "circle"
-# select_target: "figure8"
+# select_target: "circle"
+select_target: "figure8"
 # Figure8 target
 define_targets: {
     figure8: {

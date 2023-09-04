@@ -53,8 +53,11 @@ class ClosedLoopController(Sofa.Core.Controller):
             "z": [],
             "u": [],
             "z_hat": [],
+            "x_hat": [],
             "q": [],
-            "x": []
+            "x": [],
+            "d": [],
+            "err": []
         }
         self.auto_paused = False
 
@@ -84,6 +87,13 @@ class ClosedLoopController(Sofa.Core.Controller):
 
             # Evaluate belief state of observer
             self.sim_data["z_hat"].append(self.controller.observer.z)
+            self.sim_data["x_hat"].append(self.controller.observer.x)
+
+            # LDO Observer
+            if self.controller.dyn_sys.LDO:
+                self.sim_data["d"].append(self.controller.observer.d)
+                self.sim_data["err"].append(self.controller.observer.err)
+                # print("innovation: ", self.controller.observer.err)
 
     def onAnimateEndEvent(self, params):
         if self.sim_duration is not None:
@@ -124,6 +134,7 @@ class ClosedLoopController(Sofa.Core.Controller):
         save_data["u"] = np.asarray(save_data["u"])
         save_data["z"] = np.asarray(save_data["z"])
         save_data["z_hat"] = np.asarray(save_data["z_hat"])
+        save_data["d"] = np.asarray(save_data["d"])
         save_data["Hf"] = csc_matrix(self.output.C)
         if not 'info' in self.sim_data:
             save_data['info'] = self.controller.save_controller_info()

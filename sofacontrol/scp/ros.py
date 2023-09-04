@@ -96,7 +96,7 @@ class GuSTOSolverNode(Node):
     def gusto_callback(self, request, response):
         """
         Callback function that runs when the service is queried, request message contains:
-        t0, x0
+        t0, x0, and possibly d0 (disturbance)
 
         and the response message will contain:
 
@@ -104,6 +104,10 @@ class GuSTOSolverNode(Node):
         """
         t0 = request.t0
         x0 = arr2np(request.x0, self.model.n_x, squeeze=True)
+        if len(request.d0) == []:
+            d0 = arr2np(request.d0, self.model.n_d * self.model.Nper, squeeze=True) # TODO: Ensure self.model.n_d exists
+        else:
+            d0 = None
 
         # Get target values at proper times by interpolating
         z, zf, u = self.get_target(t0)
@@ -132,7 +136,7 @@ class GuSTOSolverNode(Node):
         x_init[0:self.N + 1 - idx0] = self.xopt[idx0:, :]
 
         # Solve GuSTO and get solution
-        self.gusto.solve(x0, u_init, x_init, z=z, zf=zf, u=u)
+        self.gusto.solve(x0, u_init, x_init, z=z, zf=zf, u=u, d=d0)
         self.xopt, self.uopt, zopt, t_solve = self.gusto.get_solution()
 
         self.topt = t0 + self.dt * np.arange(self.N + 1)
@@ -165,7 +169,11 @@ class GuSTOSolverNode(Node):
         else:
             zf = None
 
+        # TODO: Generate periodic reference
         # Get target u terms for cost function
+        # if self.dyn_sys.LDO:
+
+        # else:
         if self.u is not None:
             if self.u.ndim == 2:
                 u = self.u_interp(t)
@@ -175,6 +183,9 @@ class GuSTOSolverNode(Node):
             u = None
 
         return z, zf, u
+    
+    # def get_uperiodic_ref(self, t0):
+
 
 
 class GuSTOClientNode(Node):
@@ -198,7 +209,7 @@ class GuSTOClientNode(Node):
         # Request message definition
         self.req = GuSTOsrv.Request()
 
-    def send_request(self, t0, x0, wait=True):
+    def send_request(self, t0, x0, wait=True, d0=None):
         """
         :param t0:
         :param x0:
@@ -207,6 +218,10 @@ class GuSTOClientNode(Node):
         """
         self.req.t0 = t0
         self.req.x0 = np2arr(x0)
+        if d0 is not None:
+            self.req.d0 = np2arr(d0)
+        else:
+            self.req.d0 = []
 
         self.future = self.cli.call_async(self.req)
 

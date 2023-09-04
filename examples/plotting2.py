@@ -11,6 +11,7 @@ import yaml
 import pickle
 from collections import defaultdict
 import matplotlib.gridspec as gridspec
+from sofacontrol.utils import generateModel
 
 
 from sofacontrol.measurement_models import linearModel
@@ -39,6 +40,7 @@ suptitlesize = 20*FONTSCALE
 plt.rc('figure', autolayout=True)
 
 SHOW_PLOTS = True
+plot_LDO = True
 
 with open(join(path, "plotting_settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)
@@ -60,6 +62,11 @@ for control in CONTROLS:
     idx = np.argwhere(control_data['t'] >= t0)[0][0]
     SIM_DATA[control]['t'] = control_data['t'][idx:] - control_data['t'][idx]
     SIM_DATA[control]['z'] = control_data['z'][idx:, 3:]
+    SIM_DATA[control]['x'] = np.asarray(control_data['x_hat'])[idx:, :]
+    # SIM_DATA[control]['z_hat'] = np.asarray(control_data['z_hat'])[idx:, :]
+    if plot_LDO:
+        SIM_DATA[control]['d'] = control_data['d'][idx:, :]
+        SIM_DATA[control]['err'] = np.asarray(control_data['err'])[idx:, :]
     if SETTINGS['robot'] == "trunk":
         SIM_DATA[control]['z'][:, 2] *= -1
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
@@ -90,18 +97,10 @@ SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
 if not exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
-# constrained = True
-# plot_rompc = False
-# if constrained:
-#     y_ub = 15
+path = join(path, SETTINGS['robot'])
+pathToModel = join(path, 'SSMmodels')
 
-# opt_controller = 'ssmr'
-# print(SIM_DATA[opt_controller]['info'].keys())
-# z_opt_rollout = SIM_DATA[opt_controller]['info']['z_rollout']
-# t_opt_rollout = SIM_DATA[opt_controller]['info']['t_rollout']
-# plot_rollouts = True
-# m_w = 30
-
+SSMmodel = generateModel(path, pathToModel, [model.TIP_NODE], model.N_NODES, modelType='linear', isLinear=True)
 
 def traj_x_vs_y():
     """Plot trajectory via x vs. y"""
@@ -129,6 +128,7 @@ def traj_x_vs_y():
 
     for control in CONTROLS:
         zf_target = f(SIM_DATA[control]['t'][:-2])
+        idx = 0 # int(0.9 * zf_target[:, 0].shape[0])
 
         # Don't center coordinates if koopman
         if control == "koopman":
@@ -136,13 +136,13 @@ def traj_x_vs_y():
         else:
             z_centered = SIM_DATA[control]['z'] - Z_EQ
 
-        ax.plot(z_centered[:-2, 0], z_centered[:-2, 1],
+        ax.plot(z_centered[idx:-2, 0], z_centered[idx:-2, 1],
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'][control],
                 ls=SETTINGS['linestyle'][control], markevery=20,
                 alpha=1.)
-    ax.plot(zf_target[:, 0], zf_target[:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+    ax.plot(zf_target[idx:, 0], zf_target[idx:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
     ax.set_ylabel(r'$y_{ee}$ [mm]')
@@ -211,7 +211,8 @@ def traj_xy_vs_t():
 
     for ax, coord in [(ax1, 0), (ax2, 1)]:
         for control in CONTROLS: # + ['target']:
-            zf_target = f(SIM_DATA[control]['t'])
+            # SIM_DATA[control]['t'] = SIM_DATA[control]['t'][:-1] #TODO: hard-coded for now
+            zf_target = f(SIM_DATA[control]['t'][:-1])
 
             # Don't center coordinates if koopman
             if control == "koopman":
@@ -219,12 +220,12 @@ def traj_xy_vs_t():
             else:
                 z_centered = SIM_DATA[control]['z'] - Z_EQ
             
-            ax.plot(SIM_DATA[control]['t'][:-2], z_centered[:-2, coord],
+            ax.plot(SIM_DATA[control]['t'][:-1], z_centered[:-1, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],
                         ls=SETTINGS['linestyle'][control], markevery=20)
-        ax.plot(SIM_DATA[control]['t'], zf_target[:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        ax.plot(SIM_DATA[control]['t'][:-1], zf_target[:, coord-3], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
     ax1.set_ylabel(r'$x_{ee}$ [mm]')
     ax2.set_ylabel(r'$y_{ee}$ [mm]')
     ax2.set_xlabel(r'$t$ [s]')
@@ -240,6 +241,82 @@ def traj_xy_vs_t():
                 ax2.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
     
     ax2.legend()
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_xy_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    if SHOW_PLOTS:
+        plt.show()
+
+def disturbance_vs_t():
+    """Plot controlled trajectories as function of time"""
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+
+    # f = interp1d(target['t'], SIM_DATA[control]['d'], axis=0)
+
+    for ax, coord in [(ax1, 0), (ax2, 1)]:
+        for control in CONTROLS: # + ['target']:
+            ax.plot(SIM_DATA[control]['t'][:-1], SIM_DATA[control]['d'][:-1, :6][:, coord],
+                        color=SETTINGS['color'][control],
+                        label=SETTINGS['display_name'][control],
+                        linewidth=SETTINGS['linewidth'][control],
+                        ls=SETTINGS['linestyle'][control], markevery=20)
+    ax1.set_ylabel(r'$x_{1}$ [mm]')
+    ax2.set_ylabel(r'$x_{2}$ [mm]')
+    ax2.set_xlabel(r'$t$ [s]')
+
+
+    if SETTINGS['plot_mpc_rollouts']:
+        idx = 0
+        for idx in range(np.shape(z_opt_rollout)[0]):
+            if idx % 2 == 0:
+                z_horizon = z_opt_rollout[idx]
+                t_horizon = t_opt_rollout[idx]
+                ax1.plot(t_horizon, z_horizon[:, 0], 'tab:red', marker='o', markevery=2)
+                ax2.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
+    
+    ax2.legend()
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_xy_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    if SHOW_PLOTS:
+        plt.show()
+
+def innovation_vs_t():
+    """Plot controlled trajectories as function of time"""
+    
+    # fig, ax= plt.subplots(1, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+
+    # # f = interp1d(target['t'], SIM_DATA[control]['d'], axis=0)
+
+    # for control in CONTROLS: # + ['target']:
+    #     ax.plot(SIM_DATA[control]['t'][:-1], np.linalg.norm(SIM_DATA[control]['err'][:-1, :6], axis=1),
+    #                 color=SETTINGS['color'][control],
+    #                 label=SETTINGS['display_name'][control],
+    #                 linewidth=SETTINGS['linewidth'][control],
+    #                 ls=SETTINGS['linestyle'][control], markevery=20)
+    # ax.set_ylabel(r'Innovation [mm]')
+    # ax.set_xlabel(r'$t$ [s]')
+
+    
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+
+    for ax, coord in [(ax1, 0), (ax2, 1)]:
+        for control in CONTROLS: # + ['target']:
+            ax.plot(SIM_DATA[control]['t'][:-1], SIM_DATA[control]['d'][:-1, :6][:, coord],
+                        color=SETTINGS['color'][control],
+                        linewidth=SETTINGS['linewidth'][control],
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = 'Disturbance')
+            ax.plot(SIM_DATA[control]['t'][:-1], SIM_DATA[control]['err'][:-1, :6][:, coord],
+                color='tab:blue',
+                linewidth=SETTINGS['linewidth'][control],
+                ls='--',
+                label = 'Innovation')
+    ax1.set_ylabel(r'$x_{1}$ [mm]')
+    ax2.set_ylabel(r'$x_{2}$ [mm]')
+    ax2.set_xlabel(r'$t$ [s]')
+    ax1.legend()
+    ax2.legend()
+
+    ax.legend()
     plt.savefig(join(SAVE_DIR, f"{TARGET}_xy_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
     if SHOW_PLOTS:
         plt.show()
@@ -357,6 +434,110 @@ def rmse_calculations():
     if SHOW_PLOTS:
         plt.show()
 
+def plot_RMSE_v_t():
+    err = {}
+    rmse = {}
+
+    f = interp1d(target['t'], target['z'], axis=0)
+
+    for control in CONTROLS:
+        zf_target = f(SIM_DATA[control]['t'][:-1])
+        
+        # Don't center coordinates if koopman
+        if control == "koopman":
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
+        # if control == "ssmr_origin":
+        #     z_centered = z_centered[:-1, :]
+        if (TARGET == "circle" and SETTINGS['robot'] == "hardware") or (TARGET == "custom" and SETTINGS['robot'] == "hardware"):
+            # errors are to be measured in 3D
+            err[control] = (z_centered[:-1, :] - zf_target)
+        else:
+            # errors are to be measured in 2D
+            err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
+        rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
+
+    """Plot RMSE as function of time"""
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
+    for control in CONTROLS:
+        ax.plot(SIM_DATA[control]['t'][:-1], np.linalg.norm(err[control], axis=1),
+                color=SETTINGS['color'][control],
+                label=SETTINGS['display_name'][control],
+                linewidth=SETTINGS['linewidth'][control],
+                ls=SETTINGS['linestyle'][control], markevery=20)
+    ax.set_xlabel(r'$t$ [s]')
+    ax.set_ylabel(r'RMSE [mm]')
+    ax.legend()
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_RMSE_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    if SHOW_PLOTS:
+        plt.show()
+
+def plot_trueDist_v_t():
+    err = {}
+    rmse = {}
+
+    f = interp1d(target['t'], target['z'], axis=0)
+
+    for control in CONTROLS:
+        zf_target = f(SIM_DATA[control]['t'][:-1])
+        zhat = SSMmodel.reduced_to_output(SIM_DATA[control]['x'][:-1, :].T)
+        
+        # Don't center coordinates if koopman
+        if control == "koopman":
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
+        # if control == "ssmr_origin":
+        #     z_centered = z_centered[:-1, :]
+        if (TARGET == "circle" and SETTINGS['robot'] == "hardware") or (TARGET == "custom" and SETTINGS['robot'] == "hardware"):
+            # errors are to be measured in 3D
+            err[control] = (z_centered[:-1, :] - zf_target)
+        else:
+            # errors are to be measured in 2D
+            err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
+        rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
+
+    """Plot disturbance as function of time"""
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+    
+    for ax, coord in [(ax1, 0), (ax2, 1)]:
+        for control in CONTROLS: # + ['target']:
+            # ax.plot(SIM_DATA[control]['t'][:-1], SIM_DATA[control]['d'][:-1, :6][:, coord],
+            #             color=SETTINGS['color'][control],
+            #             linewidth=SETTINGS['linewidth'][control],
+            #             ls=SETTINGS['linestyle'][control], markevery=20,
+            #             label = 'Disturbance')
+            ax.plot(SIM_DATA[control]['t'][:-1], err[control][:, coord],
+                color='tab:blue',
+                linewidth=SETTINGS['linewidth'][control],
+                ls='--',
+                label = 'Tracking Error')
+            # TODO: Plot Cx - y and compare with disturbance
+            ax.plot(SIM_DATA[control]['t'][:-1], z_centered[:-1, coord],
+                        color='tab:green',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'y - C$\hat{x}$',
+                        alpha=0.7)
+            ax.plot(SIM_DATA[control]['t'][:-1], zhat.T[:, coord] + SIM_DATA[control]['d'][:-1, :6][:, coord],
+            color='tab:blue',
+            linewidth=0.5,
+            ls=SETTINGS['linestyle'][control], markevery=20,
+            label = r'y - C$\hat{x}$',
+            alpha=1.0)
+    ax1.set_ylabel(r'$x$ [mm]')
+    ax2.set_ylabel(r'$y$ [mm]')
+    ax2.set_xlabel(r'$t$ [s]')
+    ax1.legend()
+    ax2.legend()
+    
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_RMSE_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    if SHOW_PLOTS:
+        plt.show()
 
 def violation_calculations():
     """Compute, display and plot fraction of constraint violations for all controllers"""
@@ -882,8 +1063,12 @@ if __name__ == "__main__":
     # traj_inputs_vs_t()
     # traj_x_vs_y()
     # traj_xy_vs_t()
+    # disturbance_vs_t()
+    # plot_RMSE_v_t()
+    plot_trueDist_v_t()
+    # innovation_vs_t()
     # traj_xyz_vs_t()
 
     # plotTrunkResults()
     # plotDiamondResults()
-    plotDiamondTrials()
+    # plotDiamondTrials()

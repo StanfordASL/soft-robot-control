@@ -143,14 +143,21 @@ class TemplateController(closed_loop_controller.TemplateController):
                 self.observer.update(u_prev, y_belief, self.dt)
 
                 if self.recompute_policy(self.t_compute):
-                    self.compute_policy(self.t_compute, self.observer.x)
+                    if self.dyn_sys.LDO:
+                        self.compute_policy(self.t_compute, self.observer.x, self.observer.d)
+                    else:
+                        self.compute_policy(self.t_compute, self.observer.x)
 
                 self.u = self.compute_input(self.t_compute, self.observer.x)
 
                 self.t_compute += self.dt  # Increment t_compute
                 self.t_compute = round(self.t_compute, 4)
 
-        self.u = np.atleast_1d(self.u)
+        if self.dyn_sys.LDO:
+            self.u = np.atleast_1d(self.u) # + 100. * np.array([1., 0., 0., 0.]) # TODO: THIS IS HARDCODED - REMOVE THIS!!!!!!
+        else:
+            self.u = np.atleast_1d(self.u)
+
         return self.u.copy()  # Returns copy of self.u
 
     def save_controller_info(self):
@@ -196,7 +203,7 @@ class scp(TemplateController):
         self.GuSTO = GuSTOClientNode()
         self.feedback = kwargs.pop('feedback', False)
 
-    def compute_policy(self, t_step, x_belief):
+    def compute_policy(self, t_step, x_belief, d_belief=None):
         """
         Policy computed online based on observer belief state and current time
         """
@@ -206,16 +213,16 @@ class scp(TemplateController):
         # If the controller hasn't been initialized yet start with x_belief and solve
         if not self.initialized:
             # x_belief = self.dyn_sys.rom.compute_RO_state(xf=self.dyn_sys.rom.x_ref)
-            self.run_GuSTO(t_step, x_belief, wait=True)  # Upon instantiation always wait
+            self.run_GuSTO(t_step, x_belief, wait=True, d_belief=d_belief)  # Upon instantiation always wait
             self.update_policy(init=True)
             self.initialized = True
         else:
-            self.run_GuSTO(t_step, x_belief, wait=self.wait)
+            self.run_GuSTO(t_step, x_belief, wait=self.wait, d_belief=d_belief)
             self.update_policy()
 
-    def run_GuSTO(self, t0, x0, wait):
+    def run_GuSTO(self, t0, x0, wait, d_belief=None):
         # Instantiate the GuSTO problem over the horizon
-        self.GuSTO.send_request(t0, x0, wait=wait)
+        self.GuSTO.send_request(t0, x0, wait=wait, d0=d_belief)
 
     def recompute_policy(self, t_step):
         step = round(round(t_step, 4) / self.dt)

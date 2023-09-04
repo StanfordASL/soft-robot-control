@@ -686,9 +686,10 @@ def norm2Linearize(x, y, dt, P=None):
     return A, c
 
 """
-    Create a new target trajectory. TODO: Assume outdofs are [0, 1, 2]
+    Create a new target trajectory. TODO: Assume outdofs are [0, 1, 2].
+    TODO: Mper and Tper are currently only for Figure 8
 """
-def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None, outdofs=[0, 1, 2], z_offset=None, repeat_traj=1):
+def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None, outdofs=[0, 1, 2], z_offset=None, repeat_traj=1, Mper=1., Tper=10.):
     if controlTask == 'custom':
         # Check if the trajectory is along z-plane
         if outdofs == [0, 1, 2]:
@@ -710,8 +711,8 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         zf_target[:, outdofs[1]] = y_target
     elif controlTask == "figure8":
         # === figure8 ===
-        M = 1
-        T = 10
+        M = Mper
+        T = Tper
         N = 1000
         radius = amplitude
         t = np.linspace(0, M * T, M * N + 1)
@@ -742,21 +743,21 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             print(zf_target.shape)
             t = np.linspace(0, M * 10, M * 1000 + 1)
         elif robot == 'diamond':
-            M = 3
-            T = 5.
+            M = Mper
+            T = Tper
             N = 1000
-            t = np.linspace(0, M * T, M * N)
-            th = np.linspace(0, M * 2 * np.pi, M * N)
-            x_target = np.zeros(M * N)
+            t = np.linspace(0, M * T, M * N + 1)
+            th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+            x_target = np.zeros(M * N + 1)
             
             if freq is None:
                 y_target = amplitude * np.sin(th)
-                z_target = amplitude - amplitude * np.cos(th) + z_offset
+                z_target = amplitude - amplitude * np.cos(th)
             else:
                 y_target = amplitude * np.sin(freq * T / (2 * np.pi) * th)
                 z_target = amplitude - amplitude * np.cos(freq * T / (2 * np.pi) * th)
 
-            zf_target = np.zeros((M * N, output_dim))
+            zf_target = np.zeros((M * N + 1, output_dim))
             zf_target[:, outdofs[0]] = x_target
             zf_target[:, outdofs[1]] = y_target
             zf_target[:, outdofs[2]] = z_target
@@ -800,7 +801,7 @@ def load_full_equilibrium(root_path):
 """
     Generate a model. TODO: Only SSM for now
 """
-def generateModel(root_path, pathToModel, nodes, num_nodes, modelType=None, isLinear=False):
+def generateModel(root_path, pathToModel, nodes, num_nodes, modelType=None, isLinear=False, Nper=None, **kwargs):
     from sofacontrol.SSM import ssm
     import sofacontrol.measurement_models as msm
 
@@ -829,7 +830,7 @@ def generateModel(root_path, pathToModel, nodes, num_nodes, modelType=None, isLi
         Cout = None
 
     model = ssm.SSMDynamics(z_eq_point, discrete=False, discr_method='be',
-                            model=raw_model, params=raw_params, C=Cout, isLinear=isLinear)
+                            model=raw_model, params=raw_params, C=Cout, isLinear=isLinear, Nper=Nper, **kwargs)
 
     return model
 
@@ -946,17 +947,16 @@ def create_circ_matrix(nd, Nperiod: int):
 
     return matrix
 
-def get_LDO_disturbance_matrices(Bd, Cd, Nperiod: int):
+"""
+    Shift the disturbance vector by nd at each period. Only used for disturbance estimate
+"""
+def get_LDO_disturbance_matrices(Bd, Nperiod: int):
     # Get dimensions
     nd = Bd.shape[1]
 
-    Ashift = create_circ_matrix(nd, Nperiod)
-    Bpick = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
+    Sd = create_circ_matrix(nd, Nperiod)
 
-    Bd = Bd @ Bpick
-    Cd = Cd @ Bpick
-
-    return Ashift, Bd, Cd
+    return Sd
 
 def get_LDO_LTI(A, B, C, Bd, Cd, Nperiod: int):
     # Get dimensions
@@ -964,7 +964,7 @@ def get_LDO_LTI(A, B, C, Bd, Cd, Nperiod: int):
     nu = B.shape[1]
     nd = Bd.shape[1]
 
-    # As ooposed to lift_LTI, we now have Nperiod copies of the disturbance vector
+    # As opposed to lift_LTI, we now have Nperiod copies of the disturbance vector
     # Ashift should be of size (Nperiod*nd, Nperiod*nd)
     # It should shift the disturbance vector by nd at each period
     Ashift = create_circ_matrix(nd, Nperiod)
