@@ -227,6 +227,8 @@ class SSMDynamics(SSM):
         if self.Nper is not None:
             self.LDO = True
             dt = kwargs.get('dt')
+            self.Tper = kwargs.get('Tper')
+
             gains_path = join(kwargs.get('gains_path'), 'Lgains.pkl')
             if self.isLinear:
                 self.Nid = self.output_dim # TODO: Set this
@@ -236,7 +238,8 @@ class SSMDynamics(SSM):
                 self.Cd = np.eye(self.Nid)
 
                 # TODO: Modify gains here!!!!! Define LDO cost for LQE
-                Qw_per = block_diag(np.eye(self.state_dim), 1. * np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
+                Qw_per = block_diag(np.eye(self.state_dim), 10. * np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
+                # Qw_per = block_diag(np.eye(self.state_dim), 2. * np.eye(self.Nid), 10.*np.eye(self.Nid*self.Nper-self.Nid))
                 Rv_per = np.eye(self.output_dim)
 
                 # Get shifting matrix

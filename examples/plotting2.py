@@ -12,6 +12,7 @@ import pickle
 from collections import defaultdict
 import matplotlib.gridspec as gridspec
 from sofacontrol.utils import generateModel
+from matplotlib import cm  # import the colormap
 
 
 from sofacontrol.measurement_models import linearModel
@@ -40,7 +41,6 @@ suptitlesize = 20*FONTSCALE
 plt.rc('figure', autolayout=True)
 
 SHOW_PLOTS = True
-plot_LDO = True
 
 with open(join(path, "plotting_settings.yaml"), "rb") as f:
     SETTINGS = yaml.safe_load(f)
@@ -62,16 +62,18 @@ for control in CONTROLS:
     idx = np.argwhere(control_data['t'] >= t0)[0][0]
     SIM_DATA[control]['t'] = control_data['t'][idx:] - control_data['t'][idx]
     SIM_DATA[control]['z'] = control_data['z'][idx:, 3:]
-    SIM_DATA[control]['x'] = np.asarray(control_data['x_hat'])[idx:, :]
     # SIM_DATA[control]['z_hat'] = np.asarray(control_data['z_hat'])[idx:, :]
-    if plot_LDO:
+    if "LDO" in control:
         SIM_DATA[control]['d'] = control_data['d'][idx:, :]
         SIM_DATA[control]['err'] = np.asarray(control_data['err'])[idx:, :]
+        SIM_DATA[control]['x'] = np.asarray(control_data['x_hat'])[idx:, :]
     if SETTINGS['robot'] == "trunk":
         SIM_DATA[control]['z'][:, 2] *= -1
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
     SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
     SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
+    SIM_DATA[control]['info']['z_rollout'] = control_data['info']['z_rollout']
+    SIM_DATA[control]['info']['t_rollout'] = control_data['info']['t_rollout']
 
 print("=== SOFA equilibrium point ===")
 # Load equilibrium point
@@ -128,21 +130,26 @@ def traj_x_vs_y():
 
     for control in CONTROLS:
         zf_target = f(SIM_DATA[control]['t'][:-2])
-        idx = 0 # int(0.9 * zf_target[:, 0].shape[0])
+        idx = 0 #int(0.9 * zf_target[:, 0].shape[0])
 
         # Don't center coordinates if koopman
         if control == "koopman":
             z_centered = SIM_DATA[control]['z']- Z_EQ
         else:
             z_centered = SIM_DATA[control]['z'] - Z_EQ
+        
+        # Plot with color gradient
+        n_points = len(z_centered[idx:-2, 0])
+        colormap = cm.get_cmap('viridis', n_points)  # choose your colormap here
 
-        ax.plot(z_centered[idx:-2, 0], z_centered[idx:-2, 1],
-                color=SETTINGS['color'][control],
-                label=SETTINGS['display_name'][control],
-                linewidth=SETTINGS['linewidth'][control],
-                ls=SETTINGS['linestyle'][control], markevery=20,
-                alpha=1.)
-    ax.plot(zf_target[idx:, 0], zf_target[idx:, 1], color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+        for i in range(n_points-1):
+            color = colormap(i)
+            ax.plot(z_centered[i:i+2, 0], z_centered[i:i+2, 1],
+                    color=color,
+                    linewidth=SETTINGS['linewidth'][control],
+                    alpha=.5)
+            
+    ax.plot(zf_target[idx:, 0], zf_target[idx:, 1], color='tab:red', ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=3, label='Target', zorder=1)
 
     ax.set_xlabel(r'$x_{ee}$ [mm]')
     ax.set_ylabel(r'$y_{ee}$ [mm]')
@@ -164,7 +171,7 @@ def traj_x_vs_y():
     if SHOW_PLOTS:
         plt.show()
 
-def traj_3D():
+def traj_3D(time_gradient=False):
 
     fig = plt.figure(figsize=(8, 6))
     ax = plt.axes(projection='3d')
@@ -179,11 +186,24 @@ def traj_3D():
             z_centered = SIM_DATA[control]['z'] - Z_EQ
         else:
             z_centered = SIM_DATA[control]['z'] - Z_EQ
-        ax.plot(z_centered[:-2, 0], z_centered[:-2, 1], z_centered[:-2, 2],
-                color=SETTINGS['color'][control],
-                label=SETTINGS['display_name'][control],
-                linewidth=SETTINGS['linewidth'][control],
-                ls=SETTINGS['linestyle'][control], markevery=20)
+        if time_gradient:
+            # Plot with color gradient
+            n_points = len(z_centered[idx:-2, 0])
+            colormap = cm.get_cmap('viridis', n_points)  # choose your colormap here
+
+            for i in range(n_points-1):
+                color = colormap(i)
+                ax.plot(z_centered[i:i+2, 0], z_centered[i:i+2, 1], z_centered[i:i+2, 2],
+                        color=color,
+                        linewidth=SETTINGS['linewidth'][control],
+                        alpha=.5)
+        else:
+            ax.plot(z_centered[:-2, 0], z_centered[:-2, 1], z_centered[:-2, 2],
+                    color=SETTINGS['color'][control],
+                    label=SETTINGS['display_name'][control],
+                    linewidth=SETTINGS['linewidth'][control],
+                    ls=SETTINGS['linestyle'][control], markevery=20)
+            
     ax.plot(zf_target[:, 0], zf_target[:, 1], zf_target[:, 2],
             color=SETTINGS['color']['target'], ls=SETTINGS['linestyle']['target'], alpha=0.8, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
 
@@ -376,7 +396,7 @@ def traj_inputs_vs_t():
     for i, control in enumerate(CONTROLS):
         axs[i].plot(SIM_DATA[control]['t'], SIM_DATA[control]['u'],
                     label=SETTINGS['display_name'][control],
-                    linewidth=SETTINGS['linewidth'][control],
+                    linewidth=1,
                     ls=SETTINGS['linestyle'][control], markevery=20)
         axs[i].legend([rf"$u_{i}$" for i in range(1, SIM_DATA[control]['u'].shape[1]+1)])
         axs[i].set_xlabel(r'$t$ [s]')
@@ -474,6 +494,96 @@ def plot_RMSE_v_t():
     if SHOW_PLOTS:
         plt.show()
 
+def plot_trueDist_v_t_interp():
+    err = {}
+    rmse = {}
+
+    dt = 0.02
+    tf = target['t'][-1]
+    t_integrate = np.linspace(0.0, tf, int(tf/dt))
+
+    f = interp1d(target['t'], target['z'], axis=0)
+
+    for control in CONTROLS:
+        f_d = interp1d(t_integrate, SIM_DATA[control]['d'][::2, :][:-1, :], axis=0)
+        f_z = interp1d(t_integrate, SSMmodel.reduced_to_output(SIM_DATA[control]['x'].T).T[::2, :][:-1, :], axis=0) 
+        zf_target = f(SIM_DATA[control]['t'][:-1])
+        dhat = f_d(SIM_DATA[control]['t'][:-1])
+        zhat = f_z(SIM_DATA[control]['t'][:-1])
+        
+        # Don't center coordinates if koopman
+        if control == "koopman":
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
+        # if control == "ssmr_origin":
+        #     z_centered = z_centered[:-1, :]
+        if (TARGET == "circle" and SETTINGS['robot'] == "hardware") or (TARGET == "custom" and SETTINGS['robot'] == "hardware"):
+            # errors are to be measured in 3D
+            err[control] = (z_centered[:-1, :] - zf_target)
+        else:
+            # errors are to be measured in 2D
+            err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
+        rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
+
+    """Plot disturbance as function of time"""
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+    
+    for ax, coord in [(ax1, 0), (ax2, 1)]:
+        for control in CONTROLS: # + ['target']:
+            
+            z_opt_rollout = SIM_DATA[control]['info']['z_rollout'] - Z_EQ
+            t_opt_rollout = SIM_DATA[control]['info']['t_rollout']
+
+            # ax.plot(SIM_DATA[control]['t'][:-1], SIM_DATA[control]['d'][:-1, :6][:, coord],
+            #             color=SETTINGS['color'][control],
+            #             linewidth=SETTINGS['linewidth'][control],
+            #             ls=SETTINGS['linestyle'][control], markevery=20,
+            #             label = 'Disturbance')
+            # ax.plot(SIM_DATA[control]['t'][:-1], err[control][:, coord],
+            #     color='tab:blue',
+            #     linewidth=SETTINGS['linewidth'][control],
+            #     ls='--',
+            #     label = 'Tracking Error')
+            # TODO: Plot Cx - y and compare with disturbance
+            ax.plot(SIM_DATA[control]['t'][:-1], z_centered[:-1, coord],
+                        color='tab:green',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'$y_m$',
+                        alpha=0.7)
+            ax.plot(SIM_DATA[control]['t'][:-1], zhat[:, coord] + dhat[:, :6][:, coord],
+                        color='tab:blue',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'$C\hat{x} + \hat{d}$',
+                        alpha=1.0)
+            ax.plot(SIM_DATA[control]['t'][:-1], zf_target[:, coord],
+                        color='tab:purple',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'$r$',
+                        alpha=1.0)
+            
+            # # Plotting rollout
+            # for idx in range(np.shape(z_opt_rollout)[0]):
+            #     if idx % 30 == 0:
+            #         z_horizon = z_opt_rollout[idx]
+            #         t_horizon = t_opt_rollout[idx]
+            #         ax.plot(t_horizon, z_horizon[:, coord], 'tab:red', marker='o', markevery=2)
+
+    ax1.set_ylabel(r'$x$ [mm]')
+    ax2.set_ylabel(r'$y$ [mm]')
+    ax2.set_xlabel(r'$t$ [s]')
+    ax1.legend()
+    ax2.legend()
+    
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_RMSE_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    if SHOW_PLOTS:
+        plt.show()
+
 def plot_trueDist_v_t():
     err = {}
     rmse = {}
@@ -511,24 +621,31 @@ def plot_trueDist_v_t():
             #             linewidth=SETTINGS['linewidth'][control],
             #             ls=SETTINGS['linestyle'][control], markevery=20,
             #             label = 'Disturbance')
-            ax.plot(SIM_DATA[control]['t'][:-1], err[control][:, coord],
-                color='tab:blue',
-                linewidth=SETTINGS['linewidth'][control],
-                ls='--',
-                label = 'Tracking Error')
+            # ax.plot(SIM_DATA[control]['t'][:-1], err[control][:, coord],
+            #     color='tab:blue',
+            #     linewidth=SETTINGS['linewidth'][control],
+            #     ls='--',
+            #     label = 'Tracking Error')
             # TODO: Plot Cx - y and compare with disturbance
             ax.plot(SIM_DATA[control]['t'][:-1], z_centered[:-1, coord],
                         color='tab:green',
                         linewidth=0.5,
                         ls=SETTINGS['linestyle'][control], markevery=20,
-                        label = r'y - C$\hat{x}$',
+                        label = r'C$y_m$',
                         alpha=0.7)
             ax.plot(SIM_DATA[control]['t'][:-1], zhat.T[:, coord] + SIM_DATA[control]['d'][:-1, :6][:, coord],
-            color='tab:blue',
-            linewidth=0.5,
-            ls=SETTINGS['linestyle'][control], markevery=20,
-            label = r'y - C$\hat{x}$',
-            alpha=1.0)
+                        color='tab:blue',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'C$\hat{x} + \hat{d}$',
+                        alpha=1.0)
+            ax.plot(SIM_DATA[control]['t'][:-1], zf_target[:, coord],
+                        color='tab:purple',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'$r$',
+                        alpha=1.0)
+            
     ax1.set_ylabel(r'$x$ [mm]')
     ax2.set_ylabel(r'$y$ [mm]')
     ax2.set_xlabel(r'$t$ [s]')
@@ -728,7 +845,7 @@ def plotTrunkResults():
                 if y_axis_limits is None and j == 0 and k == 0 and l == 0:
                     y_axis_limits = ax.get_ylim()
 
-        # Middle row (Your bar plots)
+        # Middle row (Your bar plots)plot_trueDist_v_t_interp()
         ax = fig.add_subplot(gs[1, j])
         ax.set_title(titles[1][j])
         plot_bar_chart_for_multiple_dts(ax, rmse[task])
@@ -1056,16 +1173,17 @@ def plotDiamondResults():
 
 
 if __name__ == "__main__":
-    # TODO: Fix this using interpolation of the 
+    # TODO: Fix this using interpolation of the
     # violation_calculations()
     # rmse_calculations()
-    # traj_3D()
-    # traj_inputs_vs_t()
+    # traj_3D(time_gradient=True)
+    traj_inputs_vs_t()
     # traj_x_vs_y()
-    # traj_xy_vs_t()
+    traj_xy_vs_t()
     # disturbance_vs_t()
-    # plot_RMSE_v_t()
-    plot_trueDist_v_t()
+    plot_RMSE_v_t()
+    # plot_trueDist_v_t_interp()
+    # plot_trueDist_v_t()
     # innovation_vs_t()
     # traj_xyz_vs_t()
 

@@ -267,6 +267,7 @@ class LOCP:
         Qzfull = sp.csc_matrix(block_diag(*[self.Qz for j in range(self.N + 1)]))
 
         # TODO: (LDO) Add affine disturbance term here or build QP based on Eqn 18 in paper
+        # TODO: Disturbance is not being passed into cost somehow!!!!!
         if self.nonlinear_observer:
             cdfull = np.reshape(self.cd, ((self.N+1)*self.n_z,)) if isinstance(self.cd, list) else \
                 reshape(self.cd, ((self.N+1)*self.n_z,))
@@ -281,9 +282,11 @@ class LOCP:
             else:
                 Hfull = block_diag(*[self.Hd[j] for j in range(self.N + 1)])
             J += cp.quad_form(Hfull @ self.x + cdfull + self.d - self.z, Qzfull)
+            # J += cp.quad_form(Hfull @ self.x + cdfull - self.z, Qzfull) # Normal cost
         else:
             Hfull = block_diag(*[self.H for j in range(self.N + 1)])
             J += cp.quad_form(Hfull @ self.x + self.d - self.z, Qzfull)
+            # J += cp.quad_form(Hfull @ self.x - self.z, Qzfull) # Normal cost
 
         # Add optional terminal cost
         if self.Qzf is not None:

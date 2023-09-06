@@ -57,6 +57,7 @@ class GuSTOSolverNode(Node):
         self.model = model
         self.N = N
         self.dt = dt
+        self.N_replan = kwargs.pop('N_replan', 1)
 
         # Get characteristic values for GuSTO scaling
         x_char, f_char = self.model.get_characteristic_vals()
@@ -87,6 +88,12 @@ class GuSTOSolverNode(Node):
         self.xopt, self.uopt, _, _ = self.gusto.get_solution()
         self.topt = self.dt * np.arange(self.N + 1)
 
+        # Initialize history of uopt for LDO regularization
+        if self.model.dyn_sys.LDO:
+            u_opt_intp = interp1d(self.topt, np.vstack((self.uopt, self.uopt[-1, :])), axis=0)
+            self.topt_hist = self.dt * np.arange(self.N_replan + 1)
+            self.uopt_hist = u_opt_intp(self.topt_hist)
+
         # Initialize the ROS node
         super().__init__('gusto')
 
@@ -104,7 +111,7 @@ class GuSTOSolverNode(Node):
         """
         t0 = request.t0
         x0 = arr2np(request.x0, self.model.n_x, squeeze=True)
-        if len(request.d0) == []:
+        if len(request.d0) != 0:
             d0 = arr2np(request.d0, self.model.n_d * self.model.Nper, squeeze=True) # TODO: Ensure self.model.n_d exists
         else:
             d0 = None
@@ -146,6 +153,14 @@ class GuSTOSolverNode(Node):
         response.zopt = np2arr(zopt)
         response.solve_time = t_solve
 
+        # TODO: Store past history of uopt here similar to ROS class
+        if self.model.dyn_sys.LDO:
+            u_opt_intp = interp1d(self.topt, np.vstack((self.uopt, self.uopt[-1, :])), axis=0)
+            t_opt_new = self.topt_hist[-1] + self.dt * np.arange(self.N_replan + 1)
+            u_opt_new = u_opt_intp(np.round(t_opt_new, 4))
+            self.topt_hist = np.concatenate((self.topt_hist, t_opt_new[1:]))
+            self.uopt_hist = np.concatenate((self.uopt_hist[:-1, :], u_opt_new))
+
         return response
 
     def get_target(self, t0):
@@ -171,20 +186,24 @@ class GuSTOSolverNode(Node):
 
         # TODO: Generate periodic reference
         # Get target u terms for cost function
-        # if self.dyn_sys.LDO:
-
-        # else:
-        if self.u is not None:
-            if self.u.ndim == 2:
-                u = self.u_interp(t)
-            else:
-                u = self.u.reshape(1, -1).repeat(self.N)
+        if self.model.dyn_sys.LDO and t0 >= self.model.dyn_sys.Tper:
+            u = self.get_uperiodic_ref(t - self.model.dyn_sys.Tper)
         else:
-            u = None
+            if self.u is not None:
+                if self.u.ndim == 2:
+                    u = self.u_interp(t)
+                else:
+                    u = self.u.reshape(1, -1).repeat(self.N)
+            else:
+                u = None
 
         return z, zf, u
     
-    # def get_uperiodic_ref(self, t0):
+    # TODO: Implement periodic reference
+    def get_uperiodic_ref(self, t0):
+        u_opt_intp = interp1d(self.topt_hist, self.uopt_hist, axis=0)
+        return u_opt_intp(t0)[:-1, :]
+        
 
 
 

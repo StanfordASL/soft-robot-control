@@ -23,10 +23,10 @@ modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.02 # This dt for when to recalculate control
 
 ######## Generate LDO Parameters ########
-Mper = 10   # Number of periods to simulate
+Mper = 20   # Number of periods to simulate
 Tper = 2.  # Period of trajectory
-Nper = int(Tper / dt) + 1    # Number of points per period (this will be trigger for doing LDO)
-# Nper = None
+# Nper = int(Tper / dt) + 1    # Number of points per period (this will be trigger for doing LDO)
+Nper = None
 
 def run_scp():
     """
@@ -240,8 +240,11 @@ def run_scp_LDO():
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
     # Simulation settings
-    sim_duration = 21.
-    save_prefix = 'ssmr_' + modelType
+    sim_duration = 41.
+    if Nper is None:
+        save_prefix = 'ssmr_' + modelType
+    else:
+        save_prefix = 'ssmr_' + modelType + '_LDO'
 
     ######## Setup the Robot Environment and Type of Controller ########
     prob = Problem()
@@ -250,7 +253,7 @@ def run_scp_LDO():
 
     ######## Generate SSM Model ########
     model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType, isLinear=True if modelType == 'linear' else False,
-                          Nper=Nper, dt=dt, gains_path=path)
+                          Nper=Nper, dt=dt, gains_path=path, Tper=Tper)
 
     ######## Specify a measurement of what we observe during simulation ########
     cov_q = 0.0 * np.eye(3)
@@ -325,7 +328,7 @@ def run_gusto_solver_LDO():
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
     model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType, isLinear=True if modelType == 'linear' else False, 
-                          Nper=Nper, dt=dt, gains_path=path)
+                          Nper=Nper, dt=dt, gains_path=path, Tper=Tper)
     
     # Define target trajectory for optimization
     trajDir = join(path, "control_tasks")
@@ -370,12 +373,12 @@ def run_gusto_solver_LDO():
     Qz[0, 0] = 100  # corresponding to x position of end effector
     Qz[1, 1] = 100  # corresponding to y position of end effector
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    R = .000001 * np.eye(model.input_dim)
+    R = 0.001 * np.eye(model.input_dim) # 0.00001
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    # R = 0.0 * np.eye(model.input_dim) # 0.00001
+    # R = 0.001 * np.eye(model.input_dim) # 0.001
     # Qz = np.zeros((model.output_dim, model.output_dim))
     # Qz[0, 0] = 100.0  # corresponding to x position of end effector
     # Qz[1, 1] = 100.0  # corresponding to y position of end effector

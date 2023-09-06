@@ -10,6 +10,7 @@ show: {
     'ssmr_posvel': False, # pos-vel
     'ssmr_singleDelay': False, # Single delay embedding
     'ssmr_linear': True, # Linear model
+    'ssmr_linear_LDO': True, # LDO model
     # Adiabatic SSM settings
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
@@ -26,7 +27,8 @@ display_name: {
     'ssmr_delays': "SSMR\n(4 Delays)",
     'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
     'ssmr_singleDelay': "SSMR\n(1 Delay)", # Single delay embedding
-    'ssmr_linear': "Linear SSMR\n(1 Delay)", # Linear SSMR Model
+    'ssmr_linear': "Linear SSMR", # Linear SSMR Model
+    'ssmr_linear_LDO': "Linear SSMR (w/ LDO)", # Linear SSMR Model + LDO
     'ssmr_nnssm': "ASSMR (NN, N=9)",
     'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
     'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
@@ -43,7 +45,8 @@ legend_name: {
     'ssmr_delays': "SSMR (4 Delays)",
     'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
     'ssmr_singleDelay': "SSMR (1 Delay)", # Single delay embedding
-    'ssmr_linear': "Linear SSMR (1 Delay)", # Linear SSMR Model
+    'ssmr_linear': "Linear SSMR", # Linear SSMR Model
+    'ssmr_linear_LDO': "Linear SSMR (w/ LDO)", # Linear SSMR Model + LDO
     'ssmr_nnssm': "ASSMR (NN, N=9)",
     'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
     'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
@@ -62,6 +65,7 @@ color: {
     'ssmr_posvel': 'tab:red',
     'ssmr_singleDelay': 'tab:orange',
     'ssmr_linear': 'tab:purple',
+    'ssmr_linear_LDO': "tab:green", # Linear SSMR Model + LDO
     'ssmr_nnssm': 'tab:red',
     'ssmr_ctssm': 'tab:orange',
     'ssmr_assm_qp2d_n=100': 'tab:purple',
@@ -79,6 +83,7 @@ linestyle: {
     'ssmr_posvel': '-',
     'ssmr_singleDelay': '-',
     'ssmr_linear': '-',
+    'ssmr_linear_LDO': '-', # Linear SSMR Model + LDO
     'ssmr_nnssm': '-',
     'ssmr_ctssm': '-',
     'ssmr_assm_qp2d_n=100': '-',
@@ -115,6 +120,7 @@ linewidth: {
     'ssmr_posvel': 2,
     'ssmr_singleDelay': 3,
     'ssmr_linear': 2,
+    'ssmr_linear_LDO': 2, # Linear SSMR Model + LDO
     'ssmr_nnssm': 2,
     'ssmr_ctssm': 2,
     'ssmr_assm_qp2d_n=100': 2,
@@ -125,14 +131,15 @@ linewidth: {
     'koopman': 2,
     'DMD': 2,
     'rompc': 2,
-    'target': 1
+    'target': 2
 }
 
 alpha: {
     'ssmr_delays': 0.7,
     'ssmr_posvel': 0.7,
     'ssmr_singleDelay': 0.7,
-    'ssmr_linear': 1,
+    'ssmr_linear': 0.1,
+    'ssmr_linear_LDO': 0.5, # Linear SSMR Model + LDO
     'tpwl': 0.7,
     'koopman': 0.7,
     'DMD': 0.5,
