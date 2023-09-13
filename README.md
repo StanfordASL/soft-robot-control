@@ -164,7 +164,7 @@ Also, add and enable entry `SOFTROBOTS_IGNORE_ERRORS` which will allow SoftRobot
 
 Next, set filepath entry `pybind11_DIR` to `$HOME/anaconda3/envs/sofa/share/cmake/pybind11`.
 
-Ensure the following bool entries are activated (`PLUGIN_SOFTROBOTS`, `PLUGIN_SOFAPYTHON3`, `STLIB`)
+Ensure the following bool entries are activated (`PLUGIN_SOFTROBOTS`, `PLUGIN_SOFAPYTHON3`, `PLUGIN_STLIB`)
 
 
 Run **Configure** again (should complete with no errors), and then run **Generate**.
