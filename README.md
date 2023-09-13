@@ -127,9 +127,9 @@ cmake_minimum_required(VERSION 3.11)
 
 find_package(SofaFramework)
 
-sofa_add_plugin(STLIB/  STLIB VERSION 1.0)
-sofa_add_plugin(SoftRobots/  SoftRobots VERSION 1.0)
-sofa_add_plugin(SofaPython3/ SofaPython3 Version 1.0)
+sofa_add_subdirectory(plugin STLIB/ STLIB)
+sofa_add_subdirectory(plugin SoftRobots/ SoftRobots)
+sofa_add_subdirectory(plugin SofaPython3/ SofaPython3)
 ```
 
 ---
