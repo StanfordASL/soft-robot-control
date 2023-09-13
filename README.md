@@ -137,7 +137,7 @@ sofa_add_subdirectory(plugin SofaPython3/ SofaPython3)
 
 ##### Install Sofa
 
-Follow [instructions](https://www.sofa-framework.org/community/doc/getting-started/build/linux/) to download dependencies (compiler, CMake, Qt, etc.)
+Follow [instructions](https://www.sofa-framework.org/community/doc/getting-started/build/linux/) to download dependencies (compiler, CMake, Qt, etc.). **Tested only on v22.12** (i.e., clone v22.12 from repo)
 
 Set up directory structure for Sofa and clone repository:
 ```
