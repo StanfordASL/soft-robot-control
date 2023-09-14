@@ -1,4 +1,4 @@
-robot: "hardware" #trunk, hardware
+robot: "trunk" #trunk, hardware
 save_dir: "plots/"
 file_format: "png"
 

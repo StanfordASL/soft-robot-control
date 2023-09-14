@@ -884,6 +884,6 @@ if __name__ == "__main__":
     # traj_xy_vs_t()
     # traj_xyz_vs_t()
 
-    # plotTrunkResults()
+    plotTrunkResults()
     # plotDiamondResults()
-    plotDiamondTrials()
+    # plotDiamondTrials()
