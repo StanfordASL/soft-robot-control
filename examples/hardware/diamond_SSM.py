@@ -23,10 +23,10 @@ modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.02 # This dt for when to recalculate control
 
 ######## Generate LDO Parameters ########
-Mper = 20   # Number of periods to simulate
+Mper = 10   # Number of periods to simulate
 Tper = 2.  # Period of trajectory
-# Nper = int(Tper / dt) + 1    # Number of points per period (this will be trigger for doing LDO)
-Nper = None
+Nper = int(Tper / dt) + 1    # Number of points per period (this will be trigger for doing LDO)
+# Nper = None
 
 def run_scp():
     """
@@ -240,7 +240,7 @@ def run_scp_LDO():
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
     # Simulation settings
-    sim_duration = 41.
+    sim_duration = 21.
     if Nper is None:
         save_prefix = 'ssmr_' + modelType
     else:
@@ -373,7 +373,7 @@ def run_gusto_solver_LDO():
     Qz[0, 0] = 100  # corresponding to x position of end effector
     Qz[1, 1] = 100  # corresponding to y position of end effector
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    R = 0.001 * np.eye(model.input_dim) # 0.00001
+    R = 0.00001 * np.eye(model.input_dim) # 0.00001 # 0.001
 
     #############################################
     # Problem 2, X-Y-Z plane cost function

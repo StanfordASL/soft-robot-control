@@ -958,23 +958,62 @@ def get_LDO_disturbance_matrices(Bd, Nperiod: int):
 
     return Sd
 
-def get_LDO_LTI(A, B, C, Bd, Cd, Nperiod: int):
+# def get_LDO_LTI(A, B, C, Bd, Cd, Nperiod: int):
+#     # Get dimensions
+#     nx = A.shape[0]
+#     nu = B.shape[1]
+#     nd = Bd.shape[1]
+
+#     # As opposed to lift_LTI, we now have Nperiod copies of the disturbance vector
+#     # Ashift should be of size (Nperiod*nd, Nperiod*nd)
+#     # It should shift the disturbance vector by nd at each period
+#     Ashift = create_circ_matrix(nd, Nperiod)
+#     # Bpick should be of size (Nperiod*nd, nd)
+#     # It should pick out the first nd elements of the state vector
+#     Bpick = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
+
+#     # Augmented state space model
+#     Ae = np.block([[A, Bd @ Bpick], [np.zeros((Nperiod*nd, nx)), Ashift]])
+#     Be = np.block([[B], [np.zeros((Nperiod*nd, nu))]])
+#     Ce = np.block([[C, Cd @ Bpick]])
+
+#     return Ae, Be, Ce
+
+def create_Sd(nd, Nperiod):
+    # Create a block diagonal matrix with Nperiod copies of the identity matrix of size nd
+    # The matrix should be of size (Nperiod*nd, Nperiod*nd)
+
+    # CHECK nd and Nperiod are integers
+    assert isinstance(nd, int)
+    assert isinstance(Nperiod, int)
+
+    Sd = block_diag(*[np.eye(nd) for _ in range(Nperiod)])
+
+    # Roll the matrix by nd to the right
+    Sd = np.roll(Sd, nd, axis=1)
+
+    return Sd
+
+def create_S0(nd, Nperiod):
+
+    S0 = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
+
+    return S0
+
+def get_LDO_LTI(A, B, C, Bd, Cd, Nperiod):
     # Get dimensions
     nx = A.shape[0]
     nu = B.shape[1]
     nd = Bd.shape[1]
 
-    # As opposed to lift_LTI, we now have Nperiod copies of the disturbance vector
-    # Ashift should be of size (Nperiod*nd, Nperiod*nd)
-    # It should shift the disturbance vector by nd at each period
-    Ashift = create_circ_matrix(nd, Nperiod)
-    # Bpick should be of size (Nperiod*nd, nd)
-    # It should pick out the first nd elements of the state vector
-    Bpick = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
+    Sd = create_Sd(nd, Nperiod)
+    S0 = np.block([np.eye(nd), np.zeros((nd, (Nperiod-1)*nd))])
 
     # Augmented state space model
-    Ae = np.block([[A, Bd @ Bpick], [np.zeros((Nperiod*nd, nx)), Ashift]])
-    Be = np.block([[B], [np.zeros((Nperiod*nd, nu))]])
-    Ce = np.block([[C, Cd @ Bpick]])
+    A_LDO = np.block([[A,                          Bd @ S0],
+                   [np.zeros((Nperiod*nd, nx)), Sd]])
+    B_LDO = np.block([[B],
+                   [np.zeros((Nperiod*nd, nu))]])
+    C_LDO = np.block([[C, Cd @ S0]])
 
-    return Ae, Be, Ce
+    return A_LDO, B_LDO, C_LDO

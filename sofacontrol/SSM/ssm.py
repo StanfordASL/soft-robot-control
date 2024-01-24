@@ -9,6 +9,7 @@ import jax
 from functools import partial
 from sofacontrol.utils import norm2Diff
 from scipy.linalg import block_diag
+import control
 import mpctools as mpc
 from os.path import join, exists
 
@@ -238,32 +239,47 @@ class SSMDynamics(SSM):
                 self.Cd = np.eye(self.Nid)
 
                 # TODO: Modify gains here!!!!! Define LDO cost for LQE
-                Qw_per = block_diag(np.eye(self.state_dim), 10. * np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
-                # Qw_per = block_diag(np.eye(self.state_dim), 2. * np.eye(self.Nid), 10.*np.eye(self.Nid*self.Nper-self.Nid))
-                Rv_per = np.eye(self.output_dim)
+                # Q_kalman = block_diag(np.eye(self.state_dim), 10. * np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
+                Q_kalman = block_diag(np.eye(self.state_dim), 10*np.eye(self.Nid), 1000*np.eye(self.Nid*self.Nper-self.Nid))
+                R_kalman = np.eye(self.output_dim)
 
                 # Get shifting matrix
                 self.Sd = scutils.get_LDO_disturbance_matrices(self.Bd, self.Nper)
                 
                 if exists(gains_path):
+                    print('Loading existing Lgains')
                     gains = scutils.load_data(gains_path)
-                    self.Lx, self.Ld = gains['Lx'], gains['Ld']
+                    self.L_LDO = gains['L_LDO']
+
                 else:
+                    print('Calculating Lgains')
                     # Extract discrete time matrices for linear system 
                     A, B, _ = self.get_jacobians(np.zeros(self.state_dim), np.zeros(self.input_dim), dt)
                     # C = self.w_coeff
                     C, _ = self.get_observer_jacobians(np.zeros(self.state_dim))
-                    A_aug, B_aug, C_aug = scutils.get_LDO_LTI(A, B, C, self.Bd, self.Cd, self.Nper)
+                    A_LDO, B_LDO, C_LDO = scutils.get_LDO_LTI(A, B, C, self.Bd, self.Cd, self.Nper)
 
-                    # Get Kalman Filter gains
-                    L_per, _ = mpc.util.dlqe(A_aug, C_aug, Qw_per, Rv_per)
+                    # Compute Lgains
+                    # Unstable (bad):
+                    # L_LDO, _ = mpc.util.dlqe(A_LDO, C_LDO, Q_kalman, R_kalman)
+                    # L_LDO = -L_LDO
+
+                    # Stable (good):
+                    K, S, E = control.dlqr(A_LDO.T, C_LDO.T, Q_kalman, R_kalman)
+                    L_LDO = -K.T
 
                     # Extract gains then save. Takes a while to calculate
-                    gains = {'Lx': L_per[:self.state_dim, :], 'Ld': L_per[self.state_dim:, :]}
+                    gains = {'L_LDO': L_LDO}
                     scutils.save_data(gains_path, gains)
+                    print('Saved Lgains')
 
-                    self.Lx = gains['Lx']
-                    self.Ld = gains['Ld']
+                    self.L_LDO = L_LDO
+
+                    print('Eigenvalues of A_LDO + L_LDO @ C_LDO:')
+                    print(np.round(np.abs(np.linalg.eigvals(A_LDO + L_LDO @ C_LDO)), 3))
+                    if any (np.abs(np.linalg.eigvals(A_LDO + L_LDO @ C_LDO)) > 1):
+                        print('*Warning: Observer not stable!')
+
             else:
                 raise NotImplementedError("Nonlinear LDO not implemented yet")
         else:

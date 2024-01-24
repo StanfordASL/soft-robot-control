@@ -110,10 +110,15 @@ class SSMObserverLDO:
         y = jnp.asarray(y)
         d_curr = self.d[:self.dyn_sys.Nid]
 
-        self.err = self.dyn_sys.C @ y - self.dyn_sys.reduced_to_output(jnp.array(self.x)) - self.dyn_sys.Cd @ d_curr
+        # self.err = self.dyn_sys.C @ y - self.dyn_sys.reduced_to_output(jnp.array(self.x)) - self.dyn_sys.Cd @ d_curr
 
-        self.x = self.x + self.dyn_sys.Lx @ self.err
-        self.d = self.d + self.dyn_sys.Ld @ self.err
+        # self.x = self.x + self.dyn_sys.Lx @ self.err
+        # self.d = self.d + self.dyn_sys.Ld @ self.err
+
+        self.err = (self.dyn_sys.reduced_to_output(jnp.array(self.x)) + self.dyn_sys.Cd @ d_curr - self.dyn_sys.C @ y)
+        self.innov = self.dyn_sys.L_LDO @ self.err
+        self.x = self.x + self.innov[:self.dyn_sys.state_dim] 
+        self.d = self.d + self.innov[self.dyn_sys.state_dim:]
 
         return self.x
 

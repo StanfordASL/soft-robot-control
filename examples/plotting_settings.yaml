@@ -9,7 +9,7 @@ show: {
     'ssmr_delays': False, # Full obsevables
     'ssmr_posvel': False, # pos-vel
     'ssmr_singleDelay': False, # Single delay embedding
-    'ssmr_linear': True, # Linear model
+    'ssmr_linear': False, # Linear model
     'ssmr_linear_LDO': True, # LDO model
     # Adiabatic SSM settings
     'ssmr_nnssm': False,

@@ -478,6 +478,11 @@ def plot_RMSE_v_t():
             # errors are to be measured in 2D
             err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
+    
+    # Print average RMSE after half of the trajectory
+    print("Average RMSE after half of the trajectory:")
+    for control in CONTROLS:
+        print(f"{SETTINGS['display_name'][control]}: {np.mean(np.linalg.norm(err[control], axis=1)[int(len(err[control])/2):]):.3f} mm")
 
     """Plot RMSE as function of time"""
     fig, ax = plt.subplots(1, 1, figsize=(8, 5))
@@ -1179,12 +1184,12 @@ if __name__ == "__main__":
     # traj_3D(time_gradient=True)
     traj_inputs_vs_t()
     # traj_x_vs_y()
-    traj_xy_vs_t()
+    # traj_xy_vs_t()
     # disturbance_vs_t()
     plot_RMSE_v_t()
     # plot_trueDist_v_t_interp()
     # plot_trueDist_v_t()
-    # innovation_vs_t()
+    innovation_vs_t()
     # traj_xyz_vs_t()
 
     # plotTrunkResults()

@@ -186,7 +186,8 @@ class GuSTOSolverNode(Node):
 
         # TODO: Generate periodic reference
         # Get target u terms for cost function
-        if self.model.dyn_sys.LDO and t0 >= self.model.dyn_sys.Tper:
+        # if self.model.dyn_sys.LDO and t0 >= 2*self.model.dyn_sys.Tper:
+        if False:
             u = self.get_uperiodic_ref(t - self.model.dyn_sys.Tper)
         else:
             if self.u is not None:
