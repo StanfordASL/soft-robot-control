@@ -16,7 +16,7 @@ class TrajTrackingLQR:
         return self.x_bar, self.u_bar, K
 
     def perform_dlqr_recursion(self, target):
-        P = [self.cost_params.Q]
+        P = [self.model.H.T @ self.cost_params.Q @ self.model.H]
         K = []
         x_nom = []
         u_nom = []
@@ -32,12 +32,12 @@ class TrajTrackingLQR:
             # Determine linear system at point
             x_nom_i = x_nom_interp(t_step)
             u_nom_i = u_nom_interp(t_step)
-            A, B, d = self.model.get_jacobians(x_nom_i, dt=self.dt)
+            A, B, d = self.model.get_jacobians(x_nom_i, u_nom_i, dt=self.dt)
             x_nom.append(x_nom_i)
             u_nom.append(u_nom_i)
             # As we are working with deviations from nom traj no need to extend state with affine terms
             K.append(-1. * np.linalg.solve(self.cost_params.R + B.T @ P[-1] @ B, B.T @ P[-1] @ A))
-            P.append(self.cost_params.Q + K[-1].T @ self.cost_params.R @ K[-1] +
+            P.append(self.model.H.T @ self.cost_params.Q @ self.model.H + K[-1].T @ self.cost_params.R @ K[-1] +
                      (A + B @ K[-1]).T @ P[-1] @ (A + B @ K[-1]))
 
         K = np.flip(np.asarray(K), axis=0)

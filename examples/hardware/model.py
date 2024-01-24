@@ -16,7 +16,7 @@ NU = .45 # Poisson's ratio
 ALPHA = 2.5 # Rayleigh mass
 BETA = 0.01 # Rayleigh stiffness
 
-U_MAX = 1500 #mN
+U_MAX = 1500 #mN (default: 1500)
 DT = 0.01
 
 TIP_NODE = 1354

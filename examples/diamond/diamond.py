@@ -15,7 +15,7 @@ from sofacontrol.open_loop_sequences import DiamondRobotSequences
 DEFAULT_OUTPUT_NODES = [1354, 726, 139, 1445, 729]
 
 
-def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
+def apply_constant_input(input, pre_tensioning=np.zeros(4), q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
     """
     In problem_specification add:
 
@@ -45,12 +45,12 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     Sequences = DiamondRobotSequences(t0=t0, dt=0.01)
 
     # 1) Wind up the robot
-    t_duration1 = 1.0
+    t_duration1 = 5.0
     u_const = input + pre_tensioning
     u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
     u1 *= np.concatenate([np.linspace(0, 1, int(0.6*len(t1))), np.ones(len(t1) - int(0.6*len(t1)))])
     # 2) Remove force (how long to settle down before stopping simulation)
-    t_duration2 = 3.0
+    t_duration2 = 5.0
     u_const = pre_tensioning
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration2, save_data=save_data)
     # combine the two sequences

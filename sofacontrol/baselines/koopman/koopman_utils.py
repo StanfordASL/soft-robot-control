@@ -9,9 +9,10 @@ import jax.numpy as jnp
 import jax
 
 class KoopmanData:
-    def __init__(self, scale, delay):
+    def __init__(self, scale, delay, inputInFeatures=True):
         self.delay = delay
         self.scaling = KoopmanScaling(scale)
+        self.inputInFeatures = inputInFeatures # Include input in features
 
         self.y_norm = None  # Down-scaled
         self.u_norm = None  # Down-scaled
@@ -46,7 +47,10 @@ class KoopmanData:
                 ydel[fillrange_y] = self.y_norm[step - (j + 1), :]
                 udel[fillrange_u] = self.u_norm[step - (j + 1), :]
 
-            zetak = np.hstack([y, ydel, udel])
+            if self.inputInFeatures:
+                zetak = np.hstack([y, ydel, udel])
+            else:
+                zetak = np.hstack([y, ydel])
             return zetak
 
 
@@ -143,7 +147,23 @@ class KoopmanModel:
         self.obs_type = str(params_in['obs_type'][0, 0][0, 0][0])
         self.Ts = float(params_in['Ts'])
         self.scale = params_in['scale'][0, 0]
-        self.DMD = DMD
+        if 'DMD' in params_in.dtype.names:
+            self.DMD = bool(params_in['DMD'])
+        else:
+            self.DMD = DMD
+
+        if 'G' in model_in.dtype.names:
+            self.G = model_in['G'][0, 0]
+        else:
+            self.G = np.zeros((self.m, 3))
+
+        if 'inputInFeatures' in params_in.dtype.names:
+            self.inputInFeatures = bool(params_in['inputInFeatures'])
+        else:
+            self.inputInFeatures = True
+
+        if not self.inputInFeatures:
+            self.state_dim -= self.delays * self.m
 
         self.assert_dimensions()
         self.lift_data = self.get_lifting_function()
@@ -185,3 +205,6 @@ class KoopmanModel:
         G = jax.jacobian(g)(x)
         b = g(x) - G @ x
         return G, b
+    
+    def get_jacobians(self, x, u, dt=None):
+        return self.A_d, self.B_d, None

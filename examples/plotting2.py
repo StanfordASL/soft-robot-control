@@ -11,12 +11,12 @@ import yaml
 import pickle
 from collections import defaultdict
 import matplotlib.gridspec as gridspec
-
+from matplotlib.ticker import MaxNLocator
 
 from sofacontrol.measurement_models import linearModel
 from sofacontrol.utils import qv2x, load_data, CircleObstacle, load_full_equilibrium, add_decimal
 import matplotlib.ticker as mticker
-
+import matplotlib.patches as mpatches
 
 path = dirname(abspath(__file__))
 np.set_printoptions(linewidth=300)
@@ -25,7 +25,7 @@ plt.rcParams.update({'font.family': 'serif'})
 plt.rcParams.update({'font.serif': 'FreeSerif'})
 plt.rcParams.update({'mathtext.fontset': 'cm'})
 
-FONTSCALE = 1.2
+FONTSCALE = 1.1
 
 plt.rc('font', size=12*FONTSCALE)          # controls default text sizes
 plt.rc('axes', titlesize=15*FONTSCALE)     # fontsize of the axes title
@@ -63,8 +63,8 @@ for control in CONTROLS:
     if SETTINGS['robot'] == "trunk":
         SIM_DATA[control]['z'][:, 2] *= -1
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
-    SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
-    SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
+    # SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
+    # SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
 
 print("=== SOFA equilibrium point ===")
 # Load equilibrium point
@@ -337,11 +337,11 @@ def rmse_calculations():
             # errors are to be measured in 2D
             err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
-        solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
+        # solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
 
         print(f"========= {SETTINGS['display_name'][control]} =========")
         print(f"RMSE: {rmse[control]:.3f} mm")
-        print(f"Solve time: Min: {np.min(solve_times[control]):.3f} ms, Mean: {np.mean(solve_times[control]):.3f} ms, Max: {np.max(solve_times[control]):.3f} ms")
+        # print(f"Solve time: Min: {np.min(solve_times[control]):.3f} ms, Mean: {np.mean(solve_times[control]):.3f} ms, Max: {np.max(solve_times[control]):.3f} ms")
 
     # Plot RMSEs and solve times (barplot)
     # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
@@ -402,10 +402,16 @@ def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=10, set_threshold=T
     CONTROLS = ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel", "koopman", "ssmr_linear", "DMD", "tpwl"]
     dts = sorted(data[CONTROLS[0]].keys()) # Assuming all controls have the same dts
     num_dts = len(dts)
-    width = 0.8 / num_dts
+    width = 0.89 / num_dts
+
+    # Choose an arbitrary color for the legend
+    arbitrary_color = (0.2, 0.4, 0.6)  # This can be any color that shows shades well
 
     # Group bars by control
     dt_positions = [i + j * width for i in range(len(CONTROLS)) for j in range(num_dts)]
+    dt_legend_handles = [mpatches.Patch(color=get_shade(arbitrary_color, idx * 0.2), label=r'$\Delta t={}$'.format(dt))
+                     for idx, dt in enumerate(sorted(data[CONTROLS[0]].keys()))]
+    
     for idx, dt in enumerate(dts):
         rmse_vals = [data[control][dt] for control in CONTROLS]
         dt_colors = [get_shade(matplotlib.colors.to_rgb(SETTINGS['color'][control]), (idx*0.2)) if val <= rmse_threshold 
@@ -413,25 +419,41 @@ def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=10, set_threshold=T
         hatches = ['//' if val > rmse_threshold else '' for val in rmse_vals]
         edgecolors = ['darkgray' if hatch else dt_colors[i] for i, hatch in enumerate(hatches)]
         positions = dt_positions[idx::num_dts]
-        bars = ax.bar(positions, rmse_vals, width, color=dt_colors, label=f'dt={dt}', edgecolor=edgecolors)
+        bars = ax.bar(positions, rmse_vals, width, color=dt_colors, label=r'$\Delta t={}$'.format(dt), edgecolor=edgecolors, zorder=2)
+
+        # Create a shaded color for this dt
+        shaded_color = get_shade(arbitrary_color, idx * 0.2)
 
         for bar, hatch in zip(bars, hatches):
             bar.set_hatch(hatch)
     
     # Configure primary and secondary x-axis labels
-    control_ticks = [0.2, 1.2, 2.2, 3.3, 4.3, 5.3, 6.3]
+    control_ticks = [0.2, 1.2, 2.2, 3.25, 4.3, 5.3, 6.3]
     ax.set_xticks(control_ticks)
-    ax.set_xticklabels([SETTINGS['display_name'][control] for control in CONTROLS], position=(0, -0.01), fontsize=9)
+    ax.set_xticklabels([SETTINGS['display_name'][control] for control in CONTROLS], position=(0, 0.08), fontsize=10.)
     
     ax.set_xticks(dt_positions, minor=True)
-    ax.set_xticklabels([f'{dt}' for dt in dts] * len(CONTROLS), minor=True, fontsize=8, rotation=30)
+    # ax.set_xticklabels([f'{dt}' for dt in dts] * len(CONTROLS), minor=True, fontsize=8., rotation=30)
+    ax.yaxis.grid(True, color='gray', linewidth=0.5, zorder=1)
+
+    # Adjust x-axis limits to reduce white space
+    left_limit = min(dt_positions) - width
+    right_limit = max(dt_positions) + width
+    ax.set_xlim(left_limit, right_limit)
 
     # Remove the major tick lines
     ax.tick_params(axis='x', length=0, pad=20)
     if set_threshold:
         ax.set_ylim(0, rmse_threshold)
+    
+    # Add the legend for 'dt' values
+    ax.legend(handles=dt_legend_handles, loc='best')
 
-def plotTrunkResults():
+
+def plotTrunkResults(dirname=None):
+    
+    labelSize = 7
+    
     # Define a default dictionary to store the data
     def nested_dict():
         return defaultdict(nested_dict)
@@ -457,8 +479,13 @@ def plotTrunkResults():
 
     # Go through each possible control task
     for task in controlTasks:
-        taskFile = join(path, SETTINGS['robot'], 'control_tasks', task + '.pkl')
-        simTaskFolder = join(path, SETTINGS['robot'], task)
+        if dirname is not None:
+            simTaskFolder = join(path, SETTINGS['robot'], dirname, task)
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+        else:
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+            simTaskFolder = join(path, SETTINGS['robot'], task)
+        
         z_target = load_data(taskFile)
         f_target = interp1d(z_target['t'], z_target['z'], axis=0)
         
@@ -502,24 +529,26 @@ def plotTrunkResults():
 
     # Create main figure and gridspec
     
-    fig = plt.figure(figsize=(30, 10))
-    gs = gridspec.GridSpec(3, 3, figure=fig)  # 3x3 grid
-    DT_PLOT = 0.02
+    fig = plt.figure(figsize=(15, 9))
+    gs = gridspec.GridSpec(3, 3, figure=fig, height_ratios=[1.6, 1., 0.8])  # 3x3 grid with height ratios
     
     handles, labels = [], []
     y_axis_limits = None
     top_row_axes = []  # List to store all axes of the top row
 
     for j, task in enumerate(controlTasks):  # Loop over columns
+        DT_PLOT = 0.02
 
         # Top row: Each plot is further divided into 2x2 grid
         gs_sub = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[0, j])
         for k in range(2):
             for l in range(2):
                 ax = fig.add_subplot(gs_sub[k, l])
+                ax.yaxis.set_major_locator(MaxNLocator(3))  # Set the maximum number of y-axis ticks to 3
+                ax.xaxis.set_major_locator(MaxNLocator(3))  # Set the maximum number of x-axis ticks to 3
                 top_row_axes.append(ax)  # Add the axis to our list
                 current_controls = SUBPLOT_MAPPING[(k, l)]
-                
+
                 # Hide y-axis for plots that are not left-most
                 if l > 0:
                     ax.tick_params(labelleft=False)
@@ -547,9 +576,13 @@ def plotTrunkResults():
                 if y_axis_limits is None and j == 0 and k == 0 and l == 0:
                     y_axis_limits = ax.get_ylim()
 
+        top_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
+        top_ycoord = top_row_bbox.y0  # Get the top y-coordinate of the middle row
+
         # Middle row (Your bar plots)
         ax = fig.add_subplot(gs[1, j])
         ax.set_title(titles[1][j])
+        ax.yaxis.set_major_locator(MaxNLocator(3))
         plot_bar_chart_for_multiple_dts(ax, rmse[task])
 
         # Set y-axis label for the first column and hide it for the others in the MIDDLE ROW
@@ -557,50 +590,91 @@ def plotTrunkResults():
             ax.set_ylabel('RMSE [mm]')
         else:
             ax.set_ylabel('')
-            ax.tick_params(labelleft=False)
+            # ax.tick_params(labelleft=False)
+        
+        middle_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
+        middle_ycoord = middle_row_bbox.y1  # Get the top y-coordinate of the middle row
 
         # Bottom row
         boxplot_data = {}
         avg_solve_times = {}
+        max_solve_times = {}
         for control in CONTROLS:
             all_solve_times = [1000 * time for dt in simData[control] for time in simData[control][dt]['info']['solve_times']] # Display in ms
             boxplot_data[control] = all_solve_times
             avg_solve_times[control] = np.mean(all_solve_times)  # Compute and store the average
+            max_solve_times[control] = np.max(all_solve_times)
         
         ax = fig.add_subplot(gs[2, :])
         ax.set_yscale('log')
+
         from matplotlib.ticker import ScalarFormatter
         ax.yaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.get_major_formatter().set_useOffset(False)
         ax.yaxis.get_major_formatter().set_scientific(False)
 
-        ax.boxplot(boxplot_data.values(), vert=True, patch_artist=True, notch=True)
+        # Create boxplots and get the plot components
+        medianprops = dict(linestyle='')
+        bp = ax.boxplot(boxplot_data.values(), vert=True, patch_artist=True, notch=False, showfliers=False, zorder=1000, medianprops=medianprops)
+
+        # Color the boxes according to SETTINGS['color'][control]
+        for box, control in zip(bp['boxes'], CONTROLS):
+            box.set_facecolor(SETTINGS['color'][control])
+            box.set_edgecolor(SETTINGS['color'][control])
+
+        # Get cap values        
+        cap_values = []
+        for i in range(0, len(bp['caps']), 2):
+            bottom_cap = bp['caps'][i].get_ydata()[0]
+            top_cap = bp['caps'][i + 1].get_ydata()[0]
+            cap_values.append((bottom_cap, top_cap))
+
+        # ax.boxplot(boxplot_data.values(), vert=True, patch_artist=True, notch=True)
         ax.set_xticklabels(SETTINGS['display_name'][control] for control in boxplot_data.keys())
         ax.set_ylabel('Solve Times [ms]', fontweight='normal')
 
+        y_max = ax.get_ylim()[1]
+        ax.set_ylim(ax.get_ylim()[0], 1.6 * y_max)
         # Annotate each boxplot with its average solve time
         for i, control in enumerate(CONTROLS):
             avg_time = avg_solve_times[control]
-            ax.annotate(f"{avg_time:.2f}", (i + 1, avg_time),
-                        textcoords="offset points", xytext=(61,0), ha='center', 
-                        fontsize=10, color='#1f77b4', fontweight='bold')
+            # ax.annotate(f"{avg_time:.2f}", (i + 1, avg_time),
+            #             textcoords="offset points", xytext=(61,0), ha='center', 
+            #             fontsize=10, color='#1f77b4', fontweight='bold')
+            ax.text(i + 1, min(cap_values[i][1] + 0.15*cap_values[i][1], 140), f"{avg_time:.2f}", color='#5c5c5c', 
+                    fontweight='bold', ha='center', zorder=2, fontsize=11)
+        
+        # Set color for box plot
+        for i in range(len(bp['caps'])):
+            cap = bp['caps'][i]
+            whisker = bp['whiskers'][i]
+            cap.set_color(SETTINGS['color'][CONTROLS[i//2]])
+            whisker.set_color(SETTINGS['color'][CONTROLS[i//2]])
+            cap.set_linewidth(1.5)
+            whisker.set_linewidth(3.0)
 
+        # Set y-axis grid for boxplot
+        ax.yaxis.grid(True, color='gray', linewidth=0.5, zorder=1)
     
     # Set the ylim for the top row subplots
-    for ax in top_row_axes:
-        ax.set_ylim(y_axis_limits)
-        
+    # for ax in top_row_axes:
+    #     ax.set_ylim(y_axis_limits)
+    
     # Legend for the top row
     handle_label_dict = dict(zip(labels, handles))
     unique_labels = list(handle_label_dict.keys())
     unique_handles = [handle_label_dict[label] for label in unique_labels]
-    fig.legend(unique_handles, unique_labels, loc='upper center', 
-           ncol=len(unique_labels), bbox_to_anchor=(0.5, 0.693),  # Adjust these values for legend placement
-           bbox_transform=fig.transFigure,  # This ensures the bbox_to_anchor coordinates are in figure fraction
-           fontsize='small')
+
+    # Place the legend
+    offset = 3.4*(top_ycoord - middle_ycoord)
+    fig.legend(unique_handles, unique_labels, loc='center', 
+            ncol=len(unique_labels), bbox_to_anchor=(0.5, middle_ycoord + offset),
+            bbox_transform=fig.transFigure, fontsize='12')
+
     
     plt.tight_layout()
-    plt.show()
+    plt.savefig(join(SAVE_DIR, f"trunk_sim_results.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    # plt.show()
 
 def plotDiamondTrials():
     # Define a default dictionary to store the data
@@ -692,7 +766,10 @@ def plotDiamondTrials():
     plt.show()
 
 
-def plotDiamondResults():
+def plotDiamondResults(dirname=None):
+
+    labelSize = 7
+
     # Define a default dictionary to store the data
     def nested_dict():
         return defaultdict(nested_dict)
@@ -717,8 +794,13 @@ def plotDiamondResults():
 
     # Go through each possible control task
     for task in controlTasks:
-        taskFile = join(path, SETTINGS['robot'], 'control_tasks', task + '.pkl')
-        simTaskFolder = join(path, SETTINGS['robot'], task)
+        if dirname is not None:
+            simTaskFolder = join(path, SETTINGS['robot'], dirname, task)
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+        else:
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+            simTaskFolder = join(path, SETTINGS['robot'], task)
+
         z_target = load_data(taskFile)
         f_target = interp1d(z_target['t'], z_target['z'], axis=0)
         
@@ -763,8 +845,8 @@ def plotDiamondResults():
 
     # Create main figure and gridspec
     
-    fig = plt.figure(figsize=(30, 10))
-    gs = gridspec.GridSpec(3, 3, figure=fig)  # 3x3 grid
+    fig = plt.figure(figsize=(15, 9))
+    gs = gridspec.GridSpec(3, 3, figure=fig, height_ratios=[1.6, 1., 0.8])  # 3x3 grid with height ratios
     
     handles, labels = [], []
     y_axis_limits = None
@@ -778,6 +860,8 @@ def plotDiamondResults():
         for k in range(2):
             for l in range(2):
                 ax = fig.add_subplot(gs_sub[k, l])
+                ax.yaxis.set_major_locator(MaxNLocator(3))  # Set the maximum number of y-axis ticks to 3
+                ax.xaxis.set_major_locator(MaxNLocator(3))  # Set the maximum number of y-axis ticks to 3
                 top_row_axes.append(ax)  # Add the axis to our list
                 current_controls = SUBPLOT_MAPPING[(k, l)]
 
@@ -813,14 +897,17 @@ def plotDiamondResults():
                     handles.append(line)
                     labels.append(SETTINGS['legend_name'][control])
 
-
                 # If it's the top-left subplot, get its y-axis limits
                 if y_axis_limits is None and j == 0 and k == 0 and l == 0:
                     y_axis_limits = ax.get_ylim()
 
+        top_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
+        top_ycoord = top_row_bbox.y0  # Get the top y-coordinate of the middle row
+
         # Middle row (Your bar plots)
         ax = fig.add_subplot(gs[1, j])
         ax.set_title(titles[1][j])
+        ax.yaxis.set_major_locator(MaxNLocator(3))
         plot_bar_chart_for_multiple_dts(ax, rmse[task], set_threshold=False)
 
         # Set y-axis label for the first column and hide it for the others in the MIDDLE ROW
@@ -829,33 +916,70 @@ def plotDiamondResults():
         else:
             ax.set_ylabel('')
             # ax.tick_params(labelleft=False)
+        
+        middle_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
+        middle_ycoord = middle_row_bbox.y1  # Get the top y-coordinate of the middle row
 
         # Bottom row
         boxplot_data = {}
         avg_solve_times = {}
+        max_solve_times = {}
         for control in CONTROLS:
             all_solve_times = [1000 * time for dt in simData[control] for time in simData[control][dt]['info']['solve_times']] # Display in ms
             boxplot_data[control] = all_solve_times
             avg_solve_times[control] = np.mean(all_solve_times)  # Compute and store the average
+            max_solve_times[control] = np.max(all_solve_times)
         
         ax = fig.add_subplot(gs[2, :])
         ax.set_yscale('log')
+
         from matplotlib.ticker import ScalarFormatter
         ax.yaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.get_major_formatter().set_useOffset(False)
         ax.yaxis.get_major_formatter().set_scientific(False)
 
-        ax.boxplot(boxplot_data.values(), vert=True, patch_artist=True, notch=True)
+        # Create boxplots and get the plot components
+        medianprops = dict(linestyle='')
+        bp = ax.boxplot(boxplot_data.values(), vert=True, patch_artist=True, notch=False, showfliers=False, zorder=1000, medianprops=medianprops)
+
+        # Color the boxes according to SETTINGS['color'][control]
+        for box, control in zip(bp['boxes'], CONTROLS):
+            box.set_facecolor(SETTINGS['color'][control])
+            box.set_edgecolor(SETTINGS['color'][control])
+
+        # Get cap values        
+        cap_values = []
+        for i in range(0, len(bp['caps']), 2):
+            bottom_cap = bp['caps'][i].get_ydata()[0]
+            top_cap = bp['caps'][i + 1].get_ydata()[0]
+            cap_values.append((bottom_cap, top_cap))
+
+        # ax.boxplot(boxplot_data.values(), vert=True, patch_artist=True, notch=True)
         ax.set_xticklabels(SETTINGS['display_name'][control] for control in boxplot_data.keys())
         ax.set_ylabel('Solve Times [ms]', fontweight='normal')
 
+        y_max = ax.get_ylim()[1]
+        ax.set_ylim(ax.get_ylim()[0], 1.6 * y_max)
         # Annotate each boxplot with its average solve time
         for i, control in enumerate(CONTROLS):
             avg_time = avg_solve_times[control]
-            ax.annotate(f"{avg_time:.2f}", (i + 1, avg_time),
-                        textcoords="offset points", xytext=(65,5), ha='center', 
-                        fontsize=10, color='#1f77b4', fontweight='bold')
+            # ax.annotate(f"{avg_time:.2f}", (i + 1, avg_time),
+            #             textcoords="offset points", xytext=(61,0), ha='center', 
+            #             fontsize=10, color='#1f77b4', fontweight='bold')
+            ax.text(i + 1, min(cap_values[i][1] + 0.15*cap_values[i][1], 140), f"{avg_time:.2f}", color='#5c5c5c', 
+                    fontweight='bold', ha='center', zorder=2, fontsize=11)
+        
+        # Set color for box plot
+        for i in range(len(bp['caps'])):
+            cap = bp['caps'][i]
+            whisker = bp['whiskers'][i]
+            cap.set_color(SETTINGS['color'][CONTROLS[i//2]])
+            whisker.set_color(SETTINGS['color'][CONTROLS[i//2]])
+            cap.set_linewidth(1.5)
+            whisker.set_linewidth(3.0)
 
+        # Set y-axis grid for boxplot
+        ax.yaxis.grid(True, color='gray', linewidth=0.5, zorder=1)
     
     # Set the ylim for the top row subplots
     # for ax in top_row_axes:
@@ -865,13 +989,17 @@ def plotDiamondResults():
     handle_label_dict = dict(zip(labels, handles))
     unique_labels = list(handle_label_dict.keys())
     unique_handles = [handle_label_dict[label] for label in unique_labels]
-    fig.legend(unique_handles, unique_labels, loc='upper center', 
-           ncol=len(unique_labels), bbox_to_anchor=(0.5, 0.693),  # Adjust these values for legend placement
-           bbox_transform=fig.transFigure,  # This ensures the bbox_to_anchor coordinates are in figure fraction
-           fontsize='small')
+
+    # Place the legend
+    offset = 3.4*(top_ycoord - middle_ycoord)
+    fig.legend(unique_handles, unique_labels, loc='center', 
+            ncol=len(unique_labels), bbox_to_anchor=(0.5, middle_ycoord + offset),
+            bbox_transform=fig.transFigure, fontsize='12')
+
     
     plt.tight_layout()
-    plt.show()
+    plt.savefig(join(SAVE_DIR, f"diamond_sim_results.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -884,6 +1012,6 @@ if __name__ == "__main__":
     # traj_xy_vs_t()
     # traj_xyz_vs_t()
 
-    plotTrunkResults()
-    # plotDiamondResults()
+    plotTrunkResults(dirname="trunk_results")
+    # plotDiamondResults(dirname="diamond_results")
     # plotDiamondTrials()

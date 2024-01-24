@@ -236,8 +236,8 @@ def run_scp():
     prob.ControllerClass = ClosedLoopController
 
     # Specify a measurement and output model
-    cov_q = 0.001 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 60.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES)) # 0.01
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES)) # 60.0
     prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[1354])
 
@@ -281,7 +281,7 @@ def run_scp():
 
 
     # Define controller (wait 3 seconds of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=10, observer=EKF, delay=1)
+    prob.controller = scp(model, cost, dt, N_replan=1, observer=EKF, delay=1)
 
     # Saving paths
     prob.opt['sim_duration'] = 11.
@@ -303,13 +303,13 @@ def run_gusto_solver():
      ######## User Options ########
     saveControlTask = False
     createNewTask = False
-    dt = 0.05
+    dt = 0.01
     N = 3
 
     # Control Task Params
-    controlTask = "circle" # figure8, circle, or custom
+    controlTask = "figure8" # figure8, circle, or custom
     trajAmplitude = 15
-    trajFreq = 17 # rad/s
+    trajFreq = None # rad/s
     flipCoords = True # Use this only when the saved trajectory is from SSM run
 
     # Trajectory constraint
@@ -381,20 +381,20 @@ def run_gusto_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100  # corresponding to x position of end effector
-    # Qz[4, 4] = 100  # corresponding to y position of end effector
-    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100  # corresponding to x position of end effector
+    Qz[4, 4] = 100  # corresponding to y position of end effector
+    Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    R = .00001 * np.eye(model.input_dim)
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100.0  # corresponding to x position of end effector
-    Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100.0  # corresponding to x position of end effector
+    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
@@ -503,6 +503,39 @@ def run_scp_OL():
 
     return prob
 
+def generate_control_data():
+    """
+    Prepare OL control data in .mat format for MATLAB code
+    """
+    from scipy.io import savemat, loadmat
+    from sofacontrol.utils import load_data, qv2x, save_data, vq2qv
+    from sofacontrol.measurement_models import linearModel
+
+    useVel = True
+    control_data_name = 'tpwl_sim'
+    names = ['diamond_figure8_full']
+
+    num_nodes = 1628
+    ee_node = DEFAULT_OUTPUT_NODES
+    TPWL_data = load_data(join(path, '{}.pkl'.format(control_data_name)))
+
+    measurement_models = [linearModel(nodes=ee_node, num_nodes=num_nodes, pos=True, vel=useVel)]
+
+
+    for i, name in enumerate(names):
+        mat_data_file = join(path, '{}.mat'.format(name))
+        y = measurement_models[0].evaluate(x=np.asarray(TPWL_data['x']).T)
+        matlab_data = dict()
+        if useVel:
+            matlab_data['y'] = vq2qv(y.T)
+        else:
+            matlab_data['y'] = y.T
+        matlab_data['u'] = np.asarray(TPWL_data['u'])
+        matlab_data['t'] = np.atleast_2d(TPWL_data['dt'] * np.asarray(range(len(matlab_data['u']))))
+
+        savemat(mat_data_file, matlab_data)
+
+
 def run_ilqr():
     """
      In problem_specification add:
@@ -590,5 +623,7 @@ if __name__ == '__main__':
         compute_POD_basis()
     elif sys.argv[1] == 'run_gusto_solver':
         run_gusto_solver()
+    elif sys.argv[1] == 'generate_control_data':
+        generate_control_data()
     else:
         raise RuntimeError('Not a valid function argument')

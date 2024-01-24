@@ -32,7 +32,7 @@ from sofacontrol.utils import generateModel, createTargetTrajectory, createObsta
 path = dirname(os.path.abspath(__file__))
 
 # SETTINGS
-METHOD = "ssmr_posvel" # "tpwl" # "koopman" # "ssm" # "ssmr" (full delay) # "ssmr_1delay", "ssmr_origin" (pos-vel)
+METHOD = "linear" # "tpwl" # "koopman" # "ssm" # "ssmr" (full delay) # "ssmr_1delay", "ssmr_origin" (pos-vel)
 SAVE_DIR = "/home/jalora/Desktop/CL_trunk_obstacle_analysis" #TODO: Add special directory for RMSE evaluations
 NUM_SIMS = 100
 ROBOT = "trunk"
@@ -84,6 +84,9 @@ elif "ssm" in METHOD:
         sim_prefix_save = "ssmr_sim"
     else:
         sim_prefix_save = METHOD + "_sim"
+elif METHOD == "linear":
+    from examples.trunk.trunk_SSM import run_scp_call as run_scp
+    sim_prefix_save = "linear_sim"
 else:
     raise ValueError("Invalid method")
 
@@ -213,7 +216,14 @@ def doSimulationsRandomizeObstacles():
     # model = None
     if "ssm" in METHOD:
         pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
-        model = generateModel(mainPath, pathToModel, [TIP_NODE], N_NODES, modelType=METHOD.split("_", 1)[1])
+        # model = generateModel(mainPath, pathToModel, [TIP_NODE], N_NODES, modelType=METHOD.split("_", 1)[1])
+        model = generateModel(mainPath, pathToModel, [TIP_NODE], N_NODES)
+
+        if taskParams['z'].shape[1] < model.output_dim:
+            taskParams['z'] = np.hstack((taskParams['z'], np.zeros((taskParams['z'].shape[0], model.output_dim - taskParams['z'].shape[1]))))
+    elif METHOD == "linear":
+        pathToModel = "/home/jalora/Desktop/trunk_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
+        model = generateModel(mainPath, pathToModel, [TIP_NODE], N_NODES, modelType="linear", isLinear=True)
         # model = generateModel(mainPath, pathToModel, [TIP_NODE], N_NODES)
 
         if taskParams['z'].shape[1] < model.output_dim:
@@ -226,7 +236,7 @@ def doSimulationsRandomizeObstacles():
         if not os.path.exists(sim_save_dir):
             os.makedirs(sim_save_dir)
 
-        if "ssm" in METHOD:
+        if "ssm" in METHOD or METHOD == "linear":
             from examples.trunk.trunk_SSM import run_gusto_solver_call
             run_solver = run_gusto_solver_call
         elif METHOD == "koopman":
@@ -268,7 +278,7 @@ def plotResults():
     import plotting as plot
     from scipy.interpolate import interp1d
 
-    sim_prefix = {"ssm": "ssmr_sim", "koopman": "koopman_sim", "tpwl": "tpwl_sim"}
+    sim_prefix = {"ssm": "ssmr_sim", "linear": "linear_sim", "koopman": "koopman_sim", "tpwl": "tpwl_sim"}
 
     t0 = 1.
     z = {}
@@ -277,7 +287,7 @@ def plotResults():
 
     taskParams = load_data(taskFile)
 
-    for control in ["ssm", "koopman", "tpwl"]: # ["idw", "nn", "qp"]: # "ct", 
+    for control in ["ssm", "linear", "koopman", "tpwl"]: # ["idw", "nn", "qp"]: # "ct", 
         z[control] = []
         z_target[control] = []
         z_interp = interp1d(taskParams['t'], taskParams['z'], axis=0)
@@ -307,5 +317,5 @@ def plotResults():
 
 if __name__ == '__main__':
     # generate_task_params_obstacles()
-    doSimulationsRandomizeObstacles()
-    # plotResults()
+    # doSimulationsRandomizeObstacles()
+    plotResults()

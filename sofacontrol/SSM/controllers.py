@@ -7,7 +7,7 @@ from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
 from sofacontrol import closed_loop_controller
 from sofacontrol import open_loop_controller
 from sofacontrol.scp.ros import GuSTOClientNode
-from sofacontrol.utils import vq2qv
+from sofacontrol.utils import vq2qv, CircleObstacle
 from sofacontrol.lqr.lqr import dare
 
 """
@@ -106,8 +106,12 @@ class TemplateController(closed_loop_controller.TemplateController):
 
         # TODO: Automate this option
         # Project to interior of constraint set. Ensures LOCP always solvable
-        if self.Y is not None and not self.Y.contains(y):
-            y = self.Y.project_to_polyhedron(y)
+        if self.Y is not None and self.Y.contains(y[:2]):
+            if type(self.Y) == CircleObstacle:
+                print("Projecting to boundary of circle obstacle")
+                y = np.hstack((self.Y.project_to_boundary(y[:2]), y[2]))
+            else:
+                y = self.Y.project_to_polyhedron(y)
 
         # Store current observations for delay embedding ()
         self.data.add_measurement(y, u_prev)
@@ -264,6 +268,7 @@ class scp(TemplateController):
         self.x_opt_current = x_opt_p
         self.u_opt_current = u_opt_p
 
+    # TODO: Refactor. Use x_bar(t_step) instead of x_opt_current. Don't need any of the i_near business.
     def compute_input(self, t_step, x_belief):
         self.GuSTO.force_spin()  # Periodic querying of client node
         if self.feedback:

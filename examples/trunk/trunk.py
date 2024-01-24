@@ -76,7 +76,7 @@ def sim_OL():
 
 
 
-def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
+def apply_constant_input(input, pre_tensioning=np.zeros(8), q0=None, t0=0.0, save_data=True, filepath=f"{path}/undef_traj"):
     """
     In problem_specification add:
 
@@ -106,14 +106,14 @@ def apply_constant_input(input, pre_tensioning, q0=None, t0=0.0, save_data=True,
     Sequences = TrunkRobotSequences(t0=t0, dt=prob.Robot.dt)
 
     # 1) Wind up the robot
-    t_duration1 = 1.0
+    t_duration1 = 5.0
     # print("input", input)
     # print("pre_tensioning", pre_tensioning)
     u_const = input + pre_tensioning
     u1, save1, t1 = Sequences.constant_input(u_const, t_duration1, save_data=False)
     u1 *= np.concatenate([np.linspace(0.5, 1, int(0.8*len(t1))), np.ones(len(t1) - int(0.8*len(t1)))])
     # 2) Remove force (how long to settle down before stopping simulation)
-    t_duration2 = 4.0
+    t_duration2 = 5.0
     u_const = pre_tensioning
     u2, save2, t2 = Sequences.constant_input(u_const, t_duration2, save_data=save_data)
     # combine the two sequences

@@ -349,9 +349,9 @@ class GuSTO:
         else:
             G_d, b_d = None, None
 
-        t_jac = time.time()
-        # TODO: Timing computations
-        print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
+        # t_jac = time.time()
+        # # TODO: Timing computations
+        # print('DEBUG: Jacobians computed in {:.4f} seconds'.format(t_jac - t0))
 
         new_solution = True
         Jstar_prev = np.inf
@@ -385,7 +385,7 @@ class GuSTO:
                                  Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, full=False)
 
             # TODO: Timing computations
-            print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
+            # print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
 
             # Solve the LOCP
             Jstar, success, stats = self.locp.solve()
@@ -463,7 +463,7 @@ class GuSTO:
                 omega = self.gamma_fail * omega
 
             # TODO: Timing computations
-            print('DEBUG: Trust region + LOCP computed in {:.4f} seconds'.format(time.time() - t0))
+            # print('DEBUG: Trust region + LOCP computed in {:.4f} seconds'.format(time.time() - t0))
 
             itr += 1
 

@@ -375,6 +375,15 @@ def get_snapshot_dir():
         os.mkdir(os.path.join(snapshots_dir, 'temp'))
     return snapshots_dir
 
+def delayEmbedding(undelayedData, embed_coords=[0, 1, 2], up_to_delay=4):
+    undelayed = undelayedData[embed_coords, :]
+    buf = [undelayed]
+    for delta in list(range(1, up_to_delay+1)):
+        delayed_by_delta = np.roll(undelayed, -delta)
+        delayed_by_delta[:, -delta:] = 0
+        buf.append(delayed_by_delta)
+    delayedData = np.vstack(buf)
+    return delayedData
 
 class Polyhedron:
     def __init__(self, A, b, with_reproject=False):
@@ -471,15 +480,34 @@ class CircleObstacle(Polyhedron):
         # Return maximum of all constraint violations
         return np.max(constraintVals)
 
-    def project_to_polyhedron(self, x):
-        raise RuntimeError('Not implemented for circular obstacle constraint.')
-
     def update(self, Hk, ck):
         """
         self.Ak and self.bk is constructed so that constraints are with respect to observable coordinates
         """
         self.Ak = np.dot(self.A, Hk)
         self.bk = np.dot(self.A, ck)
+    
+    def project_to_boundary(self, x0):
+        """
+        Projects the point x0 onto the boundary of the closest circle.
+        """
+        # Find the closest circle center
+        distances = [np.linalg.norm(x0 - c) for c in self.center]
+        closest_idx = np.argmin(distances)
+        closest_center = self.center[closest_idx]
+
+        # If x0 is the center of the circle, return it as it is (no unique projection)
+        if distances[closest_idx] == 0:
+            return x0
+
+        # Compute direction from center to x0
+        direction = (x0 - closest_center) / distances[closest_idx]
+
+        # Project x0 to the boundary
+        projection = closest_center + direction * (self.diameter[closest_idx] / 2)
+
+        return projection
+
 
 
 class HyperRectangle(Polyhedron):
@@ -591,7 +619,8 @@ def drawContinuousPath(distance_threshold=0.1, image_path=None, z_plane=False, n
         if z_plane:
             ax.imshow(img, extent=[-12, 12, -12, 12])
         else:
-            ax.imshow(img, extent=[-25, 25, -25, 25])
+            # ax.imshow(img, extent=[-25, 25, -25, 25])
+            ax.imshow(img, extent=[-20, 20, -20, 20])
 
     # Create an empty list to store your points
     points = []
@@ -636,7 +665,7 @@ def drawContinuousPath(distance_threshold=0.1, image_path=None, z_plane=False, n
     return np.tile(points, (num_repeat, 1))
 
 
-def resample_waypoints(waypoints, total_time):
+def resample_waypoints(waypoints, total_time, dt=0.01):
     waypoints = np.array(waypoints)
     x, y = waypoints.T
 
@@ -649,14 +678,11 @@ def resample_waypoints(waypoints, total_time):
     # Total distance
     total_distance = distance[-1]
 
-    # Desired speed
-    speed = total_distance / total_time
-
     # Interpolate the path
     path = CubicSpline(distance, waypoints, axis=0, bc_type='natural')
 
-    # Sample the path at constant speed intervals
-    num_points = int(total_time * speed)
+    # Sample the path at constant time intervals dt
+    num_points = int(total_time / dt)
     new_distance = np.linspace(0, total_distance, num_points)
     new_waypoints = path(new_distance)
 
@@ -688,7 +714,8 @@ def norm2Linearize(x, y, dt, P=None):
 """
     Create a new target trajectory. TODO: Assume outdofs are [0, 1, 2]
 """
-def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None, outdofs=[0, 1, 2], z_offset=None, repeat_traj=1):
+def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude=15, freq=None, pathToImage=None, 
+                           outdofs=[0, 1, 2], z_offset=None, repeat_traj=1, Mper=3, Tper=10.):
     if controlTask == 'custom':
         # Check if the trajectory is along z-plane
         if outdofs == [0, 1, 2]:
@@ -699,27 +726,30 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         # Problem 0, Custom Drawn Trajectory
         #############################################
         # Draw the desired trajectory
+        M = 1
+        T = Tper
         points = drawContinuousPath(distance_threshold=0.5, image_path=pathToImage, z_plane=z_plane, num_repeat=repeat_traj)
-        resampled_pts = resample_waypoints(points, 10.1)
+        resampled_pts = resample_waypoints(points, M * T) # TODO: 10.1
 
         # Setup target trajectory
-        t = np.linspace(0, 10.1, resampled_pts.shape[0])
+        t = np.linspace(0, M * T, resampled_pts.shape[0]) # TODO: 10.1 and resampled_pts.shape[0] + 1
         x_target, y_target = resampled_pts[:, 0], resampled_pts[:, 1]
-        zf_target = np.zeros((resampled_pts.shape[0], output_dim))
-        zf_target[:, outdofs[0]] = x_target
-        zf_target[:, outdofs[1]] = y_target
+        # zf_target = np.zeros((resampled_pts.shape[0] + 1, output_dim))
+        zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (resampled_pts.shape[0], 1))
+        zf_target[:, outdofs[0]] += x_target
+        zf_target[:, outdofs[1]] += y_target
     elif controlTask == "figure8":
         # === figure8 ===
-        M = 1
-        T = 10
+        M = Mper
+        T = Tper
         N = 1000
         radius = amplitude
         t = np.linspace(0, M * T, M * N + 1)
         th = np.linspace(0, M * 2 * np.pi, M * N + 1)
         zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
         # zf_target = np.zeros((M*N+1, 6))
-        zf_target[:, outdofs[0]] += -radius * np.sin(th)
-        zf_target[:, outdofs[1]] += radius * np.sin(2 * th)
+        zf_target[:, outdofs[0]] += -radius * np.sin(0.5 * th)
+        zf_target[:, outdofs[1]] += radius * np.sin(th)
         # zf_target[:, 2] += -np.ones(len(t)) * 20
     elif controlTask == "circle":
         if robot == 'trunk':
@@ -742,8 +772,8 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             print(zf_target.shape)
             t = np.linspace(0, M * 10, M * 1000 + 1)
         elif robot == 'diamond':
-            M = 3
-            T = 5.
+            M = Mper
+            T = Tper
             N = 1000
             t = np.linspace(0, M * T, M * N)
             th = np.linspace(0, M * 2 * np.pi, M * N)
@@ -751,7 +781,7 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
             
             if freq is None:
                 y_target = amplitude * np.sin(th)
-                z_target = amplitude - amplitude * np.cos(th) + z_offset
+                z_target = amplitude - amplitude * np.cos(th)
             else:
                 y_target = amplitude * np.sin(freq * T / (2 * np.pi) * th)
                 z_target = amplitude - amplitude * np.cos(freq * T / (2 * np.pi) * th)

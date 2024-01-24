@@ -4,6 +4,8 @@ from scipy.interpolate import interp1d
 from sofacontrol.baselines.koopman.koopman_utils import KoopmanData
 from sofacontrol.baselines.ros import MPCClientNode
 from sofacontrol.closed_loop_controller import TemplateController
+from sofacontrol.lqr.traj_tracking_lqr import TrajTrackingLQR
+
 
 # NOTE: Only tested on a single output node, position only (3 dim), and a delay of 1. To test with larger delays and
 # compare with MATLAB code
@@ -38,7 +40,7 @@ class KoopmanMPC(TemplateController):
 
         self.solve_times = []
 
-        self.data = KoopmanData(self.dyn_sys.scale, self.dyn_sys.delays)
+        self.data = KoopmanData(self.dyn_sys.scale, self.dyn_sys.delays, inputInFeatures=self.dyn_sys.inputInFeatures)
 
         # self.planning_horizon = kwargs.get('planning_horizon', 10)
         self.rollout_horizon = kwargs.get('rollout_horizon', 1)
@@ -184,6 +186,111 @@ class KoopmanMPC(TemplateController):
         info['solve_times'] = self.solve_times
         info['rollout_time'] = self.rollout_horizon * self.dt
         return info
+
+class TrajTracking(TemplateController):
+
+    """
+    Implements trajectory following for non-linear systems, which is an extension to a classic LQR problem.
+    Requires a trajectory as input
+    """
+
+    def __init__(self, dyn_sys, cost_params, target, u_lb, u_ub, delay=2., u0=None, **kwargs):
+
+        super().__init__()
+
+        self.target = target
+        self.dyn_sys = dyn_sys
+        self.cost_params = cost_params
+        self.t_delay = delay
+        self.dt = self.dyn_sys.Ts
+
+        self.final_time = self.target.t[-1]
+        self.t_compute = 0.
+
+        self.observer = KoopmanObserver()
+        self.data = KoopmanData(self.dyn_sys.scale, self.dyn_sys.delays, inputInFeatures=self.dyn_sys.inputInFeatures)
+        self.input_dim = self.dyn_sys.m
+        self.state_dim = self.dyn_sys.state_dim
+        self.u_lb = u_lb
+        self.u_ub = u_ub
+
+        if u0 is not None:
+            self.u0 = u0
+        else:
+            self.u0 = np.zeros(self.input_dim)
+        self.u = self.u0
+
+        self.validate_problem()
+
+        # Traj Tracking LQR policy
+        self.policy = TrajTrackingLQR(dt=self.dyn_sys.Ts, model=dyn_sys, cost_params=self.cost_params)
+        self.x_bar = None
+        self.u_bar = None
+        self.K = None
+
+        # Compute policy (this can be done offline)
+        self.x_bar, self.u_bar, self.K = self.policy.compute_policy(self.target)
+
+    def validate_problem(self):
+        # Validate target instance variables & their shape
+        assert self.target.x is not None and self.target.u is not None and self.target.t is not None
+        assert self.target.x.ndim == 2
+        assert self.target.u.shape[-1] == self.input_dim
+        # assert self.target.x.shape[-1] == self.state_dim
+
+        # Validate cost parameters & their shape
+        # assert (self.dyn_sys.H.T @ self.cost_params.Q @ self.dyn_sys.H).shape == (self.state_dim, self.state_dim)
+        assert self.cost_params.R.shape == (self.input_dim, self.input_dim)
+
+    def compute_policy(self, t_step, x_belief):
+        # Controller policy is computed offline, hence done when initializing the controller
+        pass
+
+    def compute_input(self, t_step, x_belief):
+        if t_step > self.final_time:
+            self.u = self.u0
+        else:
+            step = int(t_step / self.dt)
+            zeta_belief = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*x_belief)))
+            zeta_ref = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*self.x_bar[step])))
+            # self.u = np.clip(np.atleast_1d(self.u_bar[step] + self.K[step] @ (zeta_belief - zeta_ref)),
+            #                  self.u_lb, self.u_ub)
+            # self.u = np.clip(np.atleast_1d(self.u_bar[step]), self.u_lb, self.u_ub)
+            self.u = np.clip(np.atleast_1d(self.K[step] @ (zeta_belief - zeta_ref)), self.u_lb, self.u_ub)
+            self.u = self.data.scaling.scale_up(u=self.u)
+        return self.u
+
+    def evaluate(self, sim_time, y, x, u_prev):
+        """
+        Update observer at each step of simulation (each function call). Updates controller at controller frequency
+        :param time: Time in the simulation [s]
+        :param y: Measurement at time time
+        :param x: Full order state at time time. Only used at start of control if using an observer, for initialization
+        """
+        # print(sim_time)
+        sim_time = round(sim_time, 4)
+        # Startup portion of controller, before OCP controller is activated
+        self.observer.update(None, y, None)
+            
+        self.data.add_measurement(y, u_prev)
+        if round(sim_time, 4) < round(self.t_delay, 4):
+            self.u = self.u0
+        # Optimal controller is active
+        else:
+            # Updating controller (self.u) and/or policy (if first step or receding horizon)
+            if round(sim_time - self.t_delay, 4) >= round(self.t_compute, 4):  # self.t_compute set to
+                # Gets lifted Koopman state based on current/past measurements
+                zeta_belief = self.data.get_zeta()
+
+                self.u = self.compute_input(self.t_compute, zeta_belief)
+
+                self.t_compute += self.dt  # Increment t_compute
+                self.t_compute = round(self.t_compute, 4)
+        if self.u.ndim > 1:
+            self.u = self.u.flatten()
+        else:
+            self.u = np.atleast_1d(self.u)
+        return self.u.copy()  # Returns copy of self.u
 
 
 class KoopmanObserver:

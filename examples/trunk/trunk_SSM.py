@@ -20,7 +20,7 @@ N_NODES = 709
 
 
 modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
-dt = 0.1 # This dt for when to recalculate control. TODO: uncomment when running manually
+dt = 0.02 # This dt for when to recalculate control. TODO: uncomment when running manually
 
 
 def run_scp(T=11.):
@@ -60,7 +60,7 @@ def run_scp(T=11.):
 
     ######## Specify a measurement of what we observe during simulation ########
     cov_q = 0.001 * np.eye(3)
-    cov_v = 60.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
+    cov_v = 30.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
     if model.params['delay_embedding']:
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
@@ -75,8 +75,16 @@ def run_scp(T=11.):
     # V = 0.1 * np.eye(model.output_dim)
     # observer = DiscreteEKFObserver(model, W=W, V=V)
 
+    # Define constraints
+    # controlTask = "custom"
+    # trajDir = join(path, "control_tasks")
+    # taskFile = join(trajDir, controlTask + ".pkl")
+    # taskParams = load_data(taskFile)
+    # # TODO: Debugging
+    # taskParams['X'] = taskParams['X_list'][0]
+
     # Define controller (wait 1 second of simulation time to start)
-    prob.controller = scp(model, QuadraticCost(), dt, N_replan=1, delay=1, feedback=False, EKF=observer)
+    prob.controller = scp(model, QuadraticCost(), dt, N_replan=1, delay=1, feedback=False, EKF=observer, Y=None)
 
     # Saving paths
     prob.opt['sim_duration'] = T
@@ -106,7 +114,7 @@ def run_gusto_solver():
     N = 3
 
     # Control Task Params
-    controlTask = "stanford" # pacman or stanford
+    controlTask = "custom" # pacman or stanford
     trajAmplitude = 10
     trajFreq = 17 # rad/s
 
@@ -123,7 +131,8 @@ def run_gusto_solver():
 
     # Constrol Constraints
     u_min, u_max = 0.0, 800.0
-    du_max = 100.
+    # du_max = 100.
+    du_max = None
 
     ######## Generate SSM model and setup control task ########
     # Set directory for SSM Models
@@ -161,6 +170,9 @@ def run_gusto_solver():
             save_data(taskFile, taskParams)
     else:
         taskParams = load_data(taskFile)
+        # TODO: Debugging
+        # taskParams['X'] = taskParams['X_list'][0]
+
         if taskParams['z'].shape[1] < model.output_dim:
             taskParams['z'] = np.hstack((taskParams['z'], np.zeros((taskParams['z'].shape[0], model.output_dim - taskParams['z'].shape[1]))))
         
@@ -175,6 +187,7 @@ def run_gusto_solver():
     Qz[1, 1] = 100  # corresponding to y position of end effector
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
     R = .00001 * np.eye(model.input_dim)
+    # R = .07 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
@@ -227,7 +240,8 @@ def run_gusto_solver_call(taskParams, model):
     Qz[0, 0] = 100.   # corresponding to x position of end effector
     Qz[1, 1] = 100.   # corresponding to y position of end effector
     Qz[2, 2] = 0.   # corresponding to z position of end effector
-    R = 0.001 * np.eye(model.input_dim)
+    # R = 0.001 * np.eye(model.input_dim)
+    R = 0.07 * np.eye(model.input_dim)
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)

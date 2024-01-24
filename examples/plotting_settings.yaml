@@ -7,9 +7,9 @@ traj_dir: ""
 
 show: {
     'ssmr_delays': False, # Full obsevables
-    'ssmr_posvel': True, # pos-vel
-    'ssmr_singleDelay': True, # Single delay embedding
-    'ssmr_linear': True, # Linear model
+    'ssmr_posvel': False, # pos-vel
+    'ssmr_singleDelay': False, # Single delay embedding
+    'ssmr_linear': False, # Linear model
     # Adiabatic SSM settings
     'ssmr_nnssm': False,
     'ssmr_ctssm': False,
@@ -18,7 +18,7 @@ show: {
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
     'tpwl': False,
-    'koopman': False,
+    'koopman': True,
     'DMD': False,
     'rompc': False
 }
@@ -26,7 +26,7 @@ display_name: {
     'ssmr_delays': "SSMR\n(4 Delays)",
     'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
     'ssmr_singleDelay': "SSMR\n(1 Delay)", # Single delay embedding
-    'ssmr_linear': "Linear SSMR\n(1 Delay)", # Linear SSMR Model
+    'ssmr_linear': "SSSR\n(1 Delay)", # Linear SSMR Model
     'ssmr_nnssm': "ASSMR (NN, N=9)",
     'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
     'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
@@ -43,7 +43,7 @@ legend_name: {
     'ssmr_delays': "SSMR (4 Delays)",
     'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
     'ssmr_singleDelay': "SSMR (1 Delay)", # Single delay embedding
-    'ssmr_linear': "Linear SSMR (1 Delay)", # Linear SSMR Model
+    'ssmr_linear': "SSSR (1 Delay)", # Linear SSMR Model
     'ssmr_nnssm': "ASSMR (NN, N=9)",
     'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
     'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
@@ -140,7 +140,7 @@ alpha: {
     'target': 1.5
 }
 
-select_target: "circle"
+select_target: "figure8"
 # select_target: "figure8"
 # Figure8 target
 define_targets: {

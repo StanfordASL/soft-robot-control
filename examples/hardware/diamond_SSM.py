@@ -19,7 +19,7 @@ DEFAULT_OUTPUT_NODES = [1354]
 TIP_NODE = 1354
 N_NODES = 1628
 
-modelType = 'posvel' # "delays", "posvel", "singleDelay", "linear"
+modelType = 'singleDelay' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.02 # This dt for when to recalculate control
 
 
@@ -103,15 +103,15 @@ def run_gusto_solver():
     import pickle
     
     ######## User Options ########
-    saveControlTask = False
-    createNewTask = False
+    saveControlTask = True
+    createNewTask = True
     N = 3
 
     ###### Circle Parameters ######
     # Control Task Params
-    controlTask = "circle" # figure8, circle, or custom
-    trajAmplitude = 10
-    trajFreq = 20 # rad/s # 15, 20, 25, 30, 35
+    # controlTask = "circle" # figure8, circle, or custom
+    # trajAmplitude = 10
+    # trajFreq = 20 # rad/s # 15, 20, 25, 30, 35
 
     # Star trajectory - only used when custom trajectory is selected
     pathToTraceImage = "/home/jalora/Desktop/star.png"
@@ -121,9 +121,9 @@ def run_gusto_solver():
 
     # ###### Other Traj Parameters ######
     # # Control Task Params
-    # controlTask = "circle" # figure8, circle, or custom
-    # trajAmplitude = 10
-    # trajFreq = 17 # rad/s
+    controlTask = "figure8" # figure8, circle, or custom
+    trajAmplitude = 15
+    trajFreq = None # rad/s
 
     # # Star trajectory - only used when custom trajectory is selected
     # pathToTraceImage = "/home/jalora/Desktop/star.png"

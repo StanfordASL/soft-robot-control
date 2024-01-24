@@ -1,13 +1,16 @@
 import control
 import numpy as np
 import scipy.linalg
-
+import jax
+from functools import partial
+import jax.numpy as jnp
 
 def solve_riccati(A, B, Q, R):
     """
     Solves discrete ARE, returns gain matrix K s.t. u = +K*x
     Faster implementation than control.dlqr for systems with large n (state_dim)
     """
+
     n = A.shape[0]
     m = B.shape[1]
     P = np.zeros((n, n))
@@ -30,6 +33,41 @@ def dare(Ad, Bd, Q, R):
     K = -scipy.linalg.inv(Bd.T @ P @ Bd + R) @ (Bd.T @ P @ Ad)
     return K, P
 
+####### Jitted Functions #######
+
+def solve_riccati_jax(A, B, Q, R):
+    def ricatti_iteration(carry, _):
+        P, Lold = carry
+        L = -jnp.linalg.solve(R + B.T @ P @ B, B.T @ P @ A)
+        R_inv = jnp.linalg.inv(R + B.T @ P @ B)
+        P = A.T @ P @ A - A.T @ P @ B @ R_inv @ (B.T @ P @ A) + Q
+        return (P, L), None
+
+    n = A.shape[0]
+    m = B.shape[1]
+    P = jnp.zeros((n, n))
+    L = jnp.linalg.solve(R + B.T @ P @ B, B.T @ P @ A)
+    Lold = 10**8 * jnp.ones((m, n))
+
+    init_carry = (P, Lold)
+    num_iterations = 100  # You can set the number of iterations here
+
+    final_carry, _ = jax.lax.scan(ricatti_iteration, init_carry, jnp.zeros((num_iterations,)))
+    P, L = final_carry
+
+    return L, P
+
+@jax.jit
+def dare_jax(Ad, Bd, Q, R):
+    """
+    Solves discrete ARE, returns gain matrix K s.t. u = +K*x,
+    for testing against solve_riccati
+    """
+    Ad, Bd, Q, R = jnp.asarray(Ad), jnp.asarray(Bd), jnp.asarray(Q), jnp.asarray(R)
+    K, P = solve_riccati_jax(Ad, Bd, Q, R)
+    # print(P)
+    # K = -jax.scipy.linalg.inv(Bd.T @ P @ Bd + R) @ (Bd.T @ P @ Ad)
+    return K, P
 
 class DLQR:
     """
