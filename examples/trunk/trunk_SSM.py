@@ -19,7 +19,7 @@ TIP_NODE = 51
 N_NODES = 709
 
 
-modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
+modelType = 'posvel' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.02 # This dt for when to recalculate control. TODO: uncomment when running manually
 
 
