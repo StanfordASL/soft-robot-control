@@ -1,13 +1,13 @@
 ### DIAMOND ROBOT PROBLEM SPECIFICATION ###
 # Description
-from examples.diamond import diamond
+# from examples.diamond import diamond
 # problem = diamond.collect_POD_data
 # problem = diamond.collect_TPWL_data
 # problem = diamond.run_scp
 
 # JOHN: Run decaying trajectories and visualize
 # various mode shapes
-problem = diamond.apply_constant_input
+# problem = diamond.apply_constant_input
 
 # from examples.hardware import diamond_rompc
 # problem = diamond_rompc.run_rompc
@@ -60,8 +60,8 @@ problem = diamond.apply_constant_input
 # from examples.trunk import trunk_koopman
 # problem = trunk_koopman.run_koopman
 
-# from examples.trunk import trunk_SSM
-# problem = trunk_SSM.run_scp
+from examples.trunk import trunk_SSM
+problem = trunk_SSM.run_scp
 
 # from examples.trunk import trunk_adiabaticSSM
 # problem = trunk_adiabaticSSM.run_scp

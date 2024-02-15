@@ -1,13 +1,13 @@
 # collect decay data
 # run "./launch_sofa_collectDecayTrajectories.py"
 collectDecayData: {
-  # robot: "diamond",
-  # u_dim: 4,
-  # save_dir: "/home/jalora/Desktop/diamond_origin",
+  robot: "diamond",
+  u_dim: 4,
+  save_dir: "/home/jalora/Desktop/diamond_origin",
   
-  robot: "trunk",
-  u_dim: 8,
-  save_dir: "/home/jalora/Desktop/trunk_origin",
+  # robot: "trunk",
+  # u_dim: 8,
+  # save_dir: "/home/jalora/Desktop/trunk_origin",
 
   # save_dir: "/media/jonas/Backup Plus/jonas_soft_robot_data/diamond_adiabatic_test_origin",
 
@@ -72,11 +72,11 @@ collectInputData: {
 
   # robot: "diamond",
   # u_dim: 4,
-  # u_max: 2000,
+  # u_max: 3000,
   # save_dir: "/home/jalora/Desktop/diamond_origin",
 
   robot: "trunk",
   u_dim: 8,
-  u_max: 100,
+  u_max: 400,
   save_dir: "/home/jalora/Desktop/trunk_origin",
 }

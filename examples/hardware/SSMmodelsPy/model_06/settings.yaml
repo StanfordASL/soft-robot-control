@@ -1,14 +1,13 @@
 RDType: flow
-ROMOrder: 1
+ROMOrder: 3
 SSMDim: 6
-SSMOrder: 1
+SSMOrder: 3
 custom_delay: 1
 data_dir: /home/jalora/Desktop/diamond
 data_subdirs: []
 decay_dir: decay/
 decay_test_set:
 - 0
-- 4
 dt: 0.01
 input_dim: 4
 input_test_data_dir:
@@ -34,7 +33,7 @@ t_decay:
 - 1
 - 4
 t_truncate:
-- 0.08
+- 0.6
 - 2.6
 tip_node: 1354
 use_ssmlearn: py

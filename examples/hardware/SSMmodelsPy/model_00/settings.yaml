@@ -2,7 +2,7 @@ RDType: flow
 ROMOrder: 3
 SSMDim: 6
 SSMOrder: 3
-custom_delay: false
+custom_delay: 1
 data_dir: /home/jalora/Desktop/diamond
 data_subdirs: []
 decay_dir: decay/
@@ -14,7 +14,7 @@ input_dim: 4
 input_test_data_dir:
 - open-loop_circle
 input_train_data_dir: open-loop
-input_train_ratio: 0.8
+input_train_ratio: 0.7
 model_save_dir: SSMmodelsPy/
 n_delay: 4
 n_nodes: 1628
@@ -37,4 +37,4 @@ t_truncate:
 - 0.08
 - 2.6
 tip_node: 1354
-use_ssmlearn: matlab
+use_ssmlearn: py

@@ -59,6 +59,8 @@ def createScene(rootNode, q0=None, save_filepath="", u_max=None, pre_tensioning=
         save_data = True
     else:
         save_data = False
+    
+    print('U_MAX: ', u_max)
     prob = platform.collect_open_loop_data(u_max=u_max, pre_tensioning=pre_tensioning, q0=q0, save_data=save_data, filepath=save_filepath)
     prob.checkDefinition()
 
