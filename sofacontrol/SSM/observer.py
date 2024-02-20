@@ -2,6 +2,7 @@ import time
 import jax.scipy as jsp
 import jax.numpy as jnp
 import numpy as np
+import pdb
 
 class FullStateObserver:
     """
@@ -55,6 +56,8 @@ class SSMObserverLDO:
         self.d = None
         self.dyn_sys = dyn_sys
         self.err = None
+        
+        self.y_prev = None
 
         # Initialize based on observable equilibrium position
         self.initialize(jnp.zeros(self.dyn_sys.obs_dim))
@@ -64,12 +67,41 @@ class SSMObserverLDO:
         Initialize the reduced order state estimate. By default the state is initialized in __init__
         to x_ref, but the user can override if desired
         """
-        # Compute x based on current observation (q, v)
+        # Compute x based on current observation (q, v)self.innov[self.dyn_sys.state_dim:]
         y = jnp.asarray(y)
         self.x = self.dyn_sys.observed_to_reduced(y)
         self.d = jnp.zeros(self.dyn_sys.Nid * self.dyn_sys.Nper)
         self.err = jnp.zeros(self.dyn_sys.output_dim)
-    
+
+    def update(self, u, y, dt, **kwargs):
+        """
+        Full EKF
+        :param u: input at timestep k
+        :param y: measurement at timestep k+1
+        :dt: timestep (s)
+        """
+        u = jnp.asarray(u)
+        if self.y_prev is None:
+            self.y_prev = jnp.asarray(y)
+        y_k = self.y_prev
+        # self.predict_state(u, dt)
+        # self.update_state(y)
+
+        # Get linearizations of reduced dynamics at current state x
+        u = jnp.asarray(u)
+        A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, u, dt)
+
+        d_curr = self.d[:self.dyn_sys.Nid]
+        # innov[k,:] = L_LDO @ ( C @ xhat[k,:] + Cd @ S0 @ dhat[k,:] - y[k,:] )
+        self.err = (self.dyn_sys.reduced_to_output(jnp.array(self.x)) + self.dyn_sys.Cd @ d_curr - self.dyn_sys.C @ y_k)
+        self.innov = self.dyn_sys.L_LDO @ self.err
+        # xhat[k+1,:] = A @ xhat[k,:] + B @ u[k,:] + Bd @ S0 @ dhat[k,:] + innov[k,:nx]
+        self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bd @ d_curr + self.innov[:self.dyn_sys.state_dim]
+        # dhat[k+1,:] = Sd @ dhat[k,:] + innov[k,nx:]
+        self.d = self.dyn_sys.Sd @ self.d + self.innov[self.dyn_sys.state_dim:]
+
+        self.y_prev = jnp.asarray(y)
+        
     def predict_state(self, u, dt):
         """
         Predictor update step
@@ -86,17 +118,17 @@ class SSMObserverLDO:
         self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bd @ d_curr
         self.d = self.dyn_sys.Sd @ self.d
     
-    def update(self, u, y, dt, **kwargs):
-        """
-        Full EKF
-        :param u: input at timestep k
-        :param y: measurement at timestep k+1
-        :dt: timestep (s)
-        """
-        u = jnp.asarray(u)
-        y = jnp.asarray(y)
-        self.predict_state(u, dt)
-        self.update_state(y)
+    # def update(self, u, y, dt, **kwargs):
+    #     """
+    #     Full EKF
+    #     :param u: input at timestep k
+    #     :param y: measurement at timestep k+1
+    #     :dt: timestep (s)
+    #     """
+    #     u = jnp.asarray(u)
+    #     y = jnp.asarray(y)
+    #     self.predict_state(u, dt)
+    #     self.update_state(y)
     
     def update_state(self, y):
         """

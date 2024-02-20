@@ -20,12 +20,12 @@ TIP_NODE = 1354
 N_NODES = 1628
 
 modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
-dt = 0.02 # This dt for when to recalculate control
+dt = 0.01 # This dt for when to recalculate control
 
 ######## Generate LDO Parameters ########
-Mper = 10   # Number of periods to simulate
-Tper = 2.  # Period of trajectory
-Nper = int(Tper / dt) + 1    # Number of points per period (this will be trigger for doing LDO)
+Mper = 10  # Number of periods to simulate
+Tper = 0.5  # Period of trajectory
+Nper = int(Tper / dt) # Number of points per period (this will be trigger for doing LDO)
 # Nper = None
 
 def run_scp():
@@ -54,7 +54,7 @@ def run_scp():
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
     # Simulation settings
-    sim_duration = 11.
+    sim_duration = Mper * Tper + 1.
     save_prefix = 'ssmr_' + modelType
 
     ######## Setup the Robot Environment and Type of Controller ########
@@ -111,17 +111,26 @@ def run_gusto_solver():
     createNewTask = False
     N = 3
 
-    ###### Circle Parameters ######
-    # Control Task Params
-    controlTask = "circle" # figure8, circle, or custom
-    trajAmplitude = 10
-    trajFreq = 20 # rad/s # 15, 20, 25, 30, 35
+    ###### Control Task Parameters ######
+    # X-Y Figure 8
+    controlTask = "figure8" # figure8, circle, or custom
+    trajAmplitude = 35.
+    trajFreq = None # rad/s # 15, 20, 25, 30, 35
+    z_offset = None
+    outdofs = [0, 1, 2]
+
+    # Y-Z Circle
+    # controlTask = "circle" # figure8, circle, or custom
+    # trajAmplitude = 15
+    # trajFreq = None # rad/s # 15, 20, 25, 30, 35
+    # outdofs = [0, 1, 2]
+    # z_offset = 107.
 
     # Star trajectory - only used when custom trajectory is selected
-    pathToTraceImage = "/home/jalora/Desktop/star.png"
-    outdofs = [0, 1, 2]
-    z_offset = 107.
-    repeat_traj = None
+    # pathToTraceImage = "/home/jalora/Desktop/star.png"
+    # outdofs = [0, 1, 2]
+    # z_offset = 107.
+    # repeat_traj = None
 
     # ###### Other Traj Parameters ######
     # # Control Task Params
@@ -141,7 +150,7 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 4200.0
+    u_min, u_max = 0.0, 6200.0
     du_max = None
 
     ######## Generate SSM model and setup control task ########
@@ -158,8 +167,8 @@ def run_gusto_solver():
     if createNewTask:
         ######## Define the trajectory ########
         zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, 
-                                              freq=trajFreq, pathToImage=pathToTraceImage, outdofs=outdofs, z_offset=z_offset,
-                                              repeat_traj=repeat_traj)
+                                              freq=trajFreq, Mper=Mper, Tper=Tper, outdofs=outdofs, z_offset=z_offset)
+        
         z = model.zfyf_to_zy(zf=zf_target)
 
         ######## Define a new state constraint (q, v) format ########
@@ -190,20 +199,20 @@ def run_gusto_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    R = 0.000001 * np.eye(model.input_dim) # 0.00001 # 0.001
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    R = .00001 * np.eye(model.input_dim)
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100.0  # corresponding to x position of end effector
-    Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 0.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 100.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 100.0  # corresponding to z position of end effector
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)
@@ -240,7 +249,7 @@ def run_scp_LDO():
     pathToModel = path + '/SSMmodels/'
     # pathToModel = "/home/jalora/Desktop/diamond_origin/000/SSMmodel_delay-embedding_ROMOrder=3_localV" # join(path, "SSMmodels", "model_004")
     # Simulation settings
-    sim_duration = 21.
+    sim_duration = Mper * Tper + 1.
     if Nper is None:
         save_prefix = 'ssmr_' + modelType
     else:
@@ -287,6 +296,7 @@ def run_scp_LDO():
 
 def run_gusto_solver_LDO():
     """
+    export CUDA_VISIBLE_DEVICES=1
     python3 diamond_SSM.py run_gusto_solver_LDO
     """
     from sofacontrol.scp.models.ssm import SSMGuSTO
@@ -304,22 +314,27 @@ def run_gusto_solver_LDO():
     createNewTask = True
     N = 3
 
-    ###### Circle Parameters ######
-    # Control Task Params
+    ###### Control Task Parameters ######
+    # X-Y Figure 8
     controlTask = "figure8" # figure8, circle, or custom
-    trajAmplitude = 30.
+    trajAmplitude = 35.
     trajFreq = None # rad/s # 15, 20, 25, 30, 35
     z_offset = None
-    
-    # controlTask = "circle" # figure8, circle, or custom
-    # trajAmplitude = 10.
-    # trajFreq = None # rad/s # 15, 20, 25, 30, 35
-    # z_offset = 107.
-    
     outdofs = [0, 1, 2]
+    
+    # Y-Z Circle
+    # controlTask = "circle" # figure8, circle, or custom
+    # trajAmplitude = 15.
+    # trajFreq = None # rad/s # 15, 20, 25, 30, 35
+    # z_offset = 107. # Circle in Y-Z plane
+    # outdofs = [0, 1, 2] # Circle in Y-Z plane
+
+    # controlTask = "figure8" # figure8, circle, or custom
+    # z_offset = 25 # Figure 8 in Y-Z plane
+    # outdofs = [1, 2, 0] # Figure 8 in Y-Z plane
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 4200.0
+    u_min, u_max = 0.0, 6200.0
     du_max = None
 
 
@@ -340,6 +355,13 @@ def run_gusto_solver_LDO():
         zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, 
                                               freq=trajFreq, Mper=Mper, Tper=Tper, outdofs=outdofs, z_offset=z_offset)
         z = model.zfyf_to_zy(zf=zf_target)
+        
+        # Input Trajectory
+        # steps = 1000
+        # th = np.linspace(0, Mper * 2 * np.pi, Mper * steps + 1)
+        # u_target = np.zeros((Mper * steps + 1, model.input_dim))
+        # u_target[:, 0] = 1500. * np.abs(np.sin(th))
+        # u_target[:, 1] = 1500. * np.abs(np.cos(th))
 
         ######## Define a new state constraint (q, v) format ########
         ## Format [constraint number, variable/state number]
@@ -354,7 +376,7 @@ def run_gusto_solver_LDO():
         # U, dU = None, None
 
         ######## Save Target Trajectory and Constraints ########
-        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
+        taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}#, 'u' : u_target}
         if saveControlTask:
             save_data(taskFile, taskParams)
     else:
@@ -373,16 +395,25 @@ def run_gusto_solver_LDO():
     Qz[0, 0] = 100  # corresponding to x position of end effector
     Qz[1, 1] = 100  # corresponding to y position of end effector
     Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    R = 0.00001 * np.eye(model.input_dim) # 0.00001 # 0.001
+    R = 0.000001 * np.eye(model.input_dim) # 0.00001 # 0.001
+    # R = np.eye(model.input_dim)
 
     #############################################
-    # Problem 2, X-Y-Z plane cost function
+    # Problem 2, Y-Z plane cost function
     #############################################
-    # R = 0.001 * np.eye(model.input_dim) # 0.001
+    # R = 0.000001 * np.eye(model.input_dim) # 0.001
     # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    # Qz[0, 0] = 0.0  # corresponding to x position of end effector
     # Qz[1, 1] = 100.0  # corresponding to y position of end effector
     # Qz[2, 2] = 100.0  # corresponding to z position of end effector
+
+    # Plot target trajectory
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.plot3D(z[:, 0], z[:, 1], z[:, 2], label='Target Trajectory')
+    # plt.legend()
+    # plt.title('Target Trajectory')
+    # plt.show()
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)
@@ -391,7 +422,7 @@ def run_gusto_solver_LDO():
     gusto_model = SSMGuSTO(model)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
+                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)#, u=taskParams['u'])
 
 def run_scp_OL():
     """

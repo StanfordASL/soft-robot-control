@@ -192,7 +192,8 @@ class GuSTOSolverNode(Node):
         else:
             if self.u is not None:
                 if self.u.ndim == 2:
-                    u = self.u_interp(t)
+                    t_u = t0 + self.dt * np.arange(self.N)
+                    u = self.u_interp(t_u)
                 else:
                     u = self.u.reshape(1, -1).repeat(self.N)
             else:

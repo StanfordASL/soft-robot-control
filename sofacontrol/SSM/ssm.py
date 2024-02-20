@@ -239,15 +239,15 @@ class SSMDynamics(SSM):
                 self.Cd = np.eye(self.Nid)
 
                 # TODO: Modify gains here!!!!! Define LDO cost for LQE
-                # Q_kalman = block_diag(np.eye(self.state_dim), 10. * np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
-                Q_kalman = block_diag(np.eye(self.state_dim), 10*np.eye(self.Nid), 1000*np.eye(self.Nid*self.Nper-self.Nid))
-                R_kalman = np.eye(self.output_dim)
+                Q_kalman = block_diag(np.eye(self.state_dim), 20*np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
+                # Q_kalman = block_diag(np.eye(self.state_dim), 10*np.eye(self.Nid), 10*np.eye(self.Nid*self.Nper-self.Nid))
+                R_kalman = 2*np.eye(self.output_dim)
 
                 # Get shifting matrix
                 self.Sd = scutils.get_LDO_disturbance_matrices(self.Bd, self.Nper)
                 
                 if exists(gains_path):
-                    print('Loading existing Lgains')
+                    print('Loading existing Lgains!!!!!!!')
                     gains = scutils.load_data(gains_path)
                     self.L_LDO = gains['L_LDO']
 
@@ -265,7 +265,7 @@ class SSMDynamics(SSM):
                     # L_LDO = -L_LDO
 
                     # Stable (good):
-                    K, S, E = control.dlqr(A_LDO.T, C_LDO.T, Q_kalman, R_kalman)
+                    K, _, _ = control.dlqr(A_LDO.T, C_LDO.T, Q_kalman, R_kalman)
                     L_LDO = -K.T
 
                     # Extract gains then save. Takes a while to calculate

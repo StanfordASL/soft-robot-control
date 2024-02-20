@@ -106,7 +106,6 @@ SSMmodel = generateModel(path, pathToModel, [model.TIP_NODE], model.N_NODES, mod
 
 def traj_x_vs_y():
     """Plot trajectory via x vs. y"""
-
     fig, ax = plt.subplots(1, 1, figsize=(8, 6), facecolor='w', edgecolor='k')
 
     if z_lb is not None and z_ub is not None:
@@ -140,19 +139,57 @@ def traj_x_vs_y():
         
         # Plot with color gradient
         n_points = len(z_centered[idx:-2, 0])
-        colormap = cm.get_cmap('viridis', n_points)  # choose your colormap here
+        colormap = cm.get_cmap('RdYlGn', n_points)  # choose your colormap here
+        # def alpha_values(k):
+        #     split = 4
+        #     period_length = n_points // split
+        #     period_index = k // period_length
+        #     frac = (period_index+1) / split
+        #     s = 2
+        #     return  round(0.1 + (0.9 / np.exp(s)) * np.exp(s * (frac)), 2)
+        
+        def alpha_values(k):
+            split = 4
+            period_length = n_points // split
+            period_index = k // period_length
+            if period_index == 0:
+                alp = 0.12
+            elif period_index == 1:
+                alp = 0.5
+            elif period_index == 2:
+                alp = 0.75
+            else:
+                alp = 0.85
+            return alp
+        
+        def color_value(k):
+            split = 4
+            period_length = n_points // split
+            period_index = k // period_length
+            if period_index == 0:
+                col = '#DC267F'
+            elif period_index == 1:
+                col = '#AA42B8'
+            elif period_index == 2:
+                col = '#785EF0'
+            else:
+                col = '#648FFF'
+            return col
 
         for i in range(n_points-1):
             color = colormap(i)
             ax.plot(z_centered[i:i+2, 0], z_centered[i:i+2, 1],
-                    color=color,
+                    color= color_value(i), #219EBC', # colormap(i)
                     linewidth=SETTINGS['linewidth'][control],
-                    alpha=.5)
-            
-    ax.plot(zf_target[idx:, 0], zf_target[idx:, 1], color='tab:red', ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=3, label='Target', zorder=1)
+                    alpha=alpha_values(i))
+    # Only plot the first half of the target trajectory
+    periods = 12
+    idx = int(((periods-1.05)/periods)*  zf_target[:, 0].shape[0])     
+    ax.plot(zf_target[idx:, 0], zf_target[idx:, 1], color='#231F20', #'#023047',
+             linestyle='--', alpha=.9, linewidth=5, label='Target', zorder=1)
 
-    ax.set_xlabel(r'$x_{ee}$ [mm]')
-    ax.set_ylabel(r'$y_{ee}$ [mm]')
+    ax.set_xlabel(r'$x$ [mm]')
+    ax.set_ylabel(r'$y$ [mm]')
 
     # Remove top and right border
     ax.spines['top'].set_visible(False)
@@ -189,8 +226,7 @@ def traj_3D(time_gradient=False):
         if time_gradient:
             # Plot with color gradient
             n_points = len(z_centered[idx:-2, 0])
-            colormap = cm.get_cmap('viridis', n_points)  # choose your colormap here
-
+            colormap = cm.get_cmap('viridis', n_points)  # Choose your colormap here
             for i in range(n_points-1):
                 color = colormap(i)
                 ax.plot(z_centered[i:i+2, 0], z_centered[i:i+2, 1], z_centered[i:i+2, 2],
@@ -314,7 +350,6 @@ def innovation_vs_t():
     # ax.set_ylabel(r'Innovation [mm]')
     # ax.set_xlabel(r'$t$ [s]')
 
-    
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
 
@@ -340,7 +375,6 @@ def innovation_vs_t():
     plt.savefig(join(SAVE_DIR, f"{TARGET}_xy_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
     if SHOW_PLOTS:
         plt.show()
-
 
 def traj_xyz_vs_t():
     """Plot trajectories (x,y,z) as function of time"""
@@ -386,7 +420,6 @@ def traj_xyz_vs_t():
     if SHOW_PLOTS:
         plt.show()
 
-
 def traj_inputs_vs_t():
     """Plot inputs applied by controller as function of time"""
     fig, axs = plt.subplots(1, len(CONTROLS), figsize=(18, 6), facecolor='w', edgecolor='k', sharey=True, )
@@ -405,7 +438,6 @@ def traj_inputs_vs_t():
     plt.savefig(join(SAVE_DIR, f"{TARGET}_inputs_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
     if SHOW_PLOTS:
         plt.show()
-
 
 def rmse_calculations():
     """Compute, display and plot RMSEs for all controllers"""
@@ -454,6 +486,157 @@ def rmse_calculations():
     if SHOW_PLOTS:
         plt.show()
 
+def traj_2():
+    """Plot trajectory via x vs. y"""
+    fig, ax = plt.subplots(2, 1, figsize=(0.5*6, 0.5*8), facecolor='w', edgecolor='k')#, gridspec_kw={'height_ratios': [2, 2]})
+
+    if z_lb is not None and z_ub is not None:
+        ax.add_patch(
+            patches.Rectangle(
+                xy=(z_lb[0], z_lb[1]),  # point of origin.
+                width=z_ub[0] - z_lb[0],
+                height=z_ub[1] - z_lb[1],
+                linewidth=2,
+                color='tab:red',
+                fill=False))
+    if target['X'] is not None:
+        for iObs in range(len(target['X'].center)):
+        
+            circle = patches.Circle((target['X'].center[iObs][0], target['X'].center[iObs][1]), target['X'].diameter[iObs]/2, edgecolor='red', facecolor='none')
+            # Add the circle to the axes
+            ax.add_patch(circle)
+    
+    err = {}
+    rmse = {}
+
+    f = interp1d(target['t'], target['z'], axis=0)
+
+    for control in CONTROLS:
+        zf_target = f(SIM_DATA[control]['t'][:-1])
+        
+        # Don't center coordinates if koopman
+        if control == "koopman":
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
+        # if control == "ssmr_origin":
+        #     z_centered = z_centered[:-1, :]
+        if (TARGET == "circle" and SETTINGS['robot'] == "hardware") or (TARGET == "custom" and SETTINGS['robot'] == "hardware"):
+            # errors are to be measured in 3D
+            # err[control] = (z_centered[:-1, :] - zf_target)
+
+            # Only consider y and z
+            err[control] = (z_centered[:-1, 1:] - zf_target[:, 1:])
+        else:
+            # errors are to be measured in 2D
+            err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
+        rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
+
+    for control in CONTROLS:
+        zf_target = f(SIM_DATA[control]['t'][:-2])
+        idx = 0 #int(0.9 * zf_target[:, 0].shape[0])
+
+        # Don't center coordinates if koopman
+        if control == "koopman":
+            z_centered = SIM_DATA[control]['z']- Z_EQ
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        
+        # Plot with color gradient
+        n_points = len(z_centered[idx:-2, 0])
+
+        def alpha_values(k):
+            split = 4
+            period_length = n_points // split
+            period_index = k // period_length
+            if period_index == 0:
+                alp = 0.12
+            elif period_index == 1:
+                alp = 0.5
+            elif period_index == 2:
+                alp = 0.75
+            else:
+                alp = 0.85
+            return 1
+        
+        colormap = cm.get_cmap('Blues', n_points)  # choose your colormap here
+        def color_value(k):
+            split = 4
+            period_length = n_points // split
+            period_index = k // period_length
+            if period_index == 0:
+                col = '#FADCEA'
+            elif period_index == 1:
+                col = '#AA42B8'
+            elif period_index == 2:
+                col = '#785EF0'
+            else:
+                col = '#648FFF'
+            buffer = 100
+            colormap = cm.get_cmap('Blues', n_points+buffer)  # choose your colormap here
+            return colormap(k+buffer)
+        
+        plt.subplot(2, 1, 1)
+        for i in range(n_points-1):
+            plt.plot(z_centered[i:i+2, 0], z_centered[i:i+2, 1],
+                    color= color_value(i), #219EBC', # colormap(i)
+                    linewidth=1.2,
+                    alpha=alpha_values(i))
+        
+        plt.subplot(2, 1, 2)
+        for i in range(n_points-1):
+            plt.plot(SIM_DATA[control]['t'][i:i+2], np.linalg.norm(err[control], axis=1)[i:i+2],
+                    color=color_value(i),#colormap(i),
+                    linewidth=1.2,
+                    ls=SETTINGS['linestyle'][control], 
+                    alpha=alpha_values(i), markevery=20)
+            
+        # for i in range(0, int(SIM_DATA[control]['t'][-1])+1, 1):
+        #     plt.axvline(x=i, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+    
+    ax[1].set_xlabel(r'$t$ [s]')
+    ax[1].set_ylabel(r'RMSE [mm]')
+    ax[1].set_ylim(0, 51)
+    ax[1].spines['top'].set_visible(False)
+    ax[1].spines['right'].set_visible(False)
+    # ax[1].legend()
+
+    plt.subplot(2, 1, 1)
+    # Only plot the first half of the target trajectory
+    periods = 10
+    idx = int(((periods-1)/periods)*zf_target[:, 0].shape[0] - 2)     
+    plt.plot(zf_target[idx:, 0], zf_target[idx:, 1], color='#231F20', #'#023047',
+             linestyle='--', alpha=.9, linewidth=2.4, label='Target', zorder=1)
+    
+    ax[0].set_xlabel(r'$x$ [mm]')
+    ax[0].set_ylabel(r'$y$ [mm]')
+    ax[0].set_ylim(-55, 50)
+    ax[0].set_xlim(-55, 55)
+
+    # Remove top and right border
+    ax[0].spines['top'].set_visible(False)
+    ax[0].spines['right'].set_visible(False)
+    # ax[0].spines['left'].set_visible(False)
+    ax[0].get_xaxis().tick_bottom()
+    ax[0].get_yaxis().tick_left()
+
+    # ax[0].legend()
+    # ax[0].set_aspect('equal', 'box')
+
+    # plt.axis('off')
+    # plt.legend(loc='upper left', prop={'size': 14}, borderaxespad=0, bbox_to_anchor=(0.25, 0.12))
+    ax[0].tick_params(axis='both')
+
+    # asp = np.diff(ax[1].get_xlim())[0] / (2*np.diff(ax[1].get_ylim())[0])
+    # ax[1].set_aspect(asp)
+
+    fig.tight_layout()
+
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_x_vs_y_RMSE.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=600)
+    if SHOW_PLOTS:
+        plt.show()
+
 def plot_RMSE_v_t():
     err = {}
     rmse = {}
@@ -473,7 +656,10 @@ def plot_RMSE_v_t():
         #     z_centered = z_centered[:-1, :]
         if (TARGET == "circle" and SETTINGS['robot'] == "hardware") or (TARGET == "custom" and SETTINGS['robot'] == "hardware"):
             # errors are to be measured in 3D
-            err[control] = (z_centered[:-1, :] - zf_target)
+            # err[control] = (z_centered[:-1, :] - zf_target)
+
+            # Only consider y and z
+            err[control] = (z_centered[:-1, 1:] - zf_target[:, 1:])
         else:
             # errors are to be measured in 2D
             err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
@@ -485,15 +671,62 @@ def plot_RMSE_v_t():
         print(f"{SETTINGS['display_name'][control]}: {np.mean(np.linalg.norm(err[control], axis=1)[int(len(err[control])/2):]):.3f} mm")
 
     """Plot RMSE as function of time"""
-    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6), facecolor='w', edgecolor='k')
     for control in CONTROLS:
-        ax.plot(SIM_DATA[control]['t'][:-1], np.linalg.norm(err[control], axis=1),
-                color=SETTINGS['color'][control],
-                label=SETTINGS['display_name'][control],
-                linewidth=SETTINGS['linewidth'][control],
-                ls=SETTINGS['linestyle'][control], markevery=20)
+
+        # Plot with color gradient
+        n_points = len(SIM_DATA[control]['t'][:-2])
+        colormap = cm.get_cmap('RdYlGn', n_points)  # choose your colormap here
+        def alpha_values(k):
+            split = 4
+            period_length = n_points // split
+            period_index = k // period_length
+            if period_index == 0:
+                alp = 0.14
+            elif period_index == 1:
+                alp = 0.5
+            elif period_index == 2:
+                alp = 0.75
+            else:
+                alp = 0.85
+            return alp
+        
+        def color_value(k):
+            split = 4
+            period_length = n_points // split
+            period_index = k // period_length
+            if period_index == 0:
+                col = '#DC267F'
+            elif period_index == 1:
+                col = '#AA42B8'
+            elif period_index == 2:
+                col = '#785EF0'
+            else:
+                col = '#648FFF'
+            return col
+        
+        for i in range(n_points-1):
+            color = colormap(i)
+            ax.plot(SIM_DATA[control]['t'][i:i+2], np.linalg.norm(err[control], axis=1)[i:i+2],
+                    color=color_value(i),
+                    linewidth=SETTINGS['linewidth'][control],
+                    ls=SETTINGS['linestyle'][control], 
+                    alpha=alpha_values(i), markevery=20)
+            
+        # Draw vertical lines every 0.75 seconds
+        for i in range(0, int(SIM_DATA[control]['t'][-1])+1, 1):
+            ax.axvline(x=i, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+
+
+        # ax.plot(SIM_DATA[control]['t'][:-1], np.linalg.norm(err[control], axis=1),
+        #         color=SETTINGS['color'][control],
+        #         label=SETTINGS['display_name'][control],
+        #         linewidth=SETTINGS['linewidth'][control],
+        #         ls=SETTINGS['linestyle'][control], markevery=20)
     ax.set_xlabel(r'$t$ [s]')
     ax.set_ylabel(r'RMSE [mm]')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     ax.legend()
     plt.savefig(join(SAVE_DIR, f"{TARGET}_RMSE_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
     if SHOW_PLOTS:
@@ -515,7 +748,7 @@ def plot_trueDist_v_t_interp():
         zf_target = f(SIM_DATA[control]['t'][:-1])
         dhat = f_d(SIM_DATA[control]['t'][:-1])
         zhat = f_z(SIM_DATA[control]['t'][:-1])
-        
+
         # Don't center coordinates if koopman
         if control == "koopman":
             z_centered = SIM_DATA[control]['z'] - Z_EQ
@@ -527,16 +760,18 @@ def plot_trueDist_v_t_interp():
         if (TARGET == "circle" and SETTINGS['robot'] == "hardware") or (TARGET == "custom" and SETTINGS['robot'] == "hardware"):
             # errors are to be measured in 3D
             err[control] = (z_centered[:-1, :] - zf_target)
+            coordinates = [1, 2]
         else:
             # errors are to be measured in 2D
             err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
+            coordinates = [0, 1]
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
 
     """Plot disturbance as function of time"""
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
     
-    for ax, coord in [(ax1, 0), (ax2, 1)]:
+    for ax, coord in [(ax1, coordinates[0]), (ax2, coordinates[1])]:
         for control in CONTROLS: # + ['target']:
             
             z_opt_rollout = SIM_DATA[control]['info']['z_rollout'] - Z_EQ
@@ -559,12 +794,12 @@ def plot_trueDist_v_t_interp():
                         ls=SETTINGS['linestyle'][control], markevery=20,
                         label = r'$y_m$',
                         alpha=0.7)
-            ax.plot(SIM_DATA[control]['t'][:-1], zhat[:, coord] + dhat[:, :6][:, coord],
-                        color='tab:blue',
-                        linewidth=0.5,
-                        ls=SETTINGS['linestyle'][control], markevery=20,
-                        label = r'$C\hat{x} + \hat{d}$',
-                        alpha=1.0)
+            # ax.plot(SIM_DATA[control]['t'][:-1], zhat[:, coord] + dhat[:, :6][:, coord],
+            #             color='tab:blue',
+            #             linewidth=0.5,
+            #             ls=SETTINGS['linestyle'][control], markevery=20,
+            #             label = r'$C\hat{x} + \hat{d}$',
+            #             alpha=1.0)
             ax.plot(SIM_DATA[control]['t'][:-1], zf_target[:, coord],
                         color='tab:purple',
                         linewidth=0.5,
@@ -578,6 +813,65 @@ def plot_trueDist_v_t_interp():
             #         z_horizon = z_opt_rollout[idx]
             #         t_horizon = t_opt_rollout[idx]
             #         ax.plot(t_horizon, z_horizon[:, coord], 'tab:red', marker='o', markevery=2)
+
+    ax1.set_ylabel(r'$x$ [mm]')
+    ax2.set_ylabel(r'$y$ [mm]')
+    ax2.set_xlabel(r'$t$ [s]')
+    ax1.legend()
+    ax2.legend()
+    
+    plt.savefig(join(SAVE_DIR, f"{TARGET}_RMSE_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    if SHOW_PLOTS:
+        plt.show()
+
+def plot_measured_v_estimate():
+    err = {}
+    rmse = {}
+
+    dt = 0.02
+    tf = target['t'][-1]
+    t_integrate = np.linspace(0.0, tf, int(tf/dt))
+
+    f = interp1d(target['t'], target['z'], axis=0)
+
+    for control in CONTROLS:
+        f_d = interp1d(t_integrate, SIM_DATA[control]['d'][::2, :][:-1, :], axis=0)
+        f_z = interp1d(t_integrate, SSMmodel.reduced_to_output(SIM_DATA[control]['x'].T).T[::2, :][:-1, :], axis=0) 
+        zf_target = f(SIM_DATA[control]['t'][:-1])
+        dhat = f_d(SIM_DATA[control]['t'][:-1])
+        zhat = f_z(SIM_DATA[control]['t'][:-1])
+        
+        # Don't center coordinates if koopman
+        if control == "koopman":
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+        else:
+            z_centered = SIM_DATA[control]['z'] - Z_EQ
+
+    """Plot disturbance as function of time"""
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor='w', edgecolor='k', sharex=True)
+    
+    for ax, coord in [(ax1, 0), (ax2, 1)]:
+        for control in CONTROLS:
+            
+            z_opt_rollout = SIM_DATA[control]['info']['z_rollout'] - Z_EQ
+            t_opt_rollout = SIM_DATA[control]['info']['t_rollout']
+
+            ax.plot(SIM_DATA[control]['t'][:-1], z_centered[:-1, coord],
+                        color='tab:green',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'$y_m$',
+                        alpha=0.7)
+            ax.plot(SIM_DATA[control]['t'][:-1], zhat[:, coord] + dhat[:, :6][:, coord],
+                        color='tab:blue',
+                        linewidth=0.5,
+                        ls=SETTINGS['linestyle'][control], markevery=20,
+                        label = r'$C\hat{x} + \hat{d}$',
+                        alpha=1.0)
+            # Vertical lines every 2s
+            for i in range(0, int(tf), 2):
+                ax.axvline(x=i, color='tab:gray', linestyle='--', linewidth=0.5)
 
     ax1.set_ylabel(r'$x$ [mm]')
     ax2.set_ylabel(r'$y$ [mm]')
@@ -994,7 +1288,6 @@ def plotDiamondTrials():
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
 
-
 def plotDiamondResults():
     # Define a default dictionary to store the data
     def nested_dict():
@@ -1182,15 +1475,33 @@ if __name__ == "__main__":
     # violation_calculations()
     # rmse_calculations()
     # traj_3D(time_gradient=True)
-    traj_inputs_vs_t()
+    # traj_inputs_vs_t()
     # traj_x_vs_y()
     # traj_xy_vs_t()
     # disturbance_vs_t()
-    plot_RMSE_v_t()
-    # plot_trueDist_v_t_interp()
+    # plot_RMSE_v_t() # Do this for LDO
+    # plot_trueDist_v_t_interp() # Do this for LDO
+    # plot_measured_v_estimate()
     # plot_trueDist_v_t()
-    innovation_vs_t()
+    # innovation_vs_t() # Do this for LDO
     # traj_xyz_vs_t()
+
+    if SETTINGS['show']['ssmr_linear']:
+        # traj_inputs_vs_t()
+        # plot_RMSE_v_t()
+        # traj_x_vs_y()
+        traj_2()
+        # traj_xy_vs_t()
+    
+    if SETTINGS['show']['ssmr_linear_LDO']:
+        # traj_inputs_vs_t()
+        # plot_RMSE_v_t()
+        # traj_x_vs_y()
+        traj_2()
+        # plot_trueDist_v_t_interp()
+        # innovation_vs_t()
+
+    
 
     # plotTrunkResults()
     # plotDiamondResults()

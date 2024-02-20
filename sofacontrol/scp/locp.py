@@ -124,7 +124,12 @@ class LOCP:
                     self.z.value = np.zeros((self.N + 1) * self.n_z)  # default set to 0
 
                 if d is not None:
-                    self.d.value = np.ravel(d)
+                    if d.shape[0] < (self.N + 1) * self.n_d:
+                        print('CONSTANT DISTURBANCE')
+                        # Repeat the disturbance to match the size of the parameter
+                        self.d.value = np.ravel(np.tile(d, (self.N + 1, 1)))
+                    else:
+                        self.d.value = np.ravel(d)
                 else:
                     self.d.value = np.zeros((self.N + 1) * self.n_d)
 
@@ -326,6 +331,7 @@ class LOCP:
             Bdfull = block_diag(*self.Bd)
 
         # constr += [self.x[self.n_x:] == Adfull @ self.x[:-self.n_x] + Bdfull @ self.u + self.dd + self.d[:-self.n_d]]
+        # Not including d in dynamics constraints as Bd is set to zero 
         constr += [self.x[self.n_x:] == Adfull @ self.x[:-self.n_x] + Bdfull @ self.u + self.dd]
 
         # Trust region constraints

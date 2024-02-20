@@ -39,3 +39,6 @@ float64[] zopt
 
 # solve time
 float64 solve_time
+
+# Initial observed disturbance
+float64[] d0
