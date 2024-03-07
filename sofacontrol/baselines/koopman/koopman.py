@@ -228,7 +228,7 @@ class TrajTracking(TemplateController):
         self.u_bar = None
         self.K = None
 
-        # Compute policy (this can be done offline)
+        # Compute policy (this can be done offline). Computes feedforward term from target.u
         self.x_bar, self.u_bar, self.K = self.policy.compute_policy(self.target)
 
     def validate_problem(self):
@@ -253,10 +253,16 @@ class TrajTracking(TemplateController):
             step = int(t_step / self.dt)
             zeta_belief = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*x_belief)))
             zeta_ref = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*self.x_bar[step])))
-            # self.u = np.clip(np.atleast_1d(self.u_bar[step] + self.K[step] @ (zeta_belief - zeta_ref)),
-            #                  self.u_lb, self.u_ub)
+
+            # feedforward + feedback
+            self.u = np.clip(np.atleast_1d(self.u_bar[step] + self.K[step] @ (zeta_belief - zeta_ref)),
+                             self.u_lb, self.u_ub)
+            # feedforward only
             # self.u = np.clip(np.atleast_1d(self.u_bar[step]), self.u_lb, self.u_ub)
-            self.u = np.clip(np.atleast_1d(self.K[step] @ (zeta_belief - zeta_ref)), self.u_lb, self.u_ub)
+
+            # feedback only
+            # self.u = np.clip(np.atleast_1d(self.K[step] @ (zeta_belief - zeta_ref)), self.u_lb, self.u_ub)
+
             self.u = self.data.scaling.scale_up(u=self.u)
         return self.u
 

@@ -25,7 +25,7 @@ class TrajTrackingLQR:
         u_nom_interp = interp1d(target.t, target.u, axis=0)
 
         final_time = target.t[-1]
-        nbr_steps = int(final_time / self.dt)
+        nbr_steps = int(round(final_time / self.dt))
 
         for i in reversed(range(nbr_steps)):
             t_step = i * self.dt

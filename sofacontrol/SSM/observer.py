@@ -44,7 +44,9 @@ class SSMObserver:
 
         # Assumes y has been centered
         if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:
-            self.x = self.dyn_sys.V_map(self.dyn_sys.V_current, y, self.dyn_sys.y_bar_current)
+            V = self.dyn_sys.V[0]
+            # y_bar = np.tile(self.dyn_sys.interpolator.transform(x[self.dyn_sys.interp_slice], "q_bar"), 5)
+            self.x = self.dyn_sys.V_map(V, y)
         else:
             self.x = self.dyn_sys.V_map(y)
 

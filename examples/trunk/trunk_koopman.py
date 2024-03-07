@@ -43,8 +43,8 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 
-modelType = "linear" # "linear" or "nonlinear"
-dt = 0.05
+modelType = "nonlinear" # "linear" or "nonlinear"
+dt = 0.02
 
 # Load equilibrium point
 rest_file = join(path, 'rest_qv.pkl')
@@ -54,7 +54,7 @@ q_equilibrium = np.array(rest_data['q'][0])
 # Setup equilibrium point (no time delay and observed position and velocity of tip)
 x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
-z_eq_point = output_model.evaluate(x_eq, qv=False)
+z_eq_point = output_model.evaluate(x_eq, qv=False) # Format: (v, q) where v = [0, 0, 0]
 
 def generate_koopman_data():
     """
@@ -64,7 +64,7 @@ def generate_koopman_data():
     from sofacontrol.utils import load_data, qv2x
     from sofacontrol.measurement_models import linearModel
 
-    koopman_data_name = 'pod_snapshots'
+    koopman_data_name = 'koopman_static_data_snapshots'
     num_nodes = 709
     ee_node = [51]
     koopman_data = load_data(join(path, '{}.pkl'.format(koopman_data_name)))
@@ -83,6 +83,35 @@ def generate_koopman_data():
 
         savemat(mat_data_file, matlab_data)
 
+def collect_koopman_static_data():
+    """
+    In problem_specification add:
+
+    from examples.trunk import trunk_koopman
+    problem = trunk.collect_koopman_static_data
+
+    Use this to collect data for the Koopman model.
+    """
+    from sofacontrol.open_loop_controller import OpenLoopController, OpenLoop
+    from sofacontrol.utils import SnapshotData
+
+    # Adjust dt here as necessary (esp for Koopman)
+    prob = Problem()
+    prob.Robot = trunkRobot()
+    prob.ControllerClass = OpenLoopController
+    # u_max = 800. * np.ones(4) #2000
+
+    # Validation snapshots
+    u, save, t = prob.Robot.sequences.lhs_sequence(nbr_samples=100, t_step=2., seed=2)  # step inputs of 1.5 seconds (100 samples)
+
+    prob.controller = OpenLoop(u.shape[0], t, u, save)
+
+    prob.snapshots = SnapshotData(save_dynamics=False)
+
+    prob.snapshots_dir = path
+    prob.opt['save_prefix'] = 'koopman_static_data'
+
+    return prob
 
 def run_koopman(T=11.):
     """
@@ -136,6 +165,122 @@ def run_koopman(T=11.):
         prob.opt['save_prefix'] = 'DMD'
     else:
         prob.opt['save_prefix'] = 'koopman'
+
+    return prob
+
+def run_koopman_lqr(T=11.):
+    """
+    In problem_specification add:
+
+    from examples.diamond import diamond_koopman
+    problem = diamond_koopman.run_koopman
+
+    then run:
+
+    python3 launch_sofa.py
+    """
+    from sofacontrol.closed_loop_controller import ClosedLoopController
+    from sofacontrol.baselines.koopman import koopman_utils, koopman
+    from robots import environments
+    from scipy.io import loadmat
+    from sofacontrol.measurement_models import MeasurementModel
+    from sofacontrol.utils import QuadraticCost, delayEmbedding
+    from sofacontrol.tpwl.tpwl_utils import Target
+    from sofacontrol.utils import createTargetTrajectory
+    from sofacontrol.utils import save_data
+    
+    koopman_data = loadmat(join(path, 'koopman_model_static_' + remove_decimal(dt) + '.mat'))['py_data'][0, 0]
+    raw_model = koopman_data['model']  
+    raw_params = koopman_data['params']
+    
+    model = koopman_utils.KoopmanModel(raw_model, raw_params, DMD=False)
+    scaling = koopman_utils.KoopmanScaling(scale=model.scale)
+
+    prob = Problem()
+    prob.Robot = trunkRobot()
+    prob.ControllerClass = ClosedLoopController
+
+    cov_q = 0.0 * np.eye(3)
+    prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=prob.Robot.nb_nodes, pos=True, vel=False, S_q=cov_q)
+    prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
+
+    # Define target trajectory for optimization
+    createNewTask = True
+    saveControlTask = True
+    
+    controlTask = "pacman"  # figure8, circle, or custom
+
+    # controlTask = "figure8"
+    trajAmplitude = 30
+    Mper = 1
+    Tper = 10
+
+    trajDir = join(path, "control_tasks")
+    taskFile = join(trajDir, controlTask + ".pkl")
+
+    if createNewTask:
+        ######## Define the trajectory ########
+        zf_target, t = createTargetTrajectory(controlTask, 'trunk', z_eq_point[3:], model.C.shape[0], amplitude=trajAmplitude,
+                                              Mper=Mper, Tper=Tper)
+
+        ######## Save Target Trajectory and Constraints ########
+        taskParams = {'z': zf_target, 't': t, 'X': None, 'U': None, 'dU': None}
+        if saveControlTask:
+            save_data(taskFile, taskParams)
+
+        taskParams = {'z': zf_target, 't': t}
+    else:
+        trajDir = join(path, "control_tasks")
+        taskFile = join(trajDir, controlTask + ".pkl")
+        taskParams = load_data(taskFile)
+        if controlTask == "circle":
+            taskParams['z'] += z_eq_point[3:]
+        else:
+            taskParams['z'][:, 0:2] += z_eq_point[3:-1]
+
+    ######## Cost Function ########
+    cost = QuadraticCost()
+    #############################################
+    # Problem 1, X-Y plane cost function
+    #############################################
+    cost.R = 0.001 * np.eye(model.m) # (default: 0.001)
+    cost.Q = np.zeros((model.n, model.n))
+    cost.Q[0, 0] = 100  # corresponding to x position of end effector
+    cost.Q[1, 1] = 100  # corresponding to y position of end effector
+    cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+
+    #############################################
+    # Problem 2, X-Y-Z plane cost function
+    #############################################
+    # cost.R = .00001 * np.eye(model.m)
+    # cost.Q = np.zeros((3, 3))
+    # cost.Q[0, 0] = 50.0  # corresponding to x position of end effector
+    # cost.Q[1, 1] = 100.0  # corresponding to y position of end effector
+    # cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+
+    # Consider same "scaled" cost parameters as other models
+    cost.R *= np.diag(scaling.u_factor[0])
+    cost.Q *= np.diag(scaling.y_factor[0])
+
+    target = Target()
+    target.t = taskParams['t']
+    target.x = delayEmbedding(scaling.scale_down(y=taskParams['z']).T, up_to_delay=model.delays).T
+    target.u = (model.G @ scaling.scale_down(y=taskParams['z']).T).T
+
+    # Control constraints
+    u_ub = 1500. * np.ones(model.m) # TODO: Typically 950 for 2D
+    u_lb = 0. * np.ones(model.m)
+    u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
+    u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
+
+    prob.controller = koopman.TrajTracking(model, cost, target, u_lb_norm, u_ub_norm, delay=1.)
+
+    prob.opt['sim_duration'] = T  # Simulation time, optional
+    prob.simdata_dir = path
+    if modelType == 'linear':
+        prob.opt['save_prefix'] = 'DMD'
+    else:
+        prob.opt['save_prefix'] = 'koopman_static'
 
     return prob
 

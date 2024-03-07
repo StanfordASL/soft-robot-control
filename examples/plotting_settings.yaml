@@ -11,12 +11,12 @@ show: {
     'ssmr_singleDelay': False, # Single delay embedding
     'ssmr_linear': False, # Linear model
     # Adiabatic SSM settings
-    'ssmr_nnssm': False,
-    'ssmr_ctssm': False,
-    'ssmr_linssm': False,
-    'ssmr_assm_qp2d_n=100': False,
-    'ssmr_assm_idw3d_n=100': False,
-    'ssmr_assm_ridge2d_n=100': False,
+    'ssmr_adiabatic_idw': False,
+    'ssmr_adiabatic_modified_idw': False,
+    'ssmr_adiabatic_qp': False,
+    'ssmr_adiabatic_nn': False,
+    'ssmr_adiabatic_linear': False,
+    'ssmr_adiabatic_ct': False,
     'tpwl': False,
     'koopman': True,
     'DMD': False,
@@ -27,12 +27,12 @@ display_name: {
     'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
     'ssmr_singleDelay': "SSMR\n(1 Delay)", # Single delay embedding
     'ssmr_linear': "SSSR\n(1 Delay)", # Linear SSMR Model
-    'ssmr_nnssm': "ASSMR (NN, N=9)",
-    'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
-    'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
-    'ssmr_assm_idw3d_n=100': "IDW-3D (N=100)", # 'ASSMR (IDW-3D, N=100)',
-    'ssmr_assm_ridge2d_n=100': 'ASSMR (Ridge regression, N=100, degree=3)',
-    'ssmr_linssm': "ASSMR (linear, n=9)",
+    'ssmr_adiabatic_linear': "LB",
+    'ssmr_adiabatic_ct': "CT",
+    'ssmr_adiabatic_nn': "NN",
+    'ssmr_adiabatic_qp': "QPR",
+    'ssmr_adiabatic_idw': "IDW",
+    'ssmr_adiabatic_modified_idw': "MIDW",
     'tpwl': "TPWL",
     'koopman': "EDMD",
     'DMD': "DMD",
@@ -44,12 +44,12 @@ legend_name: {
     'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
     'ssmr_singleDelay': "SSMR (1 Delay)", # Single delay embedding
     'ssmr_linear': "SSSR (1 Delay)", # Linear SSMR Model
-    'ssmr_nnssm': "ASSMR (NN, N=9)",
-    'ssmr_ctssm': "CT-2D (N=9)", # "ASSMR (CT, N=9)",
-    'ssmr_assm_qp2d_n=100': "QP-2D (N=100)", # "ASSMR (QP-2D, N=100)",
-    'ssmr_assm_idw3d_n=100': "IDW-3D (N=100)", # 'ASSMR (IDW-3D, N=100)',
-    'ssmr_assm_ridge2d_n=100': 'ASSMR (Ridge regression, N=100, degree=3)',
-    'ssmr_linssm': "ASSMR (linear, n=9)",
+    'ssmr_adiabatic_linear': "tab:green",
+    'ssmr_adiabatic_ct': "tab:blue",
+    'ssmr_adiabatic_nn': "tab:brown",
+    'ssmr_adiabatic_qp': "tab:purple",
+    'ssmr_adiabatic_idw': "tab:red",
+    'ssmr_adiabatic_modified_idw': "tab:red",
     'tpwl': "TPWL",
     'koopman': "EDMD",
     'DMD': "DMD",
@@ -62,12 +62,12 @@ color: {
     'ssmr_posvel': 'tab:red',
     'ssmr_singleDelay': 'tab:orange',
     'ssmr_linear': 'tab:purple',
-    'ssmr_nnssm': 'tab:red',
-    'ssmr_ctssm': 'tab:orange',
-    'ssmr_assm_qp2d_n=100': 'tab:purple',
-    'ssmr_assm_idw3d_n=100': 'tab:green',
-    'ssmr_assm_ridge2d_n=100': 'tab:red',
-    'ssmr_linssm': 'tab:purple',
+    'ssmr_adiabatic_linear': "tab:green",
+    'ssmr_adiabatic_ct': "tab:blue",
+    'ssmr_adiabatic_nn': "tab:brown",
+    'ssmr_adiabatic_qp': "tab:purple",
+    'ssmr_adiabatic_idw': "tab:red",
+    'ssmr_adiabatic_modified_idw': "tab:red",
     'tpwl': 'tab:olive',
     'koopman': 'tab:green',
     'DMD': "tab:cyan",
@@ -79,12 +79,12 @@ linestyle: {
     'ssmr_posvel': '-',
     'ssmr_singleDelay': '-',
     'ssmr_linear': '-',
-    'ssmr_nnssm': '-',
-    'ssmr_ctssm': '-',
-    'ssmr_assm_qp2d_n=100': '-',
-    'ssmr_assm_idw3d_n=100': '-',
-    'ssmr_assm_ridge2d_n=100': '-',
-    'ssmr_linssm': '-',
+    'ssmr_adiabatic_linear': '-',
+    'ssmr_adiabatic_ct': '-',
+    'ssmr_adiabatic_nn': '-',
+    'ssmr_adiabatic_qp': '-',
+    'ssmr_adiabatic_idw': '-',
+    'ssmr_adiabatic_modified_idw': '-',
     'tpwl': '-',
     'koopman': '-',
     'DMD': '-',
@@ -115,12 +115,12 @@ linewidth: {
     'ssmr_posvel': 2,
     'ssmr_singleDelay': 3,
     'ssmr_linear': 2,
-    'ssmr_nnssm': 2,
-    'ssmr_ctssm': 2,
-    'ssmr_assm_qp2d_n=100': 2,
-    'ssmr_assm_idw3d_n=100': 2,
-    'ssmr_assm_ridge2d_n=100': 2,
-    'ssmr_linssm': 2,
+    'ssmr_adiabatic_linear': 2,
+    'ssmr_adiabatic_ct': 2,
+    'ssmr_adiabatic_nn': 2,
+    'ssmr_adiabatic_qp': 2,
+    'ssmr_adiabatic_idw': 2,
+    'ssmr_adiabatic_modified_idw': 2,
     'tpwl': 2,
     'koopman': 2,
     'DMD': 2,
@@ -140,7 +140,7 @@ alpha: {
     'target': 1.5
 }
 
-select_target: "figure8"
+select_target: "pacman"
 # select_target: "figure8"
 # Figure8 target
 define_targets: {
@@ -165,9 +165,15 @@ define_targets: {
         z_ub: null  # [16, 5]
     },
     pacman: {
-        z_const: 0, # -10, # 0, # 
+        z_const: -10, # -10, # 0, # 
         z_lb: null,
-        z_ub: null
+        z_ub: null,
+        T: 10,
+        M: 1,
+        N: 1000,
+        radius: 20,
+        t_in_pacman: 1., 
+        t_out_pacman: 1.,
     },
     custom: {
         z_const: 0, # -10, # 0, # 

@@ -748,8 +748,8 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         th = np.linspace(0, M * 2 * np.pi, M * N + 1)
         zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
         # zf_target = np.zeros((M*N+1, 6))
-        zf_target[:, outdofs[0]] += -radius * np.sin(0.5 * th)
-        zf_target[:, outdofs[1]] += radius * np.sin(th)
+        zf_target[:, outdofs[0]] += -radius * np.sin(th)
+        zf_target[:, outdofs[1]] += radius * np.sin(2 * th)
         # zf_target[:, 2] += -np.ones(len(t)) * 20
     elif controlTask == "circle":
         if robot == 'trunk':
@@ -793,7 +793,7 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         else:
             raise RuntimeError('Requested robot not implemented. Must be trunk or diamond')
     elif controlTask == "pacman":
-        M = 3
+        M = 1 # 3
         T = 10
         N = 1000
         radius = 20.
@@ -803,7 +803,7 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         # zf_target = np.zeros((M * N, model.output_dim))
         zf_target[:, outdofs[0]] += radius * np.cos(th)
         zf_target[:, outdofs[1]] += radius * np.sin(th)
-        zf_target[:, outdofs[2]] += -np.zeros(len(t)) * 10
+        zf_target[:, outdofs[2]] += -np.ones(len(t)) * 10 # TODO: Typically negative
         t_in_pacman, t_out_pacman = 1., 1.
         zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
         zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]

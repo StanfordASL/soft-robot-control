@@ -11,7 +11,7 @@ import pickle
 
 
 def runGuSTOSolverNode(model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None, zf=None,
-                       U=None, X=None, Xf=None, dU=None, verbose=0, warm_start=True, **kwargs):
+                       U=None, X=None, Xf=None, dU=None, Rd=None, verbose=0, warm_start=True, **kwargs):
     """
     Function that builds a ROS node to run GuSTO and runs it continuously. This node
     provides a service that at each query will run GuSTO once.
@@ -41,7 +41,7 @@ def runGuSTOSolverNode(model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None
     """
     rclpy.init()
     node = GuSTOSolverNode(model, N, dt, Qz, R, x0, t=t, z=z, u=u, Qzf=Qzf, zf=zf,
-                           U=U, X=X, Xf=Xf, dU=dU, verbose=verbose,
+                           U=U, X=X, Xf=Xf, dU=dU, Rd=Rd, verbose=verbose,
                            warm_start=warm_start, **kwargs)
     rclpy.spin(node)
     rclpy.shutdown()
@@ -53,7 +53,7 @@ class GuSTOSolverNode(Node):
     """
 
     def __init__(self, model, N, dt, Qz, R, x0, t=None, z=None, u=None, Qzf=None, zf=None,
-                 U=None, X=None, Xf=None, dU=None, verbose=0, warm_start=True, **kwargs):
+                 U=None, X=None, Xf=None, dU=None, Rd=None, verbose=0, warm_start=True, **kwargs):
         self.model = model
         self.N = N
         self.dt = dt
@@ -81,7 +81,7 @@ class GuSTOSolverNode(Node):
         x_init, _ = self.model.rollout(x0, u_init, self.dt)
         z, zf, u = self.get_target(0.0)
         self.gusto = GuSTO(model, N, dt, Qz, R, x0, u_init, x_init, z=z, u=u,
-                           Qzf=Qzf, zf=zf, U=U, X=X, Xf=Xf, dU=dU,
+                           Qzf=Qzf, zf=zf, U=U, X=X, Xf=Xf, dU=dU, Rd=Rd,
                            verbose=verbose, warm_start=warm_start,
                            x_char=x_char, f_char=f_char, **kwargs)
         self.xopt, self.uopt, _, _ = self.gusto.get_solution()
@@ -107,22 +107,6 @@ class GuSTOSolverNode(Node):
 
         # Get target values at proper times by interpolating
         z, zf, u = self.get_target(t0)
-
-        if hasattr(self.model.dyn_sys, "adiabatic") and self.model.dyn_sys.adiabatic:
-            # Load latest observation
-            with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "rb") as f:
-                y = pickle.load(f)
-            self.model.dyn_sys.last_observation_y = y
-            if self.model.dyn_sys.interp_3d:
-                xy_z = y[:3]
-            else:
-                xy_z = y[:2]
-            self.model.dyn_sys.y_bar_current = np.tile(self.model.dyn_sys.interpolator.transform(xy_z, 'q_bar'), 5) # np.concatenate([self.model.dyn_sys.interpolator.transform(xy_z, 'q_bar'), np.zeros(3)]) # 
-            self.model.dyn_sys.u_bar_current = self.model.dyn_sys.interpolator.transform(xy_z, 'u_bar')
-            self.model.dyn_sys.B_r_current = self.model.dyn_sys.interpolator.transform(xy_z, 'B_r')
-            self.model.dyn_sys.R_current = self.model.dyn_sys.interpolator.transform(xy_z, 'r_coeff')
-            self.model.dyn_sys.V_current = self.model.dyn_sys.interpolator.transform(xy_z, 'V')
-            self.model.dyn_sys.W_current = self.model.dyn_sys.interpolator.transform(xy_z, 'w_coeff')
 
         # Get initial guess
         idx0 = np.argwhere(self.topt >= t0)[0, 0]
@@ -212,7 +196,7 @@ class GuSTOClientNode(Node):
 
         if wait:
             # Synchronous call, not compatible for real-time applications
-            rclpy.spin_until_future_complete(self, self.future)
+            rclpy.spin_until_future_complete(self, self.future, timeout_sec=3.)
 
     def force_spin(self):
         if not self.check_if_done():
