@@ -26,7 +26,7 @@ DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
 # Set directory for SSM Models
-PATH_TO_MODEL = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_sparsity=0.95" # 147" # 
+PATH_TO_MODEL = "/media/jalora/Crucial X8/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100" # 147" # 
 MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PATH_TO_MODEL, name))]
 # if exists(join(PATH_TO_MODEL, "use_models.pkl")):
 #     with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
@@ -54,9 +54,11 @@ raw_params = {}
 raw_models = []
 
 if useDefaultModels:
-    PATH_TO_DEFAULT_MODELS = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9"
+    PATH_TO_DEFAULT_MODELS = "/media/jalora/Crucial X8/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100"
+    # for model_name in [name for name in sorted(listdir(PATH_TO_DEFAULT_MODELS)) if isdir(join(PATH_TO_DEFAULT_MODELS, name))]:
+    #     with open(join(PATH_TO_DEFAULT_MODELS, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV_fixed-delay", "SSM_model.pkl"), 'rb') as f:
     for model_name in [name for name in sorted(listdir(PATH_TO_DEFAULT_MODELS)) if isdir(join(PATH_TO_DEFAULT_MODELS, name))]:
-        with open(join(PATH_TO_DEFAULT_MODELS, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV_fixed-delay", "SSM_model.pkl"), 'rb') as f:
+        with open(join(PATH_TO_DEFAULT_MODELS, model_name, "SSMmodel_delay-embedding_globalV", "SSM_model.pkl"), 'rb') as f:
             SSM_data = pickle.load(f)
         with open(join(PATH_TO_DEFAULT_MODELS, model_name, "rest_q.pkl"), "rb") as f:
             q_eq = pickle.load(f)
@@ -97,7 +99,7 @@ cost = QuadraticCost()
 Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
-# Qz[2, 2] = 100.  # corresponding to z position of end effector
+Qz[2, 2] = 100.  # corresponding to z position of end effector
 R = 0.0001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
@@ -110,17 +112,17 @@ cost.Q = model.H.T @ Qz @ model.H
 
 # Define target trajectory for optimization
 # === figure8 (2D) ===
-M = 1
-T = 10
-N = 1000
-radius = 30.
-tf = np.linspace(0, M * T, M * N + 1)
-th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
-zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# zf_target = np.zeros((M * N, model.output_dim))
-zf_target[:, 0] += -radius * np.sin(th)
-zf_target[:, 1] += radius * np.sin(2 * th)
-# zf_target[:, 2] += -np.ones(len(t)) * 10
+# M = 1
+# T = 10
+# N = 1000
+# radius = 30.
+# tf = np.linspace(0, M * T, M * N + 1)
+# th = np.linspace(0, M * 2 * np.pi, M * N + 1) # + np.pi
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+# # zf_target = np.zeros((M * N, model.output_dim))
+# zf_target[:, 0] += -radius * np.sin(th)
+# zf_target[:, 1] += radius * np.sin(2 * th)
+# # zf_target[:, 2] += -np.ones(len(t)) * 10
 
 # === circle with constant z (3D) ===
 # M = 1
@@ -136,20 +138,20 @@ zf_target[:, 1] += radius * np.sin(2 * th)
 # zf_target[:, 2] += -np.ones(len(tf)) * 10
 
 # === Pac-Man (3D) ===
-# M = 1
-# T = 10
-# N = 1000
-# radius = 20.
-# tf = np.linspace(0, M * T, M * N + 1)
-# th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
-# # zf_target = np.zeros((M * N, model.output_dim))
-# zf_target[:, 0] += radius * np.cos(th)
-# zf_target[:, 1] += radius * np.sin(th)
-# zf_target[:, 2] += -np.ones(len(tf)) * 10
-# t_in_pacman, t_out_pacman = 1., 1.
-# zf_target[tf < t_in_pacman, :] = z_eq_point + (zf_target[tf < t_in_pacman][-1, :] - z_eq_point) * (tf[tf < t_in_pacman] / t_in_pacman)[..., None]
-# zf_target[tf > T - t_out_pacman, :] = z_eq_point + (zf_target[tf > T - t_out_pacman][0, :] - z_eq_point) * (1 - (tf[tf > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
+M = 1
+T = 10
+N = 1000
+radius = 20.
+tf = np.linspace(0, M * T, M * N + 1)
+th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+# zf_target = np.zeros((M * N, model.output_dim))
+zf_target[:, 0] += radius * np.cos(th)
+zf_target[:, 1] += radius * np.sin(th)
+zf_target[:, 2] += -np.ones(len(tf)) * 10
+t_in_pacman, t_out_pacman = 1., 1.
+zf_target[tf < t_in_pacman, :] = z_eq_point + (zf_target[tf < t_in_pacman][-1, :] - z_eq_point) * (tf[tf < t_in_pacman] / t_in_pacman)[..., None]
+zf_target[tf > T - t_out_pacman, :] = z_eq_point + (zf_target[tf > T - t_out_pacman][0, :] - z_eq_point) * (1 - (tf[tf > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 
@@ -224,8 +226,8 @@ def run_gusto_solver(t=None, z=None):
     u_min, u_max = 0.0, 800.0
     U = HyperRectangle([u_max] * model.input_dim, [u_min] * model.input_dim)
     # input rate constraints
-    # dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim)
-    dU = None
+    dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim)
+    # dU = None
     # State constraints
     X = None
 

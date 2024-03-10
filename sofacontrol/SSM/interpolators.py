@@ -5,7 +5,7 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.interpolate import CloughTocher2DInterpolator
 from scipy.spatial import Delaunay
 from scipy.interpolate import interp1d
-from tps import ThinPlateSpline
+# from tps import ThinPlateSpline
 from smt.surrogate_models import RBF, IDW, KRG, QP, LS, RMTB
 
 from sklearn.linear_model import Ridge
@@ -72,8 +72,8 @@ class InterpolatorFactory():
             interpolator = IDWInterpolator(q_eq, coeff_dict, p=np.inf)
         elif interpolation_method == 'ct':
             interpolator = CloughTocherInterpolator(q_eq, coeff_dict)
-        elif interpolation_method == 'tps':
-            interpolator = ThinPlateSplineInterpolator(q_eq, coeff_dict)
+        # elif interpolation_method == 'tps':
+        #     interpolator = ThinPlateSplineInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'rbf':
             interpolator = RBFInterpolator(q_eq, coeff_dict)
         elif interpolation_method == 'krg':

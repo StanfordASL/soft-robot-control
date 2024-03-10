@@ -11,7 +11,7 @@ import pickle
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "qp" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
+INTERPOLATION_METHOD = "modified_idw" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
 ORIGIN_IDX = 0
 
 
@@ -276,7 +276,7 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
     # def get_discrete_jacobians(self,
     #                         x: jnp.ndarray,
     #                         u: jnp.ndarray):
-    #     A, B = jax.jacobian(self.maps['f_nl_d'], (0, 1))(x, u)
+    #     A, B = jax.jacobian(self.maps['f_nl_d'], (0, 1))(x, u)qp
     #     d = self.maps['f_nl_d'](x, u) - jnp.dot(A, x) - jnp.dot(B, u)
     #     return A, B, d
 

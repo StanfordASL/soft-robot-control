@@ -12,9 +12,9 @@ show: {
     'ssmr_adiabatic_nn': False,
     'ssmr_adiabatic_linear': False,
     'ssmr_adiabatic_ct': False,
-    'ssmr_origin': True,
-    'tpwl': True,
-    'koopman': True,
+    'ssmr_origin': False,
+    'tpwl': False,
+    'koopman': False,
 }
 display_name: {
     'ssmr': "ASSMR (current model)",

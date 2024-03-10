@@ -216,12 +216,18 @@ class GuSTO:
         """
         error = 0
         approx = 0
+
+        if self.model.dyn_sys.adiabatic:
+            x0_interp = x[0, :]
+        else:
+            x0_interp = None
+
         for i in range(x.shape[0] - 1):
             # Get true dynamics at the current points
-            fk, Ak, Bk = self.model.get_continuous_dynamics(self.x_k[i, :], self.u_k[i, :])
+            fk, Ak, Bk = self.model.get_continuous_dynamics(self.x_k[i, :], self.u_k[i, :], x0_interp=x0_interp)
 
             # Get dynamics at the potential new solution
-            f, _, _ = self.model.get_continuous_dynamics(x[i, :], u[i, :])
+            f, _, _ = self.model.get_continuous_dynamics(x[i, :], u[i, :], x0_interp=x0_interp)
 
             # Compute approximation of f(x,u) via Taylor expansion about (xk, uk)
             f_approx = fk + Ak @ (x[i, :] - self.x_k[i, :]) + Bk @ (u[i, :] - self.u_k[i, :])
@@ -238,8 +244,14 @@ class GuSTO:
         A_d = []
         B_d = []
         d_d = []
+
+        if self.model.dyn_sys.adiabatic:
+            x0_interp = x[0, :]
+        else:
+            x0_interp = None
+
         for i in range(x.shape[0] - 1):
-            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt)
+            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt, x0_interp=x0_interp)
             A_d.append(A_d_i)
             B_d.append(B_d_i)
             d_d.append(d_d_i)
@@ -252,8 +264,14 @@ class GuSTO:
         """
         H_d = []
         c_d = []
+
+        if self.model.dyn_sys.adiabatic:
+            x0_interp = x[0, :]
+        else:
+            x0_interp = None
+
         for i in range(x.shape[0]):
-            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt)
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt, x0_interp=x0_interp)
             H_d.append(H_d_i)
             c_d.append(c_d_i)
 
@@ -267,8 +285,14 @@ class GuSTO:
         A_d = []
         B_d = []
         d_d = []
+
+        if self.model.dyn_sys.adiabatic:
+            x0_interp = x[0, :]
+        else:
+            x0_interp = None
+
         for i in range(x.shape[0] - 1):
-            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt)
+            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt, x0_interp=x0_interp)
             A_d.append(A_d_i)
             B_d.append(B_d_i)
             d_d.append(d_d_i)
@@ -282,8 +306,14 @@ class GuSTO:
         """
         H_d = []
         c_d = []
+
+        if self.model.dyn_sys.adiabatic:
+            x0_interp = x[0, :]
+        else:
+            x0_interp = None
+
         for i in range(x.shape[0]):
-            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt)
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt, x0_interp=x0_interp)
             H_d.append(H_d_i)
             c_d.append(c_d_i)
 
