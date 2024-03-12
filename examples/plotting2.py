@@ -207,8 +207,13 @@ def traj_xy_vs_t():
 
     f = interp1d(target['t'], target['z'], axis=0)
 
+    target_length = len(target['t'])
+
     for ax, coord in [(ax1, 0), (ax2, 1)]:
         for control in CONTROLS: # + ['target']:
+            # Truncate SIM_DATA[control]['t'] from the right to match the length of target['t']
+            SIM_DATA[control]['t'] = SIM_DATA[control]['t'][:target_length]
+            
             zf_target = f(SIM_DATA[control]['t'])
 
             # Don't center coordinates if koopman
@@ -217,7 +222,7 @@ def traj_xy_vs_t():
             else:
                 z_centered = SIM_DATA[control]['z'] - Z_EQ
             
-            ax.plot(SIM_DATA[control]['t'][:-2], z_centered[:-2, coord],
+            ax.plot(SIM_DATA[control]['t'], z_centered[:target_length, coord],
                         color=SETTINGS['color'][control],
                         label=SETTINGS['display_name'][control],
                         linewidth=SETTINGS['linewidth'][control],

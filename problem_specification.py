@@ -21,8 +21,8 @@
 # problem = calibration.model_calibration
 # problem = calibration.actuator_calibration
 
-# from examples.hardware import diamond
-# problem = diamond.run_scp
+from examples.hardware import diamond
+problem = diamond.run_scp
 # problem = diamond.collect_POD_data
 # problem = diamond.collect_TPWL_data
 # problem = diamond.run_ilqr
@@ -65,8 +65,8 @@
 # from examples.trunk import trunk_SSM
 # problem = trunk_SSM.run_scp
 
-from examples.trunk import trunk_adiabaticSSM
-problem = trunk_adiabaticSSM.run_scp
+# from examples.trunk import trunk_adiabaticSSM
+# problem = trunk_adiabaticSSM.run_scp
 
 # from examples.trunk import trunk
 # problem = trunk.sim_OL

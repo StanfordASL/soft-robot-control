@@ -54,7 +54,7 @@ x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
 z_eq_point = output_model.evaluate(x_eq, qv=False)
 
-modelType = 'nonlinear' # "nonlinear", "linear"
+modelType = 'linear' # "nonlinear", "linear"
 
 def collect_koopman_data():
     """
