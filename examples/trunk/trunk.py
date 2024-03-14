@@ -34,12 +34,15 @@ def sim_OL():
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.utils import SnapshotData
 
-    ALPHA = 0.1
+    # ALPHA = 0.1
 
-    path = "/media/jonas/Backup Plus/jonas_soft_robot_data/autonomous_ASSM_tests"
-    with open(join(path, "OL_sim_perturbed", f"alpha={ALPHA:.1f}", 'u_perturbed.pkl'), 'rb') as f:
+    # path = "/media/jonas/Backup Plus/jonas_soft_robot_data/autonomous_ASSM_tests"
+    # with open(join(path, "OL_sim_perturbed", f"alpha={ALPHA:.1f}", 'u_perturbed.pkl'), 'rb') as f:
     # with open(join(path, "OL_sim_perturbed" 'u_perturbed.pkl'), 'rb') as f:
-        u = pickle.load(f)
+    with open(join(path, 'quasi_static_trunk.pkl'), 'rb') as f:
+        # u = pickle.load(f)
+        data = pickle.load(f)
+        u = data['u'].T
     
     # t0 = 3.0
     dt = 0.01
@@ -47,6 +50,8 @@ def sim_OL():
     prob.Robot = trunkRobot()
     prob.ControllerClass = OpenLoopController
     Sequences = TrunkRobotSequences(dt=dt)
+
+    # import pdb; pdb.set_trace()
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
@@ -59,7 +64,8 @@ def sim_OL():
     prob.controller = OpenLoop(u.shape[0], t, u, save, dt=dt)
     prob.snapshots = SnapshotData(save_dynamics=False)
     prob.opt['sim_duration'] = len(t) * dt
-    prob.snapshots_dir = join(path, "OL_sim_perturbed", f"alpha={ALPHA:.1f}")
+    # prob.snapshots_dir = join(path, "OL_sim_perturbed", f"alpha={ALPHA:.1f}")
+    prob.snapshots_dir = path
     prob.opt['save_prefix'] = 'OL_sim'
 
     return prob
@@ -169,5 +175,7 @@ if __name__ == '__main__':
         compute_POD_basis()
     elif sys.argv[1] == 'run_gusto_solver':
         run_gusto_solver()
+    elif sys.argv[1] == 'sim_OL':
+        sim_OL()
     else:
         raise RuntimeError('Not a valid function argument')

@@ -139,7 +139,7 @@ cost.Q = model.H.T @ Qz @ model.H
 
 # === Pac-Man (3D) ===
 M = 1
-T = 10
+T = 30
 N = 1000
 radius = 20.
 tf = np.linspace(0, M * T, M * N + 1)
@@ -156,7 +156,7 @@ zf_target[tf > T - t_out_pacman, :] = z_eq_point + (zf_target[tf > T - t_out_pac
 model.z_target = model.zfyf_to_zy(zf=zf_target)
 
 
-def run_scp(z=None, T=11.):
+def run_scp(z=None, T=31.):
     """
      In problem_specification add:
 
@@ -171,7 +171,7 @@ def run_scp(z=None, T=11.):
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.measurement_models import linearModel, OutputModel
     from sofacontrol.utils import QuadraticCost, qv2x, load_data, Polyhedron
-    from sofacontrol.SSM import adiabatic_ssm
+    from sofacontrol.SSM import adiabatic_ssm, SnapshotData
     from sofacontrol.SSM.observer import SSMObserver, DiscreteEKFObserver
     from sofacontrol.SSM.controllers import scp
     import pickle
@@ -235,8 +235,8 @@ def run_gusto_solver(t=None, z=None):
     gusto_model = SSMGuSTO(model)
 
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=t, z=z, U=U, X=X,
-                    verbose=0, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                    max_gusto_iters=0, input_nullspace=None, dU=dU, jit=False)
+                    verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
+                    max_gusto_iters=50, input_nullspace=None, dU=dU, jit=False)
 
 
 if __name__ == '__main__':

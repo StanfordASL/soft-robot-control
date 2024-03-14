@@ -77,17 +77,17 @@ target = Target()
 
 # Define target trajectory for optimization
 # === figure8 ===
-M = 1
-T = 10
-N = 1000
-radius = 30.
-t = np.linspace(0, M * T, M * N)
-th = np.linspace(0, M * 2 * np.pi, M * N)
-zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
-# zf_target = np.zeros((M * N, model.n))
-zf_target[:, 0] += -radius * np.sin(th)
-zf_target[:, 1] += radius * np.sin(2 * th)
-# zf_target[:, 2] += -np.ones(len(t)) * 10
+# M = 1
+# T = 10
+# N = 1000
+# radius = 30.
+# t = np.linspace(0, M * T, M * N)
+# th = np.linspace(0, M * 2 * np.pi, M * N)
+# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N, 1))
+# # zf_target = np.zeros((M * N, model.n))
+# zf_target[:, 0] += -radius * np.sin(th)
+# zf_target[:, 1] += radius * np.sin(2 * th)
+# # zf_target[:, 2] += -np.ones(len(t)) * 10
 
 # # === circle with constant z ===
 # M = 1
@@ -103,28 +103,28 @@ zf_target[:, 1] += radius * np.sin(2 * th)
 # zf_target[:, 2] += -np.ones(len(t)) * 10
 
 # === Pac-Man (3D) ===
-# M = 1
-# T = 10
-# N = 1000
-# radius = 20.
-# t = np.linspace(0, M * T, M * N + 1)
-# th = np.linspace(0, M * 2 * np.pi, M * N + 1)
-# zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N + 1, 1))
-# # zf_target = np.zeros((M * N, model.output_dim))
-# print("z_eq_point:", z_eq_point)
-# zf_target[:, 0] += radius * np.cos(th)
-# zf_target[:, 1] += radius * np.sin(th)
-# zf_target[:, 2] += -np.ones(len(t)) * 10
-# t_in_pacman, t_out_pacman = 1., 1.
-# zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
-# zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
+M = 1
+T = 10
+N = 1000
+radius = 20.
+t = np.linspace(0, M * T, M * N + 1)
+th = np.linspace(0, M * 2 * np.pi, M * N + 1)
+zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.n - len(z_eq_point)))), (M * N + 1, 1))
+# zf_target = np.zeros((M * N, model.output_dim))
+print("z_eq_point:", z_eq_point)
+zf_target[:, 0] += radius * np.cos(th)
+zf_target[:, 1] += radius * np.sin(th)
+zf_target[:, 2] += -np.ones(len(t)) * 10
+t_in_pacman, t_out_pacman = 1., 1.
+zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
+zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
 
 # Cost
 cost.R = .0001 * np.eye(model.m)
 cost.Q = np.zeros((model.n, model.n))
 cost.Q[0, 0] = 100  # corresponding to x position of end effector
 cost.Q[1, 1] = 100  # corresponding to y position of end effector
-# cost.Q[2, 2] = 100  # corresponding to z position of end effector
+cost.Q[2, 2] = 100  # corresponding to z position of end effector
 
 
 def generate_koopman_data():
@@ -135,13 +135,14 @@ def generate_koopman_data():
     from sofacontrol.utils import load_data, qv2x
     from sofacontrol.measurement_models import linearModel
 
-    koopman_data_name = 'pod_snapshots'
+    koopman_data_name = 'OL_pacman_snapshots' # pod_snapshots
+    names = ['trunk_pacman']
+
     num_nodes = N_NODES
     ee_node = [TIP_NODE]
     koopman_data = load_data(join(path, '{}.pkl'.format(koopman_data_name)))
 
     state = qv2x(q=koopman_data['q'], v=koopman_data['v'])
-    names = ['ee_pos']
     measurement_models = [linearModel(nodes=ee_node, num_nodes=num_nodes, pos=True, vel=False)]
 
     for i, name in enumerate(names):
