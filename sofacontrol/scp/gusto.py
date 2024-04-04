@@ -121,6 +121,9 @@ class GuSTO:
         self.f_scale = 1. / np.abs(self.f_char)
         kwargs.pop('f_char', None)
 
+        ## Use the full disturbance state ##
+        self.general_disturbance = kwargs.get('general_disturbance', False)
+
         ## Problem parameters ##
         self.x_k = None  # Previous state
         self.u_k = None  # Previous input
@@ -352,7 +355,11 @@ class GuSTO:
             G_d, b_d = None, None
         
         if d is not None:
-            d_k = d[:self.model.dyn_sys.Nid * (self.N + 1)] # TODO: ensure dyn_sys.Nid exists
+            if self.general_disturbance:
+                print('Using FULL disturbance state')
+                d_k = d
+            else:
+                d_k = d[:self.model.dyn_sys.Nid * (self.N + 1)] # TODO: ensure dyn_sys.Nid exists
         else:
             d_k = None
 

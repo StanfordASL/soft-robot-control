@@ -38,15 +38,18 @@ class LOCP:
         self.dU = dU
         self.verbose = verbose
         self.warm_start = warm_start
+        self.general_disturbance = kwargs.pop('general_disturbance', False)
         self.nonlinear_observer = kwargs.pop('nonlinear_observer', False)
-        # self.LDO = kwargs.pop('LDO', False)
-
 
         # Ensure we have a self.H in SSM class such that 2nd dim is dim of RO state
         self.n_x = H.shape[1]
         self.n_z = Qz.shape[0]
         self.n_u = R.shape[0]
-        self.n_d = self.n_z # TODO: Assume disturbance is same dimension as state
+        if self.general_disturbance:
+            print('GENERAL DISTURBANCE - Hardcoded Period')
+            self.n_d = 150 #TODO: This is hard coded for now
+        else:
+            self.n_d = self.n_z
 
         # Characteristic values for scaling
         if x_char is None:
@@ -125,7 +128,7 @@ class LOCP:
 
                 if d is not None:
                     if d.shape[0] < (self.N + 1) * self.n_d:
-                        print('CONSTANT DISTURBANCE')
+                        print('TILING THE DISTURBANCE')
                         # Repeat the disturbance to match the size of the parameter
                         self.d.value = np.ravel(np.tile(d, (self.N + 1, 1)))
                     else:
@@ -261,6 +264,17 @@ class LOCP:
         """
         Compute the quadratic part of the objective in OSQP format
         """
+        # cp_block_diag function
+        def cp_block_diag(A, n):
+            Afull = []
+            dim1 = A.shape[0]
+            dim2 = A.shape[1]
+            for i in range(n):
+                cur = [np.zeros((dim1, dim2))] * n
+                cur[i] = A
+                Afull.append(cur)
+            return cp.bmat(Afull)
+
         J = 0
 
         # Control cost

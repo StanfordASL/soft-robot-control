@@ -91,32 +91,31 @@ class SSMObserverLDO:
         u = jnp.asarray(u)
         A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, u, dt)
 
-        d_curr = self.d[:self.dyn_sys.Nid]
         # innov[k,:] = L_LDO @ ( C @ xhat[k,:] + Cd @ S0 @ dhat[k,:] - y[k,:] )
-        self.err = (self.dyn_sys.reduced_to_output(jnp.array(self.x)) + self.dyn_sys.Cd @ d_curr - self.dyn_sys.C @ y_k)
+        self.err = (self.dyn_sys.reduced_to_output(jnp.array(self.x)) + self.dyn_sys.Cdist @ self.d - self.dyn_sys.C @ y_k)
         self.innov = self.dyn_sys.L_LDO @ self.err
         # xhat[k+1,:] = A @ xhat[k,:] + B @ u[k,:] + Bd @ S0 @ dhat[k,:] + innov[k,:nx]
-        self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bd @ d_curr + self.innov[:self.dyn_sys.state_dim]
+        self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bdist @ self.d + self.innov[:self.dyn_sys.state_dim]
         # dhat[k+1,:] = Sd @ dhat[k,:] + innov[k,nx:]
         self.d = self.dyn_sys.Sd @ self.d + self.innov[self.dyn_sys.state_dim:]
 
         self.y_prev = jnp.asarray(y)
         
-    def predict_state(self, u, dt):
-        """
-        Predictor update step
-        :param u: input at timestep k
-        :dt: timestep (s)
-        """
-        # Get linearizations of reduced dynamics at current state x
-        u = jnp.asarray(u)
-        A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, u, dt)
+    # def predict_state(self, u, dt):
+    #     """
+    #     Predictor update step
+    #     :param u: input at timestep k
+    #     :dt: timestep (s)
+    #     """
+    #     # Get linearizations of reduced dynamics at current state x
+    #     u = jnp.asarray(u)
+    #     A_d, B_d, d_d = self.dyn_sys.get_jacobians(self.x, u, dt)
 
-        # Get current timestep disturbance
-        d_curr = self.d[:self.dyn_sys.Nid]
+    #     # Get current timestep disturbance
+    #     d_curr = self.d[:self.dyn_sys.Nid]
 
-        self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bd @ d_curr
-        self.d = self.dyn_sys.Sd @ self.d
+    #     self.x = jnp.asarray(self.dyn_sys.update_dynamics(self.x, u, A_d, B_d, d_d)) + self.dyn_sys.Bd @ d_curr
+    #     self.d = self.dyn_sys.Sd @ self.d
     
     # def update(self, u, y, dt, **kwargs):
     #     """
@@ -130,29 +129,29 @@ class SSMObserverLDO:
     #     self.predict_state(u, dt)
     #     self.update_state(y)
     
-    def update_state(self, y):
-        """
-        Filter update step
-        for details
-        :param y: (centered) measurement at timestep k+1
-        :return x: updated state based on measurement (x_{k+1|k+1})
-        """
+    # def update_state(self, y):
+    #     """
+    #     Filter update step
+    #     for details
+    #     :param y: (centered) measurement at timestep k+1
+    #     :return x: updated state based on measurement (x_{k+1|k+1})
+    #     """
 
-        # Jacobian of manifold mapping (This is predicted x)
-        y = jnp.asarray(y)
-        d_curr = self.d[:self.dyn_sys.Nid]
+    #     # Jacobian of manifold mapping (This is predicted x)
+    #     y = jnp.asarray(y)
+    #     d_curr = self.d[:self.dyn_sys.Nid]
 
-        # self.err = self.dyn_sys.C @ y - self.dyn_sys.reduced_to_output(jnp.array(self.x)) - self.dyn_sys.Cd @ d_curr
+    #     # self.err = self.dyn_sys.C @ y - self.dyn_sys.reduced_to_output(jnp.array(self.x)) - self.dyn_sys.Cd @ d_curr
 
-        # self.x = self.x + self.dyn_sys.Lx @ self.err
-        # self.d = self.d + self.dyn_sys.Ld @ self.err
+    #     # self.x = self.x + self.dyn_sys.Lx @ self.err
+    #     # self.d = self.d + self.dyn_sys.Ld @ self.err
 
-        self.err = (self.dyn_sys.reduced_to_output(jnp.array(self.x)) + self.dyn_sys.Cd @ d_curr - self.dyn_sys.C @ y)
-        self.innov = self.dyn_sys.L_LDO @ self.err
-        self.x = self.x + self.innov[:self.dyn_sys.state_dim] 
-        self.d = self.d + self.innov[self.dyn_sys.state_dim:]
+    #     self.err = (self.dyn_sys.reduced_to_output(jnp.array(self.x)) + self.dyn_sys.Cd @ d_curr - self.dyn_sys.C @ y)
+    #     self.innov = self.dyn_sys.L_LDO @ self.err
+    #     self.x = self.x + self.innov[:self.dyn_sys.state_dim] 
+    #     self.d = self.d + self.innov[self.dyn_sys.state_dim:]
 
-        return self.x
+    #     return self.x
 
 class DiscreteEKFObserver:
     """

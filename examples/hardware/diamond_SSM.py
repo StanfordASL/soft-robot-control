@@ -25,7 +25,7 @@ dt = 0.01 # This dt for when to recalculate control
 ######## Generate LDO Parameters ########
 Mper = 10  # Number of periods to simulate
 Tper = 0.5  # Period of trajectory
-Nper = int(Tper / dt) # Number of points per period (this will be trigger for doing LDO)
+Nper = 1 # int(Tper / dt) # Number of points per period (this will be trigger for doing LDO)
 # Nper = None
 
 def run_scp():
@@ -150,7 +150,7 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 6200.0
+    u_min, u_max = 0.0, 5000.0
     du_max = None
 
     ######## Generate SSM model and setup control task ########
@@ -317,7 +317,7 @@ def run_gusto_solver_LDO():
     ###### Control Task Parameters ######
     # X-Y Figure 8
     controlTask = "figure8" # figure8, circle, or custom
-    trajAmplitude = 35.
+    trajAmplitude = 35 # 35. Used for paper experiments
     trajFreq = None # rad/s # 15, 20, 25, 30, 35
     z_offset = None
     outdofs = [0, 1, 2]
@@ -421,7 +421,7 @@ def run_gusto_solver_LDO():
     # Define GuSTO model
     gusto_model = SSMGuSTO(model)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
-                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
+                       verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI', general_disturbance=False,
                        max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)#, u=taskParams['u'])
 
 def run_scp_OL():

@@ -8,7 +8,7 @@ import jax.scipy as jsp
 import jax
 from functools import partial
 from sofacontrol.utils import norm2Diff
-from scipy.linalg import block_diag
+from scipy.linalg import block_diag, svdvals
 import control
 import mpctools as mpc
 from os.path import join, exists
@@ -235,8 +235,8 @@ class SSMDynamics(SSM):
                 self.Nid = self.output_dim # TODO: Set this
 
                 # Define design matrices
-                self.Bd = np.zeros((self.state_dim, self.Nid))
-                self.Cd = np.eye(self.Nid)
+                self.Bbar = np.zeros((self.state_dim, self.Nid))
+                self.Cbar = np.eye(self.Nid)
 
                 # TODO: Modify gains here!!!!! Define LDO cost for LQE
                 Q_kalman = block_diag(np.eye(self.state_dim), 20*np.eye(self.Nid * self.Nper)) # TODO: Hard-coded. Should set this in run_gusto_solver method
@@ -244,7 +244,10 @@ class SSMDynamics(SSM):
                 R_kalman = 2*np.eye(self.output_dim)
 
                 # Get shifting matrix
-                self.Sd = scutils.get_LDO_disturbance_matrices(self.Bd, self.Nper)
+                self.Sd = scutils.get_LDO_disturbance_matrices(self.Bbar, self.Nper)
+                self.S0 = scutils.create_S0(self.Nid, self.Nper)
+                self.Bdist = self.Bbar @ self.S0
+                self.Cdist = self.Cbar @ self.S0
                 
                 if exists(gains_path):
                     print('Loading existing Lgains!!!!!!!')
@@ -257,7 +260,7 @@ class SSMDynamics(SSM):
                     A, B, _ = self.get_jacobians(np.zeros(self.state_dim), np.zeros(self.input_dim), dt)
                     # C = self.w_coeff
                     C, _ = self.get_observer_jacobians(np.zeros(self.state_dim))
-                    A_LDO, B_LDO, C_LDO = scutils.get_LDO_LTI(A, B, C, self.Bd, self.Cd, self.Nper)
+                    A_LDO, B_LDO, C_LDO = scutils.get_LDO_LTI(A, B, C, self.Bbar, self.Cbar, self.Nper)
 
                     # Compute Lgains
                     # Unstable (bad):
@@ -275,6 +278,16 @@ class SSMDynamics(SSM):
 
                     self.L_LDO = L_LDO
 
+                    # Check observability of observer
+                    Sd_spectrum = np.linalg.eigvals(self.Sd)
+                    for lam in Sd_spectrum:
+                        svds = svdvals(np.bmat([  [A - lam*np.eye(self.state_dim), self.Bbar],
+                                                            [C, self.Cbar]]))
+                        rank = sum(svds > 1e-8)
+                        if rank < self.state_dim + self.Nid:
+                            print("*Warning: system not observable!")
+
+                    # Check stability of observer
                     print('Eigenvalues of A_LDO + L_LDO @ C_LDO:')
                     print(np.round(np.abs(np.linalg.eigvals(A_LDO + L_LDO @ C_LDO)), 3))
                     if any (np.abs(np.linalg.eigvals(A_LDO + L_LDO @ C_LDO)) > 1):

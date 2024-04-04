@@ -666,11 +666,12 @@ def plot_RMSE_v_t():
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
     
     # Print average RMSE after half of the trajectory
-    print("Average RMSE after half of the trajectory:")
+    print("Average error in the last period:")
+    nperiods = 10
     for control in CONTROLS:
-        print(f"{SETTINGS['display_name'][control]}: {np.mean(np.linalg.norm(err[control], axis=1)[int(len(err[control])/2):]):.3f} mm")
+        print(f"{np.mean( np.linalg.norm(err[control], axis=1) [-4*int(len(err[control])/nperiods):-3*int(len(err[control])/nperiods)-2] ):.3f} mm")
 
-    """Plot RMSE as function of time"""
+    """Plot error as function of time"""
     fig, ax = plt.subplots(1, 1, figsize=(8, 6), facecolor='w', edgecolor='k')
     for control in CONTROLS:
 
@@ -1488,16 +1489,16 @@ if __name__ == "__main__":
 
     if SETTINGS['show']['ssmr_linear']:
         # traj_inputs_vs_t()
-        # plot_RMSE_v_t()
+        plot_RMSE_v_t()
         # traj_x_vs_y()
         traj_2()
         # traj_xy_vs_t()
     
     if SETTINGS['show']['ssmr_linear_LDO']:
         # traj_inputs_vs_t()
-        # plot_RMSE_v_t()
+        plot_RMSE_v_t()
         # traj_x_vs_y()
-        traj_2()
+        # traj_2()
         # plot_trueDist_v_t_interp()
         # innovation_vs_t()
 
