@@ -21,8 +21,8 @@
 # problem = calibration.model_calibration
 # problem = calibration.actuator_calibration
 
-from examples.hardware import diamond
-problem = diamond.run_scp
+# from examples.hardware import diamond
+# problem = diamond.run_scp
 # problem = diamond.collect_POD_data
 # problem = diamond.collect_TPWL_data
 # problem = diamond.run_ilqr
@@ -57,8 +57,8 @@ problem = diamond.run_scp
 # from examples.trunk import trunk
 # problem = trunk.run_scp
 
-# from examples.trunk import trunk_koopman
-# problem = trunk_koopman.run_koopman
+from examples.trunk import trunk_koopman
+problem = trunk_koopman.run_koopman
 # problem = trunk_koopman.run_koopman_lqr
 # problem = trunk_koopman.collect_koopman_static_data
 

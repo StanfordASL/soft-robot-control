@@ -243,11 +243,11 @@ def run_koopman_lqr(T=11.):
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    cost.R = 0.001 * np.eye(model.m) # (default: 0.001)
+    cost.R = 0.01 * np.eye(model.m) # (default: 0.001)
     cost.Q = np.zeros((model.n, model.n))
     cost.Q[0, 0] = 100  # corresponding to x position of end effector
     cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
+    cost.Q[2, 2] = 100  # corresponding to z position of end effector
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
@@ -303,7 +303,7 @@ def run_koopman_solver():
     N = 3
 
     # Control Task Params
-    controlTask = "ASL" # figure8, circle, or custom
+    controlTask = "pacman" # figure8, circle, or custom
     trajAmplitude = 15
     trajFreq = 17 # rad/s
 
@@ -395,11 +395,11 @@ def run_koopman_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    cost.R = .00001 * np.eye(model.m)
+    cost.R = .001 * np.eye(model.m) #0.00001
     cost.Q = np.zeros((model.n, model.n))
     cost.Q[0, 0] = 100  # corresponding to x position of end effector
     cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
+    cost.Q[2, 2] = 100  # corresponding to z position of end effector
 
     # #############################################
     # # Problem 2, X-Y-Z plane cost function

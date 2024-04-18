@@ -1,14 +1,14 @@
-robot: "hardware" #trunk, hardware
+robot: "trunk" #trunk, hardware
 save_dir: "plots/"
 file_format: "png"
 
 #traj_dir: "sim_trajs/circle_z=-10" # figure8" #
-traj_dir: ""
+traj_dir: "sim_trajs/pacman/" # figure8" # pac-man" # circle_z=-10" # 
 
 show: {
     'ssmr_delays': False, # Full obsevables
     'ssmr_posvel': False, # pos-vel
-    'ssmr_singleDelay': True, # Single delay embedding
+    'ssmr_singleDelay': False, # Single delay embedding
     'ssmr_linear': False, # Linear model
     # Adiabatic SSM settings
     'ssmr_adiabatic_idw': False,
@@ -18,7 +18,7 @@ show: {
     'ssmr_adiabatic_linear': False,
     'ssmr_adiabatic_ct': False,
     'tpwl': False,
-    'koopman': False,
+    'koopman': True,
     'DMD': False,
     'rompc': False
 }
@@ -140,8 +140,8 @@ alpha: {
     'target': 1.5
 }
 
-# select_target: "pacman"
-select_target: "circle"
+select_target: "pacman"
+# select_target: "circle"
 # Figure8 target
 define_targets: {
     figure8: {

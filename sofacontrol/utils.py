@@ -803,7 +803,7 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         # zf_target = np.zeros((M * N, model.output_dim))
         zf_target[:, outdofs[0]] += radius * np.cos(th)
         zf_target[:, outdofs[1]] += radius * np.sin(th)
-        zf_target[:, outdofs[2]] += -np.ones(len(t)) * 10 # TODO: Typically negative
+        zf_target[:, outdofs[2]] += -np.ones(len(t)) * 10
         t_in_pacman, t_out_pacman = 1., 1.
         zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
         zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]

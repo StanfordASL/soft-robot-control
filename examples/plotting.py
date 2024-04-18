@@ -85,7 +85,7 @@ Z_EQ[2] *= -1
 print(Z_EQ)
 
 # Load reference/target trajectory as defined in plotting_settings.py
-TARGET = SETTINGS['select_target']
+TARGET = split(split(SETTINGS['traj_dir'])[0])[1]
 target_settings = SETTINGS['define_targets'][TARGET]
 M, T, N, radius = (target_settings[key] for key in ['M', 'T', 'N', 'radius'])
 t_target = np.linspace(0, M*T, M*N+1)
@@ -111,7 +111,7 @@ else:
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
 
-SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
+SAVE_DIR = join(path, "examples", SETTINGS['robot'], SETTINGS['save_dir'])
 if not exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
@@ -160,7 +160,7 @@ def traj_x_vs_y():
                 color=SETTINGS['color'][control],
                 label=SETTINGS['display_name'][control],
                 linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
-                ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), markevery=20,
+                ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), marker=SETTINGS['markers'].get(control, MARKER), markevery=20,
                 alpha=1.)
     ax.plot(z_target[:, 0], z_target[:, 1],
             color=SETTINGS['color']['target'], alpha=0.9,
@@ -319,7 +319,7 @@ def traj_xyz_vs_t():
                 ax1.plot(t_horizon, z_horizon[:, 0], 'tab:red', marker='o', markevery=2)
                 ax2.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
     
-    # ax3.legend()
+    ax2.legend(fontsize="8")
     plt.savefig(join(SAVE_DIR, f"{TARGET}_xyz_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=300)
     if SHOW_PLOTS:
         plt.show()
@@ -369,12 +369,15 @@ def rmse_calculations(plot_solve_times=True):
         z_centered = SIM_DATA[control]['z'] - Z_EQ
         # if control == "ssmr_origin":
         #     z_centered = z_centered[:-1, :]
-        if TARGET in ["circle", "pac-man"]:
+        if TARGET in ["circle", "pacman"]:
             # errors are to be measured in 3D
-            err[control] = (z_centered - z_target)
+            if control == "koopman":
+                err[control] = (z_centered - z_target[:, :]) # (z_centered - z_target[:-2, :])
+            else:
+                err[control] = (z_centered - z_target)
         else:
             # errors are to be measured in 2D
-            err[control] = (z_centered[:, :2] - z_target[:-1, :2])
+            err[control] = (z_centered[:, :2] - z_target[:, :2])
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
         # solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
 
@@ -429,10 +432,10 @@ def rmse_calculations(plot_solve_times=True):
         # ax2.yaxis.set_label_position("right")
         # ax2.yaxis.tick_right()
 
-    for label in ax1.get_xticklabels() + ax2.get_xticklabels():
-        if label.get_text() in ["MIDW", "QPR"]:
-            label.set_weight('bold')
-
+    # for label in ax1.get_xticklabels() + ax2.get_xticklabels():
+    #     if label.get_text() in ["MIDW", "QPR"]:
+    #         label.set_weight('bold')
+    
     plt.savefig(join(SAVE_DIR, f"{TARGET}_rmse_and_solve_times.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=300)
     if SHOW_PLOTS:
         plt.show()
@@ -673,7 +676,7 @@ def model_contribution_to_rmse(z, use_models, save_dir="", show=True):
 if __name__ == "__main__":
     # rmse_vs_n_models()
     # x_vs_y_bundle()
-    # traj_inputs_vs_t()
+    traj_inputs_vs_t()
     # traj_x_vs_y()
     rmse_calculations(plot_solve_times=False)
     if TARGET == "figure8":
