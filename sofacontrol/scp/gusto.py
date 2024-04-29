@@ -217,17 +217,28 @@ class GuSTO:
         error = 0
         approx = 0
 
-        if self.model.dyn_sys.adiabatic:
+        if self.model.dyn_sys.adiabatic == 1:
             x0_interp = x[0, :]
+            x0_interp_list = [x0_interp] * x.shape[0]
+            
+        elif self.model.dyn_sys.adiabatic == 2:
+            # Manufacture a slow control input
+            u_slow = u.copy() # TODO
+
+            x0_interp_list = []
+            x0_interp_list.append(x[0, :])
+            for i in range(x.shape[0] - 1):
+                A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x0_interp_list[i], u_slow[i, :], self.dt, x0_interp=x0_interp_list[i])
+                x0_interp_list.append(A_d_i @ x0_interp_list[i] + B_d_i @ u_slow[i, :] + d_d_i)
         else:
             x0_interp = None
 
         for i in range(x.shape[0] - 1):
             # Get true dynamics at the current points
-            fk, Ak, Bk = self.model.get_continuous_dynamics(self.x_k[i, :], self.u_k[i, :], x0_interp=x0_interp)
+            fk, Ak, Bk = self.model.get_continuous_dynamics(self.x_k[i, :], self.u_k[i, :], x0_interp=x0_interp_list[i])
 
             # Get dynamics at the potential new solution
-            f, _, _ = self.model.get_continuous_dynamics(x[i, :], u[i, :], x0_interp=x0_interp)
+            f, _, _ = self.model.get_continuous_dynamics(x[i, :], u[i, :], x0_interp=x0_interp_list[i])
 
             # Compute approximation of f(x,u) via Taylor expansion about (xk, uk)
             f_approx = fk + Ak @ (x[i, :] - self.x_k[i, :]) + Bk @ (u[i, :] - self.u_k[i, :])
@@ -245,13 +256,24 @@ class GuSTO:
         B_d = []
         d_d = []
 
-        if self.model.dyn_sys.adiabatic:
+        if self.model.dyn_sys.adiabatic == 1:
             x0_interp = x[0, :]
+            x0_interp_list = [x0_interp] * x.shape[0]
+            
+        elif self.model.dyn_sys.adiabatic == 2:
+            # Manufacture a slow control input
+            u_slow = u.copy() # TODO
+
+            x0_interp_list = []
+            x0_interp_list.append(x[0, :])
+            for i in range(x.shape[0] - 1):
+                A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x0_interp_list[i], u_slow[i, :], self.dt, x0_interp=x0_interp_list[i])
+                x0_interp_list.append(A_d_i @ x0_interp_list[i] + B_d_i @ u_slow[i, :] + d_d_i)
         else:
             x0_interp = None
 
         for i in range(x.shape[0] - 1):
-            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt, x0_interp=x0_interp)
+            A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x[i, :], u[i, :], self.dt, x0_interp=x0_interp_list[i])
             A_d.append(A_d_i)
             B_d.append(B_d_i)
             d_d.append(d_d_i)
@@ -265,13 +287,24 @@ class GuSTO:
         H_d = []
         c_d = []
 
-        if self.model.dyn_sys.adiabatic:
+        if self.model.dyn_sys.adiabatic == 1:
             x0_interp = x[0, :]
+            x0_interp_list = [x0_interp] * x.shape[0]
+            
+        elif self.model.dyn_sys.adiabatic == 2:
+            # Manufacture a slow control input
+            u_slow = u.copy() # TODO
+
+            x0_interp_list = []
+            x0_interp_list.append(x[0, :])
+            for i in range(x.shape[0] - 1):
+                A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x0_interp_list[i], u_slow[i, :], self.dt, x0_interp=x0_interp_list[i])
+                x0_interp_list.append(A_d_i @ x0_interp_list[i] + B_d_i @ u_slow[i, :] + d_d_i)
         else:
             x0_interp = None
 
         for i in range(x.shape[0]):
-            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt, x0_interp=x0_interp)
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt, x0_interp=x0_interp_list[i])
             H_d.append(H_d_i)
             c_d.append(c_d_i)
 
@@ -286,8 +319,19 @@ class GuSTO:
         B_d = []
         d_d = []
 
-        if self.model.dyn_sys.adiabatic:
+        if self.model.dyn_sys.adiabatic == 1:
             x0_interp = x[0, :]
+            x0_interp_list = [x0_interp] * x.shape[0]
+            
+        elif self.model.dyn_sys.adiabatic == 2:
+            # Manufacture a slow control input
+            u_slow = u.copy() # TODO
+
+            x0_interp_list = []
+            x0_interp_list.append(x[0, :])
+            for i in range(x.shape[0] - 1):
+                A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x0_interp_list[i], u_slow[i, :], self.dt, x0_interp=x0_interp_list[i])
+                x0_interp_list.append(A_d_i @ x0_interp_list[i] + B_d_i @ u_slow[i, :] + d_d_i)
         else:
             x0_interp = None
 
@@ -307,8 +351,19 @@ class GuSTO:
         H_d = []
         c_d = []
 
-        if self.model.dyn_sys.adiabatic:
+        if self.model.dyn_sys.adiabatic == 1:
             x0_interp = x[0, :]
+            x0_interp_list = [x0_interp] * x.shape[0] 
+            
+        elif self.model.dyn_sys.adiabatic == 2:
+            # Manufacture a slow control input
+            u_slow = u.copy() # TODO
+
+            x0_interp_list = []
+            x0_interp_list.append(x[0, :])
+            for i in range(x.shape[0] - 1):
+                A_d_i, B_d_i, d_d_i = self.model.get_discrete_dynamics(x0_interp_list[i], u_slow[i, :], self.dt, x0_interp=x0_interp_list[i])
+                x0_interp_list.append(A_d_i @ x0_interp_list[i] + B_d_i @ u_slow[i, :] + d_d_i)
         else:
             x0_interp = None
 

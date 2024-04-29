@@ -99,7 +99,7 @@ elif TARGET == "figure8":
     z_target[:, 0] += -radius * np.sin(th)
     z_target[:, 1] += radius * np.sin(2 * th)
     z_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']
-elif TARGET == "pac-man":
+elif TARGET == "pacman":
     z_target[:, 0] += radius * np.cos(th)
     z_target[:, 1] += radius * np.sin(th)
     z_target[:, 2] += -np.ones(len(t_target)) * target_settings['z_const']

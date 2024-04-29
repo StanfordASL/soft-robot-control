@@ -120,6 +120,16 @@ class KoopmanModel:
         self.H = self.C.copy()
         self.M = model_in['M'][0, 0]
         self.K = model_in['K'][0, 0]
+
+        if 'G' in model_in.dtype.names:
+            self.G = model_in['G'][0, 0]
+        else:
+            self.G = 0.
+
+        if 'Ginv' in model_in.dtype.names:
+            self.Ginv = model_in['Ginv'][0, 0]
+        else:
+            self.Ginv = 0.
         # V is right matrix, W is inverse of V
         if 'V' in model_in.dtype.names:
             self.V = model_in['V'][0, 0]

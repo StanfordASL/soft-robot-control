@@ -11,7 +11,7 @@ import pickle
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "modified_idw" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
+INTERPOLATION_METHOD = "qp" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
 ORIGIN_IDX = 0
 
 
@@ -32,7 +32,13 @@ class AdiabaticSSM:
         self.models = models
         self.params = params
 
-        self.adiabatic = True
+        # Sets the adiabatic SSM controller method
+        # 1 - Quasi-static SSM for finite time horizon 
+        # 2 - Manufacture a slow control input
+        self.adiabatic = 2
+        if self.adiabatic == 2:
+            self.eps_slow_control = 1e-2
+
         # if self.interp_method in ["idw", "modified_idw"]: # "krg", "rbf", "tps", "nn"]:
         #     self.interp_3d = True
         # else:
@@ -276,7 +282,7 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
     # def get_discrete_jacobians(self,
     #                         x: jnp.ndarray,
     #                         u: jnp.ndarray):
-    #     A, B = jax.jacobian(self.maps['f_nl_d'], (0, 1))(x, u)qp
+    #     A, B = jax.jacobian(self.maps['f_nl_d'], (0, 1))(x, u)
     #     d = self.maps['f_nl_d'](x, u) - jnp.dot(A, x) - jnp.dot(B, u)
     #     return A, B, d
 

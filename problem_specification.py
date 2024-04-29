@@ -49,8 +49,8 @@
 # problem = calibration.rest_calibration
 # problem = trunk.apply_constant_input
 
-from examples.trunk import trunk
-problem = trunk.sim_OL
+# from examples.trunk import trunk
+# problem = trunk.sim_OL
 
 # KOOPMAN
 # from examples.trunk import trunk_koopman
@@ -61,8 +61,8 @@ problem = trunk.sim_OL
 # problem = trunk_SSM.run_scp
 
 # ADIABATIC SSM
-# from examples.trunk import trunk_adiabaticSSM
-# problem = trunk_adiabaticSSM.run_scp
+from examples.trunk import trunk_adiabaticSSM
+problem = trunk_adiabaticSSM.run_scp
 
 # TPWL
 # from examples.trunk import trunk_tpwl

@@ -2,7 +2,7 @@ robot: "trunk"
 save_dir: "plots/"
 file_format: "eps"
 
-traj_dir: "sim_trajs/pac-man/" # figure8" # pac-man" # circle_z=-10" # 
+traj_dir: "sim_trajs/pacman/" # figure8" # pac-man" # circle_z=-10" # 
 
 show: {
     'ssmr': False,
@@ -89,7 +89,7 @@ define_targets: {
         z_lb: null, # [-16, -16],
         z_ub: null  # [16, 5]
     },
-    pac-man: {
+    pacman: {
         M: 1,
         T: 10,
         N: 1000,
