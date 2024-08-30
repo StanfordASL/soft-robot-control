@@ -23,10 +23,10 @@ modelType = 'linear' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.01 # This dt for when to recalculate control
 
 ######## Generate LDO Parameters ########
-Mper = 10  # Number of periods to simulate
+Mper = 50  # Number of periods to simulate
 Tper = 0.5  # Period of trajectory
-Nper = 1 # int(Tper / dt) # Number of points per period (this will be trigger for doing LDO)
-# Nper = None
+# Nper = int(Tper/dt) # 1 # int(Tper / dt) # Number of points per period (this will be trigger for doing LDO)
+Nper = None
 
 def run_scp():
     """
@@ -109,7 +109,7 @@ def run_gusto_solver():
     ######## User Options ########
     saveControlTask = False
     createNewTask = False
-    N = 3
+    N = 15
 
     ###### Control Task Parameters ######
     # X-Y Figure 8
@@ -312,7 +312,7 @@ def run_gusto_solver_LDO():
     ######## User Options ########
     saveControlTask = True
     createNewTask = True
-    N = 3
+    N = 15
 
     ###### Control Task Parameters ######
     # X-Y Figure 8

@@ -85,12 +85,19 @@ Z_EQ = outputModel.evaluate(x_eq, qv=False) #+ np.array([1.4, 0.0, 0.0])
 if SETTINGS['robot'] == "trunk":
     Z_EQ[2] *= -1
 print(Z_EQ)
+print(Z_EQ.shape)
 
 # Load reference/target trajectory as defined in plotting_settings.py
 TARGET = SETTINGS['select_target']
 target_settings = SETTINGS['define_targets'][TARGET]
 taskFile = join(path, SETTINGS['robot'], 'control_tasks', TARGET + '.pkl')
 target = load_data(taskFile) # Note: target is centered, so we need to center the robot trajectory
+
+# Save target as a .pkl file
+target_save_dict = {'X': target['X'], 't': target['t'], 'z': target['z']}
+print(f"Saving target trajectory as {TARGET}_target.pkl")
+with open(join(path, SETTINGS['robot'], SETTINGS['save_dir'], f'{TARGET}_target.pkl'), 'wb') as f:
+    pickle.dump(target_save_dict, f)
 
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
@@ -650,6 +657,7 @@ def plot_RMSE_v_t():
         if control == "koopman":
             z_centered = SIM_DATA[control]['z'] - Z_EQ
         else:
+            print(SIM_DATA[control]['z'].shape)
             z_centered = SIM_DATA[control]['z'] - Z_EQ
 
         # if control == "ssmr_origin":
@@ -1489,18 +1497,21 @@ if __name__ == "__main__":
 
     if SETTINGS['show']['ssmr_linear']:
         # traj_inputs_vs_t()
-        plot_RMSE_v_t()
+        # plot_RMSE_v_t()
         # traj_x_vs_y()
         traj_2()
         # traj_xy_vs_t()
+        rmse_calculations()
+        
     
     if SETTINGS['show']['ssmr_linear_LDO']:
         # traj_inputs_vs_t()
-        plot_RMSE_v_t()
+        # plot_RMSE_v_t()
         # traj_x_vs_y()
-        # traj_2()
+        traj_2()
         # plot_trueDist_v_t_interp()
         # innovation_vs_t()
+        rmse_calculations()
 
     
 

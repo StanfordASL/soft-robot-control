@@ -8,7 +8,7 @@ traj_dir: ""
 show: {
     'ssmr': False, # Full obsevables
     'ssmr_origin': False, # pos-vel
-    'ssmr_1delay': True, # Single delay embedding
+    'ssmr_1delay': False, # Single delay embedding
     'ssmr_2delay': False, # Single delay embedding
     'linear': True, # Linear model
     # Adiabatic SSM settings
@@ -18,7 +18,7 @@ show: {
     'ssmr_assm_qp2d_n=100': False,
     'ssmr_assm_idw3d_n=100': False,
     'ssmr_assm_ridge2d_n=100': False,
-    'tpwl': True,
+    'tpwl': False,
     'koopman': True,
     'rompc': False
 }
