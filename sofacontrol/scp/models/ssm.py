@@ -76,7 +76,7 @@ class SSMGuSTO(TemplateModel):
         else:
             return self.dyn_sys.get_jacobians(x, dt=dt, u=u)
 
-    def get_observer_jacobians(self, x, u=None, dt=None):
+    def get_observer_jacobians(self, x, z, u=None, dt=None):
         """
         :x: State x0 (n_x)
         :u: Input u0 (n_u)
@@ -88,7 +88,7 @@ class SSMGuSTO(TemplateModel):
             y_bar = np.tile(self.dyn_sys.interpolator.transform(x[self.dyn_sys.interp_slice], "q_bar"), 5)
             return self.dyn_sys.get_observer_jacobians(x, W, x_bar, y_bar)
         else:
-            return self.dyn_sys.get_observer_jacobians(x)
+            return self.dyn_sys.get_observer_jacobians(x, z)
 
     def get_characteristic_vals(self):
         """
@@ -99,7 +99,7 @@ class SSMGuSTO(TemplateModel):
         f_char = np.ones(self.n_x)
         return x_char, f_char
 
-    def rollout(self, x0, u, dt):
+    def rollout(self, x0, u, dt, z):
         """
         Simply use the SSM model built in rollout function.
         
@@ -110,4 +110,4 @@ class SSMGuSTO(TemplateModel):
         Returns state x (N + 1, n_x), performance variable z (N + 1, n_z),
         and approx performance var z_lin (N + 1, n_z)
         """
-        return self.dyn_sys.rollout(x0, u, dt)
+        return self.dyn_sys.rollout(x0, u, dt, z)

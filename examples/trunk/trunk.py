@@ -272,8 +272,8 @@ def run_scp(T=11.):
     prob.ControllerClass = ClosedLoopController
 
     # Specify a measurement and output model
-    cov_q = 0.001 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
-    cov_v = 60.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES))
+    cov_q = 0.001 * np.eye(3 * len(DEFAULT_OUTPUT_NODES)) # 0.001
+    cov_v = 0.0 * np.eye(3 * len(DEFAULT_OUTPUT_NODES)) # 60.0
     prob.measurement_model = MeasurementModel(DEFAULT_OUTPUT_NODES, prob.Robot.nb_nodes, S_q=cov_q, S_v=cov_v)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[51])
 
@@ -289,19 +289,19 @@ def run_scp(T=11.):
     # Set up an EKF observer
     dt_char = model.get_characteristic_dx(dt)
     W = np.diag(dt_char)
-    V = 0.1 * np.eye(model.get_meas_dim())
+    V = 0.0 * np.eye(model.get_meas_dim())
     EKF = DiscreteEKFObserver(model, W=W, V=V)
 
     cost = QuadraticCost()
     Qz = np.zeros((model.output_dim, model.output_dim))
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0  # corresponding to z position of end effector
+    Qz[5, 5] = 100  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
     cost.R = .00001 * np.eye(model.input_dim)
 
     # Define controller (wait 1 second of simulation time to start)
-    prob.controller = scp(model, cost, dt, N_replan=10, observer=EKF, delay=1)
+    prob.controller = scp(model, cost, dt, N_replan=5, observer=EKF, delay=1)
 
     # Saving paths
     prob.opt['sim_duration'] = T
@@ -318,16 +318,16 @@ def run_gusto_solver():
     from sofacontrol.measurement_models import linearModel
     from sofacontrol.scp.ros import runGuSTOSolverNode
     from sofacontrol.tpwl import tpwl_config, tpwl
-    from sofacontrol.utils import createTargetTrajectory, createControlConstraint, save_data, load_data, CircleObstacle
+    from sofacontrol.utils import createTargetTrajectory, createControlConstraint, save_data, load_data, CircleObstacle, HyperRectangle
 
      ######## User Options ########
     saveControlTask = False
     createNewTask = False
-    dt = 0.1
+    dt = 0.05
     N = 5
 
     # Control Task Params
-    controlTask = "stanford" # ASL, pacman, or stanford
+    controlTask = "pacman" # ASL, pacman, or stanford
     trajAmplitude = 15
     trajFreq = 17 # rad/s
     flipCoords = True # Use this only when the saved trajectory is from SSM run
@@ -338,7 +338,7 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 800.0
+    u_min, u_max = 0.0, 1200.0
     du_max = 100.
 
     ######## Generate SSM model and setup control task ########
@@ -350,6 +350,8 @@ def run_gusto_solver():
     model = tpwl.TPWLATV(data=tpwl_model_file, params=config.constants_sim, Hf=output_model.C,
                          discr_method='zoh')
     
+    dU = HyperRectangle([10] * model.input_dim, [-10] * model.input_dim)
+
     # Define target trajectory for optimization
     trajDir = join(path, "control_tasks")
     taskFile = join(trajDir, controlTask + ".pkl")
@@ -401,25 +403,26 @@ def run_gusto_solver():
                 H = Hz @ model.H
         
                 taskParams['X'] = CircleObstacle(A=H, center=taskParams['obstacleLoc'] - Hz @ model.z_ref, diameter=taskParams['obstacleDiameter'])
+    
     print(taskParams['z'][0, :])
     ######## Cost Function ########
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[3, 3] = 100  # corresponding to x position of end effector
-    Qz[4, 4] = 100  # corresponding to y position of end effector
-    Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    R = .00001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[3, 3] = 100  # corresponding to x position of end effector
+    # Qz[4, 4] = 100  # corresponding to y position of end effector
+    # Qz[5, 5] = 0.0  # corresponding to z position of end effector
+    # R = .00001 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    # R = .00001 * np.eye(model.input_dim)
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[3, 3] = 100.0  # corresponding to x position of end effector
-    # Qz[4, 4] = 100.0  # corresponding to y position of end effector
-    # Qz[5, 5] = 100.0  # corresponding to z position of end effector
+    R = .00001 * np.eye(model.input_dim) # 0.00001
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[3, 3] = 100.0  # corresponding to x position of end effector
+    Qz[4, 4] = 100.0  # corresponding to y position of end effector
+    Qz[5, 5] = 100.0  # corresponding to z position of end effector
 
     # Define initial condition to be x_ref for initial solve
     x0 = model.rom.compute_RO_state(xf=model.rom.x_ref)
@@ -428,7 +431,7 @@ def run_gusto_solver():
     gusto_model.pre_discretize(dt)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
+                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
     
 def run_gusto_solver_call(taskParams):
     """

@@ -1,58 +1,134 @@
-robot: "trunk" #trunk, hardware
+robot: "hardware" #trunk, hardware
 save_dir: "plots/"
-file_format: "png"
+file_format: "pdf"
 
 #traj_dir: "sim_trajs/circle_z=-10" # figure8" #
-traj_dir: "sim_trajs/pacman/" # figure8" # pac-man" # circle_z=-10" # 
+# traj_dir: "sim_trajs/pacman/" # figure8" # pac-man" # circle_z=-10" # 
+traj_dir: "" # figure8" # pac-man" # circle_z=-10" # 
 
 show: {
+    'ssmr_adiabatic_qp': False,
     'ssmr_delays': False, # Full obsevables
     'ssmr_posvel': False, # pos-vel
-    'ssmr_singleDelay': False, # Single delay embedding
+    'ssmr_singleDelay': True, # Single delay embedding
     'ssmr_linear': False, # Linear model
     # Adiabatic SSM settings
     'ssmr_adiabatic_idw': False,
     'ssmr_adiabatic_modified_idw': False,
-    'ssmr_adiabatic_qp': False,
     'ssmr_adiabatic_nn': False,
     'ssmr_adiabatic_linear': False,
     'ssmr_adiabatic_ct': False,
     'tpwl': False,
-    'koopman': True,
+    'koopman': False,
+    'koopman_static': False,
     'DMD': False,
     'rompc': False
 }
 display_name: {
-    'ssmr_delays': "SSMR\n(4 Delays)",
+    'ssmr_delays': "SSMR\n(6D)",
     'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
-    'ssmr_singleDelay': "SSMR\n(1 Delay)", # Single delay embedding
-    'ssmr_linear': "SSSR\n(1 Delay)", # Linear SSMR Model
-    'ssmr_adiabatic_linear': "LB",
-    'ssmr_adiabatic_ct': "CT",
-    'ssmr_adiabatic_nn': "NN",
-    'ssmr_adiabatic_qp': "QPR",
-    'ssmr_adiabatic_idw': "IDW",
-    'ssmr_adiabatic_modified_idw': "MIDW",
-    'tpwl': "TPWL",
-    'koopman': "EDMD",
-    'DMD': "DMD",
+    'ssmr_singleDelay': "SSMR\n(6D)", # Single delay embedding
+    'ssmr_linear': "SSSR\n(6D)", # Linear SSMR Model
+    'ssmr_adiabatic_linear': "AdSSM LB\n(6D)",
+    'ssmr_adiabatic_ct': "AdSSM CT\n(6D)",
+    'ssmr_adiabatic_nn': "AdSSM NN\n(6D)",
+    'ssmr_adiabatic_qp': "AdSSM QPR\n(6D)",
+    'ssmr_adiabatic_idw': "AdSSM IDW\n(6D)",
+    'ssmr_adiabatic_modified_idw': "AdSSM MIDW\n(6D)",
+    'tpwl': "TPWL\n(28D)",
+    'koopman': "Koopman/\nEDMD\n(120D)",
+    'DMD': "DMD\n(15D)",
+    'koopman_static': "Koopman\nw/ Pregain\nLQR (6D)",
+    'rompc': "ROMPC",
+}
+
+display_name_hardware: {
+    'ssmr_delays': "SSMR\n(6D)",
+    'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
+    'ssmr_singleDelay': "SSMR\n(6D)", # Single delay embedding
+    'ssmr_linear': "SSSR\n(6D)", # Linear SSMR Model
+    'ssmr_adiabatic_linear': "AdSSM LB",
+    'ssmr_adiabatic_ct': "AdSSM CT",
+    'ssmr_adiabatic_nn': "AdSSM NN",
+    'ssmr_adiabatic_qp': "AdSSM QPR",
+    'ssmr_adiabatic_idw': "AdSSM IDW",
+    'ssmr_adiabatic_modified_idw': "AdSSM MIDW",
+    'tpwl': "TPWL\n(28D)",
+    'koopman': "Koopman/\nEDMD\n(66D)",
+    'DMD': "DMD\n(11D)",
+    'koopman_static': "Koopman\nw/ Pregain (6D)",
+    'rompc': "ROMPC",
+}
+
+display_name_trunk: {
+    'ssmr_delays': "SSMR\n(6D)",
+    'ssmr_posvel': "SSMR\n(Pos-Vel)", # "SSMR (origin)",
+    'ssmr_singleDelay': "SSMR\n(6D)", # Single delay embedding
+    'ssmr_linear': "SSSR\n(6D)", # Linear SSMR Model
+    'ssmr_adiabatic_linear': "AdSSM LB",
+    'ssmr_adiabatic_ct': "AdSSM CT",
+    'ssmr_adiabatic_nn': "AdSSM NN",
+    'ssmr_adiabatic_qp': "AdSSM QPR",
+    'ssmr_adiabatic_idw': "AdSSM IDW",
+    'ssmr_adiabatic_modified_idw': "AdSSM MIDW",
+    'tpwl': "TPWL\n(28D)",
+    'koopman': "Koopman/\nEDMD\n(120D)",
+    'DMD': "DMD\n(15D)",
+    'koopman_static': "Koopman\nw/ Pregain (6D)",
     'rompc': "ROMPC",
 }
 
 legend_name: {
-    'ssmr_delays': "SSMR (4 Delays)",
+    'ssmr_delays': "SSMR (6D)",
     'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
-    'ssmr_singleDelay': "SSMR (1 Delay)", # Single delay embedding
-    'ssmr_linear': "SSSR (1 Delay)", # Linear SSMR Model
+    'ssmr_singleDelay': "SSMR (6D)", # Single delay embedding
+    'ssmr_linear': "SSSR (6D)", # Linear SSMR Model
     'ssmr_adiabatic_linear': "tab:green",
     'ssmr_adiabatic_ct': "tab:blue",
     'ssmr_adiabatic_nn': "tab:brown",
     'ssmr_adiabatic_qp': "tab:purple",
     'ssmr_adiabatic_idw': "tab:red",
     'ssmr_adiabatic_modified_idw': "tab:red",
-    'tpwl': "TPWL",
-    'koopman': "EDMD",
-    'DMD': "DMD",
+    'tpwl': "TPWL (28D)",
+    'koopman': "Koopman/EDMD (120D)",
+    'DMD': "DMD (15D)",
+    'koopman_static': "Koopman LQR w/ Static Pregain (6D)",
+    'rompc': "ROMPC",
+}
+
+legend_name_trunk: {
+    'ssmr_delays': "SSMR (6D)",
+    'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
+    'ssmr_singleDelay': "SSMR (6D)", # Single delay embedding
+    'ssmr_linear': "SSSR (6D)", # Linear SSMR Model
+    'ssmr_adiabatic_linear': "tab:green",
+    'ssmr_adiabatic_ct': "tab:blue",
+    'ssmr_adiabatic_nn': "tab:brown",
+    'ssmr_adiabatic_qp': "tab:purple",
+    'ssmr_adiabatic_idw': "tab:red",
+    'ssmr_adiabatic_modified_idw': "tab:red",
+    'tpwl': "TPWL (28D)",
+    'koopman': "Koopman/EDMD (120D)",
+    'DMD': "DMD (15D)",
+    'koopman_static': "Koopman LQR w/ Static Pregain (6D)",
+    'rompc': "ROMPC",
+}
+
+legend_name_hardware: {
+    'ssmr_delays': "SSMR (4 Delays)",
+    'ssmr_posvel': "SSMR (Pos-Vel)", # "SSMR (origin)",
+    'ssmr_singleDelay': "SSMR (6D)", # Single delay embedding
+    'ssmr_linear': "SSSR (6D)", # Linear SSMR Model
+    'ssmr_adiabatic_linear': "tab:green",
+    'ssmr_adiabatic_ct': "tab:blue",
+    'ssmr_adiabatic_nn': "tab:brown",
+    'ssmr_adiabatic_qp': "tab:purple",
+    'ssmr_adiabatic_idw': "tab:red",
+    'ssmr_adiabatic_modified_idw': "tab:red",
+    'tpwl': "TPWL (28D)",
+    'koopman': "Koopman/EDMD (66D)",
+    'DMD': "DMD (11D)",
+    'koopman_static': "Koopman LQR w/ Static Pregain (6D)",
     'rompc': "ROMPC",
 }
 
@@ -60,17 +136,18 @@ legend_name: {
 color: {
     'ssmr_delays': 'tab:blue',
     'ssmr_posvel': 'tab:red',
-    'ssmr_singleDelay': 'tab:orange',
+    'ssmr_singleDelay': 'orange',
     'ssmr_linear': 'tab:purple',
     'ssmr_adiabatic_linear': "tab:green",
     'ssmr_adiabatic_ct': "tab:blue",
     'ssmr_adiabatic_nn': "tab:brown",
-    'ssmr_adiabatic_qp': "tab:purple",
+    'ssmr_adiabatic_qp': "purple",
     'ssmr_adiabatic_idw': "tab:red",
     'ssmr_adiabatic_modified_idw': "tab:red",
     'tpwl': 'tab:olive',
-    'koopman': 'tab:green',
+    'koopman': 'green',
     'DMD': "tab:cyan",
+    'koopman_static': "tab:cyan",
     'rompc': 'tab:purple',
     'target': 'black'
 }
@@ -88,6 +165,7 @@ linestyle: {
     'tpwl': '-',
     'koopman': '-',
     'DMD': '-',
+    'koopman_static': "-",
     'rompc': '-',
     'target': '--'
 }
@@ -106,6 +184,7 @@ altlinestyle: {
     'tpwl': '-+',
     'koopman': '-|',
     'DMD': '-s',
+    'koopman_static': "-s",
     'rompc': '-',
     'target': '--'
 }
@@ -124,6 +203,7 @@ linewidth: {
     'tpwl': 2,
     'koopman': 2,
     'DMD': 2,
+    'koopman_static': 2,
     'rompc': 2,
     'target': 1
 }
@@ -132,16 +212,33 @@ alpha: {
     'ssmr_delays': 0.7,
     'ssmr_posvel': 0.7,
     'ssmr_singleDelay': 0.7,
+    'ssmr_adiabatic_qp': 0.7,
     'ssmr_linear': 1,
     'tpwl': 0.7,
-    'koopman': 0.7,
+    'koopman': 0.7, #0.5
     'DMD': 0.5,
+    'koopman_static': 0.5,
     'rompc': 1,
     'target': 1.5
 }
 
-select_target: "pacman"
-# select_target: "circle"
+
+markers: {
+    'ssmr_origin': 's',
+    'ssmr_adiabatic_linear': 'v',
+    'ssmr_adiabatic_ct': '^',
+    'ssmr_adiabatic_nn': 's',
+    'ssmr_adiabatic_qp': 'o',
+    'ssmr_adiabatic_idw': None,
+    'ssmr_adiabatic_modified_idw': 'd',
+    'tpwl': 'v',
+    'koopman': '^',
+    'koopman_static': 'v',
+    'target': None
+}
+
+# select_target: "pacman"
+select_target: "figure8"
 # Figure8 target
 define_targets: {
     figure8: {
@@ -165,13 +262,13 @@ define_targets: {
         z_ub: null  # [16, 5]
     },
     pacman: {
-        z_const: -10, # -10, # 0, # 
+        z_const: -10, # -10, # 0, # -30
         z_lb: null,
         z_ub: null,
         T: 10,
         M: 1,
         N: 1000,
-        radius: 20,
+        radius: 20, #20
         t_in_pacman: 1., 
         t_out_pacman: 1.,
     },

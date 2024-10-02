@@ -34,13 +34,15 @@ class FullStateObserver:
 
 class SSMObserver:
     def __init__(self, dyn_sys):
-        self.z = None
+        self.y = None
         self.x = None
+        self.z = None
         self.dyn_sys = dyn_sys
 
     def update(self, u, y, dt, x=None):
         #self.z = vq2qv(y)
         #self.x = self.dyn_sys.V_map(self.dyn_sys.zfyf_to_zy(zf=self.z))
+        self.y = y
 
         # Assumes y has been centered
         if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic:

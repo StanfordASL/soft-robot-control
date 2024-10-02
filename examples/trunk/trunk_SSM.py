@@ -19,7 +19,7 @@ TIP_NODE = 51
 N_NODES = 709
 
 
-modelType = 'posvel' # "delays", "posvel", "singleDelay", "linear"
+modelType = 'singleDelay' # "delays", "posvel", "singleDelay", "linear"
 dt = 0.02 # This dt for when to recalculate control. TODO: uncomment when running manually
 
 
@@ -109,19 +109,20 @@ def run_gusto_solver():
     import pickle
     
     ######## User Options ########
-    saveControlTask = False
-    createNewTask = False
+    saveControlTask = True
+    createNewTask = True
     N = 3
 
     # Control Task Params
-    controlTask = "custom" # pacman or stanford
+    controlTask = "pacman" # pacman, stanford, ASL
     trajAmplitude = 10
     trajFreq = 17 # rad/s
 
     # Star trajectory - only used when custom trajectory is selected
     pathToTraceImage = "/home/jalora/Desktop/stanford.png"
     outdofs = [0, 1, 2] # outdofs = [0, 1, 2]
-    z_offset = 12. + 107. # 107.
+    # z_offset = 12. + 107. # 107.
+    z_offset = None
     repeat_traj = 2
 
     # Trajectory constraint
@@ -130,7 +131,7 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 800.0
+    u_min, u_max = 0.0, 1200.0
     # du_max = 100.
     du_max = None
 
@@ -183,10 +184,10 @@ def run_gusto_solver():
     # Problem 1, X-Y plane cost function
     #############################################
     Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100  # corresponding to x position of end effector
-    Qz[1, 1] = 100  # corresponding to y position of end effector
-    Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    R = .00001 * np.eye(model.input_dim)
+    Qz[0, 0] = 100.  # corresponding to x position of end effector
+    Qz[1, 1] = 100.  # corresponding to y position of end effector
+    Qz[2, 2] = 100.  # corresponding to z position of end effector
+    R = 0.0001 * np.eye(model.input_dim)
     # R = .07 * np.eye(model.input_dim)
 
     #############################################
@@ -200,12 +201,13 @@ def run_gusto_solver():
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)
+    dU = HyperRectangle([20] * model.input_dim, [-20] * model.input_dim)
 
     # Define GuSTO model
     gusto_model = SSMGuSTO(model)
     runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
-                       max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
+                       max_gusto_iters=0, input_nullspace=None, dU=dU, jit=True)
 
 # TODO: make dt a parameter
 def run_gusto_solver_call(taskParams, model):

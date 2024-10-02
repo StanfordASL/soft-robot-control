@@ -17,6 +17,7 @@ from sofacontrol.measurement_models import linearModel
 from sofacontrol.utils import qv2x, load_data, CircleObstacle, load_full_equilibrium, add_decimal
 import matplotlib.ticker as mticker
 import matplotlib.patches as mpatches
+from matplotlib.lines import Line2D
 
 path = dirname(abspath(__file__))
 np.set_printoptions(linewidth=300)
@@ -344,7 +345,7 @@ def rmse_calculations():
             err[control] = (z_centered[:-2, :] - zf_target)
         else:
             # errors are to be measured in 2D
-            err[control] = (z_centered[:-1, :2] - zf_target[:, :2])
+            err[control] = (z_centered[:-2, :2] - zf_target[:, :2])
         rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
         # solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
 
@@ -375,7 +376,7 @@ def violinplot(samples, vmax=None, legend_label=None, ax=None, show=True, color=
         fig, ax = plt.subplots(1, 1, figsize=(9, 2))
     
     # Create the violin plot
-    vp = ax.violinplot(samples.T, vert=False, showmeans=False, showmedians=True, showextrema=True, widths=0.5)
+    vp = ax.violinplot(samples.T, vert=True, showmeans=False, showmedians=True, showextrema=True, widths=0.5)
     
     # Customize colors
     for pc in vp['bodies']:
@@ -399,11 +400,11 @@ def violinplot(samples, vmax=None, legend_label=None, ax=None, show=True, color=
         ax.legend(handles=[patch])
     
     if vmax is not None:
-        ax.set_xlim(0, vmax)
+        ax.set_ylim(0, vmax)
     
-    # Remove y-axis labels and ticks for clarity
-    ax.yaxis.set_tick_params(labelleft=False)
-    ax.set_yticks([])
+    # Remove x-axis labels and ticks for clarity
+    ax.xaxis.set_tick_params(labelleft=False)
+    ax.set_xticks([])
     
     # Show the plot or return the axis object
     if show:
@@ -449,13 +450,33 @@ def get_shade(color, factor):
     """Generate a lighter shade of the given color."""
     return tuple([(1 - factor) * component + factor for component in color])
 
-def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=10, set_threshold=True):
+def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=280., set_threshold=False, model_comparison=False):
     # Assuming data is a dictionary of dictionaries in the format: data[control][dt]
 
-    CONTROLS = ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel", "koopman", "ssmr_linear", "DMD", "tpwl"]
-    dts = sorted(data[CONTROLS[0]].keys()) # Assuming all controls have the same dts
+    if model_comparison:
+        CONTROLS = ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel", "ssmr_linear"]
+    else:
+        CONTROLS = ["ssmr_singleDelay", "ssmr_linear", "koopman", "DMD", "tpwl"]
+
+    if SETTINGS['robot'] == "trunk":
+        dts = sorted(data[CONTROLS[0]].keys()) # Assuming all controls have the same dts
+    else:
+        dts = [0.02]
+    
+    # dts = sorted(data[CONTROLS[0]].keys())
+
     num_dts = len(dts)
     width = 0.89 / num_dts
+
+    if model_comparison:
+        legend_name = {
+        "ssmr_singleDelay": "SSMR\n(1 delay)",
+        "ssmr_delays": "SSMR\n(4 delays)",
+        "ssmr_posvel": "SSMR\n(pos-vel)",
+        "ssmr_linear": "SSSR\n(1 delay)"
+        }
+    else:
+        legend_name = SETTINGS['display_name_trunk'] if SETTINGS['robot'] == "trunk" else SETTINGS['display_name_hardware']
 
     # Choose an arbitrary color for the legend
     arbitrary_color = (0.2, 0.4, 0.6)  # This can be any color that shows shades well
@@ -467,10 +488,9 @@ def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=10, set_threshold=T
     
     for idx, dt in enumerate(dts):
         rmse_vals = [data[control][dt] for control in CONTROLS]
-        dt_colors = [get_shade(matplotlib.colors.to_rgb(SETTINGS['color'][control]), (idx*0.2)) if val <= rmse_threshold 
-                     else get_shade((0.8, 0.8, 0.8), 0.2) for val, control in zip(rmse_vals, CONTROLS)]
-        hatches = ['//' if val > rmse_threshold else '' for val in rmse_vals]
-        edgecolors = ['darkgray' if hatch else dt_colors[i] for i, hatch in enumerate(hatches)]
+        dt_colors = [get_shade(matplotlib.colors.to_rgb(SETTINGS['color'][control]), (idx*0.2)) for val, control in zip(rmse_vals, CONTROLS)]
+        hatches = ['' if val > rmse_threshold else '' for val in rmse_vals]
+        edgecolors = [dt_colors[i] for i, hatch in enumerate(hatches)]
         positions = dt_positions[idx::num_dts]
         bars = ax.bar(positions, rmse_vals, width, color=dt_colors, label=r'$\Delta t={}$'.format(dt), edgecolor=edgecolors, zorder=2)
 
@@ -481,9 +501,18 @@ def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=10, set_threshold=T
             bar.set_hatch(hatch)
     
     # Configure primary and secondary x-axis labels
-    control_ticks = [0.2, 1.2, 2.2, 3.25, 4.3, 5.3, 6.3]
+    # if len(dts) > 1:
+    #     control_ticks = [0.2, 1.2, 2.2, 3.25, 4.3, 5.3, 6.3]
+    # else:
+    #     control_ticks = [0.02, 1.02, 2.02, 3.02, 4.1, 5.1, 6.1]
+
+    if len(dts) > 1:
+        control_ticks = [0.2, 1.2, 2.2, 3.25, 4.3] if not model_comparison else [0.1, 1.1, 2.1, 3.15]
+    else:
+        control_ticks = [0.02, 1.02, 2.02, 3.02, 4.1] if not model_comparison else [0.01, 1.01, 2.01, 3.01]
+
     ax.set_xticks(control_ticks)
-    ax.set_xticklabels([SETTINGS['display_name'][control] for control in CONTROLS], position=(0, 0.08), fontsize=10.)
+    ax.set_xticklabels([legend_name[control] for control in CONTROLS], position=(0, 0.08), fontsize=10.)
     
     ax.set_xticks(dt_positions, minor=True)
     # ax.set_xticklabels([f'{dt}' for dt in dts] * len(CONTROLS), minor=True, fontsize=8., rotation=30)
@@ -496,48 +525,105 @@ def plot_bar_chart_for_multiple_dts(ax, data, rmse_threshold=10, set_threshold=T
 
     # Remove the major tick lines
     ax.tick_params(axis='x', length=0, pad=20)
+    sorted_rmse_vals = np.sort(rmse_vals)
+    max_rmse = sorted_rmse_vals[-1]
+    second_max_rmse = sorted_rmse_vals[-2]
     if set_threshold:
+        threshold_val = rmse_threshold
+        ax.set_ylim(0, threshold_val)
+    else:
+        rmse_threshold = 1.2*second_max_rmse if max_rmse > 2 * second_max_rmse else 1.2 * max_rmse
         ax.set_ylim(0, rmse_threshold)
     
+    # Add metric value at the top of each bar
+    for bar, rmse_val in zip(bars, rmse_vals):
+        
+        if np.isclose(round(rmse_val), 0.):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 'Baseline', ha='center', va='bottom', fontsize=10, weight='bold')
+        # Add an arrow pointing up above rmse that exceed threshold
+        elif (rmse_val > threshold_val) and set_threshold:
+            ax.text(bar.get_x() + bar.get_width() / 2, 0.85*threshold_val, f'↑{round(rmse_val):,}%', 
+                    ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='none', pad=1.0, alpha=0.7), weight='bold')
+            if SETTINGS['robot'] == "hardware":
+                arrow_length = 55.0
+            else:
+                arrow_length = 150.0
+            arrow = patches.FancyArrow(bar.get_x() + bar.get_width() / 2, ax.get_ylim()[1], 0, arrow_length, 
+                                       width=0.5*bar.get_width(), head_width=0.8*bar.get_width(), 
+                                       head_length=arrow_length / 1.8, length_includes_head=True, color=bar.get_facecolor(), zorder=3)
+            ax.add_patch(arrow)
+            arrow.set_clip_on(False)
+
+            dots_location = ax.get_ylim()[1] + 0.5*arrow_length
+            # Vertical dots
+            increment = 0.4 * arrow_length
+            dot_positions = [dots_location, dots_location + 0.5*increment, dots_location + 1.0*increment]
+            for dot_y in dot_positions:
+                ax.text(bar.get_x() + bar.get_width() / 2, dot_y, '.', ha='center', va='center', fontsize=20, color='white')
+            
+            # Horizontal dots
+            # ax.text(bar.get_x() + bar.get_width() / 2, ax.get_ylim()[1] + 0.5*arrow_length, '...', ha='center', va='center', fontsize=20, color='white')
+        elif rmse_val > 2 * second_max_rmse:
+            ax.text(bar.get_x() + bar.get_width() / 2, 0.85*rmse_threshold, f'↑{round(rmse_val)}%', ha='center', va='bottom', fontsize=10, weight='bold')
+        else:
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, f'↑{round(rmse_val)}%', ha='center', va='bottom', fontsize=10, weight='bold')
+    
     # Add the legend for 'dt' values
-    ax.legend(handles=dt_legend_handles, loc='best')
+    if len(dts) > 1:
+        ax.legend(handles=dt_legend_handles, loc='best', fontsize=6)
 
 
-def plotTrunkResults(dirname=None):
-    
-    labelSize = 7
-    
+def plotTrunkResults(dirname=None, dt_string=None, model_comparison=False, metric="rmse", control_normalizer="ssmr_singleDelay", 
+                     rmse_threshold=800.0, set_threshold=True):
+        
     # Define a default dictionary to store the data
     def nested_dict():
         return defaultdict(nested_dict)
     
     CONTROLS = ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel", "koopman", "ssmr_linear", "DMD", "tpwl"]
-    SUBPLOT_MAPPING = {
-    (0, 0): ["ssmr_singleDelay"], # ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel"]
-    (0, 1): ["koopman"],
-    (1, 0): ["ssmr_linear", "DMD"],
-    (1, 1): ["tpwl"] # Add TPWL here
+    if not model_comparison:
+        controlTasks = ["ASL", "pacman"] # ["ASL", "pacman", "stanford"]
+        SUBPLOT_MAPPING = {
+        (0, 0): ["ssmr_singleDelay"], # ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel"]
+        (0, 1): ["koopman"],
+        (1, 0): ["ssmr_linear", "DMD"],
+        (1, 1): ["tpwl"] # Add TPWL here
+        }
+        legend_name = SETTINGS['legend_name']
+    else:
+        controlTasks = ["ASL", "pacman", "stanford"]
+        SUBPLOT_MAPPING = {
+        (0, 0): ["ssmr_singleDelay"],
+        (0, 1): ["ssmr_delays"],
+        (1, 0): ["ssmr_posvel"],
+        (1, 1): ["ssmr_linear"] # Add TPWL here
+        }
+        legend_name = {
+        "ssmr_singleDelay": "SSMR (single delay)",
+        "ssmr_delays": "SSMR (4 delays)",
+        "ssmr_posvel": "SSMR (position-velocity)",
+        "ssmr_linear": "SSSR (single delay)"
     }
-    controlTasks = ["ASL", "pacman", "stanford"]
+
     titles = [
         ["ASL Trajectory", "Pacman Trajectory", "Stanford Trajectory"], 
         ["", "", ""],
         ["", "", ""]]
-    singleLine_display_name = {
-        "ssmr_singleDelay": "SSMR (1 Delay)",
-        "ssmr_delays": "SSMR (4 Delays)",
-        "ssmr_posvel": "SSMR (Pos-Vel)",
-        "koopman": "EDMD",
-        "ssmr_linear": "SSSR (1 Delay)",
-        "DMD": "DMD",
-        "tpwl": "TPWL"
-    }
     
     simData = nested_dict()
     rmse = nested_dict()
     targetTrajData = nested_dict()
     z_centeredData = nested_dict()
-    solve_times = {}
+
+    metric_legend = {
+        "rmse": r"Relative RMSE [%]",
+        "ITAE": r"Relative ITAE [%]",
+        "IAE": r"Relative IAE [%]",
+        "ISE": r"Relative ISE [%]"
+    }
+
+    label_counter = 0
+    label_list = [chr(i) for i in range(ord('a'), ord('z')+1)]
 
     # Go through each possible control task
     for task in controlTasks:
@@ -550,12 +636,37 @@ def plotTrunkResults(dirname=None):
         
         z_target = load_data(taskFile)
         f_target = interp1d(z_target['t'], z_target['z'], axis=0)
-        
+
+        dt_folders = [dt_string] if dt_string is not None else os.listdir(simTaskFolder)
 
         # Iterate through each possible dt
-        for dtFolder in os.listdir(simTaskFolder):
+        for dtFolder in dt_folders:
             # Get the dt
             dt = add_decimal(dtFolder)
+
+            # Normalize with respect to ssmr_singleDelay
+            normalizer_file_path = join(simTaskFolder, dtFolder, f"{control_normalizer}_sim.pkl")
+            with open(normalizer_file_path, 'rb') as f:
+                normalizer_data = pickle.load(f)
+            idx_normalizer = np.argwhere(normalizer_data['t'] >= 1.0)[0][0]
+
+            t_normalizer = normalizer_data['t'][idx_normalizer:] - normalizer_data['t'][idx_normalizer]
+            zf_target_normalizer = f_target(t_normalizer[:-1])
+            z_normalizer_centered = normalizer_data['z'][idx_normalizer:, 3:] - Z_EQ
+
+            if task == "circle" or task == "star":
+                error_normalize = (z_normalizer_centered[:-1, :] - zf_target_normalizer)
+            else:
+                error_normalize = (z_normalizer_centered[:-1, :2] - zf_target_normalizer[:, :2])
+
+            if metric == "rmse":
+                normalizer = np.sqrt(np.mean(np.linalg.norm(error_normalize, axis=1)**2, axis=0))
+            elif metric == "ITAE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1) * normalizer_data['t'][:error_normalize.shape[0]])
+            elif metric == "IAE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1), axis=0)
+            elif metric == "ISE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1)**2, axis=0)
             
             # Iterate through each possible simulation
             for simCLfile in os.listdir(join(simTaskFolder, dtFolder)):
@@ -581,18 +692,29 @@ def plotTrunkResults(dirname=None):
 
                 # Extract RMSE
                 zf_target = f_target(simData[control][dt]['t'])
+
                 z_centered = simData[control][dt]['z'] - Z_EQ
                 error = (z_centered[:, :2] - zf_target[:, :2])
-                rmse[task][control][dt] = np.sqrt(np.mean(np.linalg.norm(error, axis=1)**2, axis=0))
+
+                if metric == "rmse":
+                    rmse[task][control][dt] = (np.sqrt(np.mean(np.linalg.norm(error, axis=1)**2, axis=0)) / normalizer - 1.) * 100.
+                elif metric == "ITAE":
+                    rmse[task][control][dt] = (np.sum(np.linalg.norm(error, axis=1) * simData[control][dt]['t'][:error.shape[0]]) / normalizer - 1.)*100.
+                elif metric == "IAE":
+                    rmse[task][control][dt] = (np.sum(np.linalg.norm(error, axis=1), axis=0) / normalizer - 1.)*100.
+                elif metric == "ISE":
+                    rmse[task][control][dt] = (np.sum(np.linalg.norm(error, axis=1)**2, axis=0) / normalizer - 1.)*100.
 
                 # Grab target and control trajectory data for plotting later
                 targetTrajData[task][control][dt] = zf_target
                 z_centeredData[task][control][dt] = z_centered
 
     # Create main figure and gridspec
-    
-    fig = plt.figure(figsize=(15, 9))
-    gs = gridspec.GridSpec(3, 3, figure=fig, height_ratios=[1.6, 1., 0.8])  # 3x3 grid with height ratios
+    fig = plt.figure(figsize=(10, 5))
+    if not model_comparison:
+        gs = gridspec.GridSpec(len(controlTasks), len(controlTasks), figure=fig, height_ratios=[1.6, 1.], hspace=0.45)  # 3x3 grid with height ratios
+    else:
+        gs = gridspec.GridSpec(2, len(controlTasks), figure=fig, height_ratios=[1.6, 1.], hspace=0.45)
     
     handles, labels = [], []
     y_axis_limits = None
@@ -602,7 +724,7 @@ def plotTrunkResults(dirname=None):
         DT_PLOT = 0.02
 
         # Top row: Each plot is further divided into 2x2 grid
-        gs_sub = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[0, j])
+        gs_sub = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[0, j], hspace=0.4)
         for k in range(2):
             for l in range(2):
                 ax = fig.add_subplot(gs_sub[k, l])
@@ -631,8 +753,7 @@ def plotTrunkResults(dirname=None):
                     alpha=SETTINGS['alpha'][control])
 
                     handles.append(line)
-                    labels.append(SETTINGS['legend_name'][control])
-
+                    labels.append(legend_name[control])
 
                 # If it's the top-left subplot, get its y-axis limits
                 if y_axis_limits is None and j == 0 and k == 0 and l == 0:
@@ -641,65 +762,29 @@ def plotTrunkResults(dirname=None):
         top_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
         top_ycoord = top_row_bbox.y0  # Get the top y-coordinate of the middle row
 
-        # Middle row (Your bar plots)
+        # Add the label to the top left corner of each outer subplot
+        ax.text(-1.52, 2.4, f"({label_list[label_counter]})", transform=ax.transAxes, 
+                fontsize=12, va='top', ha='left')
+        label_counter += 1
+
         ax = fig.add_subplot(gs[1, j])
+        
         ax.set_title(titles[1][j])
         ax.yaxis.set_major_locator(MaxNLocator(3))
-        plot_bar_chart_for_multiple_dts(ax, rmse[task])
+        plot_bar_chart_for_multiple_dts(ax, rmse[task], model_comparison=model_comparison, rmse_threshold=rmse_threshold, set_threshold=True)
 
-        # Set y-axis label for the first column and hide it for the others in the MIDDLE ROW
-        if j == 0:  # First column
-            ax.set_ylabel('RMSE [mm]')
+        if j == 0:
+            ax.set_ylabel(metric_legend[metric])
         else:
             ax.set_ylabel('')
-            # ax.tick_params(labelleft=False)
         
         middle_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
-        middle_ycoord = middle_row_bbox.y1  # Get the top y-coordinate of the middle row
+        middle_ycoord = middle_row_bbox.y1
 
-        ###### Bottom row #######
-        # ax = fig.add_subplot(gs[2, :])  # Adjust this if your grid specification changes
-        bottom_row_gs = gridspec.GridSpecFromSubplotSpec(1, len(CONTROLS), subplot_spec=gs[2, :])
-
-        first_subplot_created = False
-        # Iterate through each control to create a boxplot for its solve times
-        for i, control in enumerate(CONTROLS):
-            ax = fig.add_subplot(bottom_row_gs[0, i])  # Create a subplot for each control within the bottom row
-            ax.set_xscale('log')  # Set x-axis to log scale
-            # Set the locator for the major ticks to be at each power of 10
-            ax.xaxis.set_major_locator(LogLocator(base=10))
-            # Set the formatter for the major ticks to display in the format of 10^x
-            ax.xaxis.set_major_formatter(LogFormatter(base=10))
-            # Optional: If you want to hide minor ticks
-            ax.xaxis.set_minor_locator(LogLocator(base=10, subs=()))
-            
-            # Prepare solve times data for the current control method
-            all_solve_times = np.array([1000 * time for dt in simData[control] for time in simData[control][dt]['info']['solve_times']])
-            
-            # Use the custom 'boxplot' function without showing each plot immediately (show=False)
-            # Adjust 'vmax' as needed based on your data or leave it None to use automatic bounds
-            # if control == "tpwl" or control == "koopman":
-            #     vmax_limit = 140
-            # else:
-            #     vmax_limit = 20
-
-            violinplot(all_solve_times, vmax=150, legend_label=singleLine_display_name[control], ax=ax, show=False, color=SETTINGS['color'][control])
-
-            if not first_subplot_created:
-                # This is the first (left-most) subplot, so add the y-axis label here
-                ax.set_ylabel("Solve Times [ms]")
-                first_subplot_created = True
-            else:
-                # For all other subplots, remove the y-axis label and ticks if not desired
-                ax.set_yticklabels([])
-            
-            ax.xaxis.grid(True, linestyle='--', which='major', color='grey', alpha=0.5)  # Add grid lines for better readability
-            ax.set_axisbelow(True)  # Ensure grid lines are below the plots
-            
-
-    # Set the ylim for the top row subplots
-    # for ax in top_row_axes:
-    #     ax.set_ylim(y_axis_limits)
+        # Add the label to the top left corner of each outer subplot
+        ax.text(-0.1, 1.1, f"({label_list[label_counter]})", transform=ax.transAxes, 
+                fontsize=12, va='top', ha='left')
+        label_counter += 1
     
     # Legend for the top row
     handle_label_dict = dict(zip(labels, handles))
@@ -707,14 +792,15 @@ def plotTrunkResults(dirname=None):
     unique_handles = [handle_label_dict[label] for label in unique_labels]
 
     # Place the legend
-    offset = 2.75*(top_ycoord - middle_ycoord)
+    offset = 0.2*(top_ycoord - middle_ycoord)
     fig.legend(unique_handles, unique_labels, loc='center', 
             ncol=len(unique_labels), bbox_to_anchor=(0.5, middle_ycoord + offset),
-            bbox_transform=fig.transFigure, fontsize='11')
+            bbox_transform=fig.transFigure, fontsize='7.2')
 
     
     plt.tight_layout()
-    plt.savefig(join(SAVE_DIR, f"trunk_sim_results.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    plt.savefig(join(SAVE_DIR, f"trunk_sim_results.{SETTINGS['file_format']}"), bbox_inches='tight', 
+                    dpi=400, format=SETTINGS['file_format'], transparent=True)
     # plt.show()
 
 def plotDiamondTrials():
@@ -806,42 +892,50 @@ def plotDiamondTrials():
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
 
-
-def plotDiamondResults(dirname=None):
-
-    labelSize = 7
+def plot_solve_times(dirname=None):
 
     # Define a default dictionary to store the data
     def nested_dict():
         return defaultdict(nested_dict)
-    
-    CONTROLS = ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel", "koopman", "ssmr_linear", "DMD", "tpwl"]
+
+    # CONTROLS = ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel", "koopman", "ssmr_linear", "DMD", "tpwl"]
+    CONTROLS = ["ssmr_singleDelay", "ssmr_linear", "koopman", "DMD", "tpwl"]
     SUBPLOT_MAPPING = {
     (0, 0): ["ssmr_singleDelay"], # ["ssmr_singleDelay", "ssmr_delays", "ssmr_posvel"]
     (0, 1): ["koopman"],
     (1, 0): ["ssmr_linear", "DMD"],
     (1, 1): ["tpwl"] # Add TPWL here
     }
-    controlTasks = ["figure8", "circle", "star"]
-    titles = [
-        ["ASL Trajectory", "Pacman Trajectory", "Stanford Trajectory"], 
-        ["", "", ""],
-        ["", "", ""]]
-
-    singleLine_display_name = {
-        "ssmr_singleDelay": "SSMR (1 Delay)",
-        "ssmr_delays": "SSMR (4 Delays)",
-        "ssmr_posvel": "SSMR (Pos-Vel)",
-        "koopman": "EDMD",
-        "ssmr_linear": "SSSR (1 Delay)",
-        "DMD": "DMD",
-        "tpwl": "TPWL"
-    }
-    
+    if SETTINGS['robot'] == "trunk":
+        controlTasks = ["ASL", "pacman", "stanford"] # ["ASL", "pacman", "stanford"]
+        singleLine_display_name = {
+            "ssmr_singleDelay": "SSMR\n(6D)",
+            "ssmr_delays": "SSMR\n(6D)",
+            "ssmr_posvel": "SSMR\n(6D)",
+            "koopman": "EDMD\n(120D)",
+            "ssmr_linear": "SSSR\n(6D)",
+            "DMD": "DMD\n(15D)",
+            "tpwl": "TPWL\n(28D)"
+        }
+    else:
+        controlTasks = ["figure8_fast", "circle", "star"] # ["figure8_fast", "circle", "star"]
+        singleLine_display_name = {
+            "ssmr_singleDelay": "SSMR\n(6D)",
+            "ssmr_delays": "SSMR\n(6D)",
+            "ssmr_posvel": "SSMR\n(6D)",
+            "koopman": "EDMD\n(66D)",
+            "ssmr_linear": "SSSR\n(6D)",
+            "DMD": "DMD\n(11D)",
+            "tpwl": "TPWL\n(42D)"
+        }
+        
     simData = nested_dict()
     rmse = nested_dict()
     targetTrajData = nested_dict()
     z_centeredData = nested_dict()
+    solve_times = {}
+
+    fig, axs = plt.subplots(1, 1, figsize=(5, 3))
 
     # Go through each possible control task
     for task in controlTasks:
@@ -851,7 +945,7 @@ def plotDiamondResults(dirname=None):
         else:
             taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
             simTaskFolder = join(path, SETTINGS['robot'], task)
-
+        
         z_target = load_data(taskFile)
         f_target = interp1d(z_target['t'], z_target['z'], axis=0)
         
@@ -877,6 +971,459 @@ def plotDiamondResults(dirname=None):
                 idx = np.argwhere(control_data['t'] >= 1.0)[0][0]
                 simData[control][dt]['t'] = control_data['t'][idx:] - control_data['t'][idx]
                 simData[control][dt]['z'] = control_data['z'][idx:, 3:]
+                if SETTINGS['robot'] == "trunk":
+                    simData[control][dt]['z'][:, 2] *= -1
+                simData[control][dt]['u'] = control_data['u'][idx:, :]
+                simData[control][dt]['info']['solve_times'] = control_data['info']['solve_times']
+                simData[control][dt]['info']['real_time_limit'] = control_data['info']['rollout_time']
+
+    first_subplot_created = False
+    # Iterate through each control to create a boxplot for its solve times
+    spacing = 0.001
+    width = 0.1  # width of each violin plot
+    positions = [i * (spacing + width) for i in range(len(CONTROLS))]
+
+    for i, control in enumerate(CONTROLS):
+        ax = axs
+        ax.set_yscale('log')  # Set y-axis to log scale
+        ax.yaxis.set_major_locator(LogLocator(base=10))
+        ax.yaxis.set_major_formatter(LogFormatter(base=10))
+        ax.yaxis.set_minor_locator(LogLocator(base=10, subs=()))
+
+        all_solve_times = np.array([1000 * time for dt in simData[control] for time in simData[control][dt]['info']['solve_times']])
+
+        # Creating violin plots at specific positions
+        vp = ax.violinplot(all_solve_times.T, positions=[positions[i]], vert=True, showmeans=False, showmedians=False, showextrema=False, widths=width)
+        
+        color = SETTINGS['color'][control]
+        for pc in vp['bodies']:
+            pc.set_facecolor(color)
+            pc.set_edgecolor('k')
+            pc.set_alpha(0.7)
+            pc.set_linewidth(1.5)  # Thicker edges for violin bodies
+        if 'cmeans' in vp:
+            vp['cmeans'].set_color(color)
+        if 'cmedians' in vp:
+            vp['cmedians'].set_color(color)  # Median color
+        if 'cmins' in vp:
+            vp['cmins'].set_edgecolor(color)
+        if 'cmaxes' in vp:
+            vp['cmaxes'].set_edgecolor(color)
+        if 'cbars' in vp:
+            vp['cbars'].set_edgecolor(color)
+        
+        # Calculate mean and annotate it
+        mean_value = np.mean(all_solve_times)
+        ax.annotate(f'{mean_value:.2f}', xy=(positions[i] + width/4, 1.45*mean_value), xytext=(-30,0), 
+                    textcoords='offset points', ha='right', va='center', color='black', fontsize=10)
+        
+        # Draw a horizontal dashed line at the mean
+        ax.hlines(mean_value, positions[i] - 0.5*width / 2, positions[i] + 0.5*width / 2, colors='black', linestyles='dashed', linewidth=1)
+
+    ax.set_ylabel("Solve Times [ms]")
+    ax.xaxis.grid(True, linestyle='--', which='major', color='grey', alpha=0.5)
+    ax.set_axisbelow(True)
+
+    # Set x-ticks to be at the center of each violin plot
+    ax.set_xticks(positions)
+    ax.set_xticklabels([singleLine_display_name[control] for control in CONTROLS])  # Assuming you have names for each control
+
+    plt.tight_layout()
+    plt.title('Simulated Diamond MPC Solve Times')
+    plt.savefig(join(SAVE_DIR, f"{SETTINGS['robot']}_solve_times.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
+    # plt.show()
+
+def plotDiamondResults(dirname=None, dt_string=None, model_comparison=False, metric="rmse", control_normalizer="ssmr_linear",
+                       rmse_threshold=280.0, set_threshold=True):
+
+    def nested_dict():
+        return defaultdict(nested_dict)
+    
+    SUBPLOT_MAPPING = {
+        (0, 0): ["ssmr_singleDelay"],
+        (0, 1): ["koopman"],
+        (1, 0): ["ssmr_linear", "DMD"],
+        (1, 1): ["tpwl"]
+    }
+
+    titles = [
+        ["ASL Trajectory", "Pacman Trajectory", "Stanford Trajectory"], 
+        ["", "", ""],
+        ["", "", ""]]
+
+    if not model_comparison:
+        controlTasks = ["figure8", "figure8_fast"]
+        SUBPLOT_MAPPING = {
+            (0, 0): ["ssmr_singleDelay"],
+            (0, 1): ["koopman"],
+            (1, 0): ["ssmr_linear", "DMD"],
+            (1, 1): ["tpwl"]
+        }
+        legend_name = SETTINGS['legend_name_hardware'] if SETTINGS['robot'] == "hardware" else SETTINGS['legend_name_trunk']
+    else:
+        controlTasks = ["figure8", "circle", "star"]
+        SUBPLOT_MAPPING = {
+            (0, 0): ["ssmr_singleDelay"],
+            (0, 1): ["ssmr_delays"],
+            (1, 0): ["ssmr_posvel"],
+            (1, 1): ["ssmr_linear"]
+        }
+        legend_name = {
+            "ssmr_singleDelay": "SSMR (1 delay)",
+            "ssmr_delays": "SSMR (4 delays)",
+            "ssmr_posvel": "SSMR (position-velocity)",
+            "ssmr_linear": "SSSR (1 delay)"
+        }
+
+    metric_legend = {
+        "rmse": r"Relative RMSE [%]",
+        "ITAE": r"Relative ITAE [%]",
+        "IAE": r"Relative IAE [%]",
+        "ISE": r"Relative ISE [%]"
+    }
+    
+    simData = nested_dict()
+    rmse = nested_dict()
+    targetTrajData = nested_dict()
+    z_centeredData = nested_dict()
+
+    label_counter = 0
+    label_list = [chr(i) for i in range(ord('a'), ord('z')+1)]
+
+    for task in controlTasks:
+        if dirname is not None:
+            simTaskFolder = join(path, SETTINGS['robot'], dirname, task)
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+        else:
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+            simTaskFolder = join(path, SETTINGS['robot'], task)
+
+        z_target = load_data(taskFile)
+        f_target = interp1d(z_target['t'], z_target['z'], axis=0)
+
+        dt_folders = [dt_string] if dt_string is not None else os.listdir(simTaskFolder)
+
+        for dtFolder in dt_folders:
+            dt = add_decimal(dtFolder)
+
+            normalizer_file_path = join(simTaskFolder, dtFolder, f"{control_normalizer}_sim.pkl")
+            with open(normalizer_file_path, 'rb') as f:
+                normalizer_data = pickle.load(f)
+            idx_normalizer = np.argwhere(normalizer_data['t'] >= 1.0)[0][0]
+
+            t_normalizer = normalizer_data['t'][idx_normalizer:] - normalizer_data['t'][idx_normalizer]
+            zf_target_normalizer = f_target(t_normalizer[:-1])
+            z_normalizer_centered = normalizer_data['z'][idx_normalizer:, 3:] - Z_EQ
+
+            if task == "circle" or task == "star":
+                error_normalize = (z_normalizer_centered[:-1, :] - zf_target_normalizer)
+            else:
+                error_normalize = (z_normalizer_centered[:-1, :2] - zf_target_normalizer[:, :2])
+
+            if metric == "rmse":
+                normalizer = np.sqrt(np.mean(np.linalg.norm(error_normalize, axis=1)**2, axis=0))
+            elif metric == "ITAE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1) * normalizer_data['t'][:error_normalize.shape[0]])
+            elif metric == "IAE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1), axis=0)
+            elif metric == "ISE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1)**2, axis=0)
+            
+            for simCLfile in os.listdir(join(simTaskFolder, dtFolder)):
+                sim_file_path = join(simTaskFolder, dtFolder, simCLfile)
+
+                if simCLfile.split("_")[0] == "ssmr":
+                    control = simCLfile.split("_")[0] + "_" + simCLfile.split("_")[1]
+                else:
+                    control = simCLfile.split("_")[0]
+
+                with open(sim_file_path, 'rb') as f:
+                    control_data = pickle.load(f)
+                idx = np.argwhere(control_data['t'] >= 1.0)[0][0]
+                simData[control][dt]['t'] = control_data['t'][idx:] - control_data['t'][idx]
+                simData[control][dt]['z'] = control_data['z'][idx:, 3:]
+                simData[control][dt]['u'] = control_data['u'][idx:, :]
+                simData[control][dt]['info']['solve_times'] = control_data['info']['solve_times']
+                simData[control][dt]['info']['real_time_limit'] = control_data['info']['rollout_time']
+
+                zf_target = f_target(simData[control][dt]['t'][:-1])
+                z_centered = simData[control][dt]['z'] - Z_EQ
+                if task == "circle" or task == "star":
+                    error = (z_centered[:-1, :] - zf_target)
+                else:
+                    error = (z_centered[:-1, :2] - zf_target[:, :2])
+                
+                if metric == "rmse":
+                    rmse[task][control][dt] = (np.sqrt(np.mean(np.linalg.norm(error, axis=1)**2, axis=0)) / normalizer - 1.) * 100.
+                elif metric == "ITAE":
+                    rmse[task][control][dt] = (np.sum(np.linalg.norm(error, axis=1) * simData[control][dt]['t'][:error.shape[0]]) / normalizer - 1.)*100.
+                elif metric == "IAE":
+                    rmse[task][control][dt] = (np.sum(np.linalg.norm(error, axis=1), axis=0) / normalizer - 1.)*100.
+                elif metric == "ISE":
+                    rmse[task][control][dt] = (np.sum(np.linalg.norm(error, axis=1)**2, axis=0) / normalizer - 1.)*100.
+
+                targetTrajData[task][control][dt] = zf_target
+                z_centeredData[task][control][dt] = z_centered
+
+    fig = plt.figure(figsize=(10, 5))
+    if not model_comparison:
+        gs = gridspec.GridSpec(len(controlTasks), len(controlTasks), figure=fig, height_ratios=[1.6, 1.], hspace=0.45)
+    else:
+        gs = gridspec.GridSpec(2, len(controlTasks), figure=fig, height_ratios=[1.6, 1.], hspace=0.45)
+    
+    handles, labels = [], []
+    y_axis_limits = None
+    top_row_axes = []
+
+    for j, task in enumerate(controlTasks):
+        DT_PLOT = 0.02
+
+        gs_sub = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[0, j], wspace=0.25, hspace=0.3)
+        for k in range(2):
+            for l in range(2):
+                ax = fig.add_subplot(gs_sub[k, l])
+                ax.yaxis.set_major_locator(MaxNLocator(3))
+                ax.xaxis.set_major_locator(MaxNLocator(3))
+                top_row_axes.append(ax)
+
+                current_controls = SUBPLOT_MAPPING[(k, l)]
+
+                if l > 0:
+                    ax.tick_params(labelleft=False)
+                
+                if task == "circle":
+                    DT_PLOT = 0.05
+
+                for control in current_controls:
+                    desired_target = targetTrajData[task][control][DT_PLOT]
+                    controlled_traj = z_centeredData[task][control][DT_PLOT]
+                    
+                    if task == "circle" or task == "star":
+                        ax.plot(desired_target[:, 1], desired_target[:, 2], color=SETTINGS['color']['target'], 
+                            ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+                        controlled_traj = controlled_traj[:, 1:]
+                        if task == "circle":
+                            ax.set_ylim(-1., 35)
+                            ax.set_xlim(-25., 25)
+                        elif task == "star":
+                            ax.set_ylim(-1., 39.)
+                            ax.set_xlim(-15., 12.)
+                    else:
+                        ax.plot(desired_target[:, 0], desired_target[:, 1], color=SETTINGS['color']['target'], 
+                            ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
+                        controlled_traj = controlled_traj[:, :2]
+                        if task == "figure8_fast":
+                            ax.set_ylim(-17., 17.)
+                            ax.set_xlim(-17., 17.)
+
+                    line, = ax.plot(controlled_traj[:, 0], controlled_traj[:, 1],
+                    color=SETTINGS['color'][control],
+                    label=SETTINGS['display_name'][control],
+                    linewidth=SETTINGS['linewidth'][control],
+                    ls=SETTINGS['linestyle'][control], markevery=20,
+                    alpha=SETTINGS['alpha'][control])
+
+                    handles.append(line)
+                    labels.append(legend_name[control])
+
+        top_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
+        top_ycoord = top_row_bbox.y0
+        # Add the label to the top left corner of each outer subplot
+        ax.text(-1.57, 2.4, f"({label_list[label_counter]})", transform=ax.transAxes, 
+                fontsize=12, va='top', ha='left')
+        label_counter += 1
+
+        ax = fig.add_subplot(gs[1, j])
+        
+        ax.set_title(titles[1][j])
+        ax.yaxis.set_major_locator(MaxNLocator(3))
+        plot_bar_chart_for_multiple_dts(ax, rmse[task], model_comparison=model_comparison, rmse_threshold=rmse_threshold, set_threshold=True)
+
+        if j == 0:
+            ax.set_ylabel(metric_legend[metric])
+        else:
+            ax.set_ylabel('')
+        
+        middle_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
+        middle_ycoord = middle_row_bbox.y1
+
+        # Add the label to the top left corner of each outer subplot
+        ax.text(-0.1, 1.1, f"({label_list[label_counter]})", transform=ax.transAxes, 
+                fontsize=12, va='top', ha='left')
+        label_counter += 1
+        
+    handle_label_dict = dict(zip(labels, handles))
+    unique_labels = handle_label_dict.keys()
+    unique_handles = [handle_label_dict[label] for label in unique_labels]
+
+    offset = 0.1 * (top_ycoord - middle_ycoord)
+    fig.legend(unique_handles, unique_labels, loc='center', 
+            ncol=len(unique_labels), bbox_to_anchor=(0.5, middle_ycoord + offset),
+            bbox_transform=fig.transFigure, fontsize='7.2')
+
+    plt.tight_layout()
+    plt.savefig(join(SAVE_DIR, f"diamond_sim_results.{SETTINGS['file_format']}"), bbox_inches='tight', 
+                    dpi=400, format=SETTINGS['file_format'], transparent=True)
+    # plt.show()
+
+def is_dominated(point, points):
+    eps = [1.0, 1.0] # TODO: Currently epsilon-domination set to 1.0 (normal pareto-dominance)
+    for pt in points:
+        if pt[0] <= point[0] * eps[0] and pt[1] <= point[1] * eps[1] and (pt[0] < point[0] * eps[0] or pt[1] < point[1] * eps[1]):
+            return True
+    return False
+
+def get_pareto_front(points):
+    pareto_points = []
+    for point in points:
+        if not is_dominated(point, points):
+            pareto_points.append(point)
+    # Sort the points to plot them correctly
+    pareto_points.sort(key=lambda x: x[0])  # Sort by solve time
+
+    # Create stair-step points
+    stair_step_points = []
+    for i in range(len(pareto_points)):
+        if i == 0:
+            stair_step_points.append((pareto_points[i][0], 10**12))
+        else:
+            stair_step_points.append((pareto_points[i][0], pareto_points[i-1][1]))
+        stair_step_points.append(pareto_points[i])
+
+    # Append the desired points to the end of the stair_step_points list
+    if pareto_points:
+        stair_step_points.append((100, pareto_points[-1][1]))
+    
+    return zip(*stair_step_points)  # Unzip into separate lists for plotting
+
+def pareto_plot_diamond(metric, models, dirname=None, dt_string=["002"]):
+
+    # Define a default dictionary to store the data
+    def nested_dict():
+        return defaultdict(nested_dict)
+    
+    if SETTINGS['robot'] == "hardware":
+        controlTasks = ["figure8", "figure8_fast", "circle"] # ["circle", "star"]
+        task_legend = {
+            "circle": "Fast Circle",
+            "figure8_fast": "Fast Figure 8",
+            "star": "Star",
+            "figure8": "Slow Figure 8"
+        }
+        robot = "Simulated Diamond"
+        legend_name = SETTINGS['legend_name_hardware']
+    else:
+        controlTasks = ["ASL", "pacman", "stanford"]
+        task_legend = {
+            "ASL": "ASL",
+            "pacman": "Pacman",
+            "stanford": "Stanford"
+        }
+        robot = "Simulated Trunk"
+        legend_name = SETTINGS['legend_name_trunk']
+
+    metric_legend = {
+        "rmse": "RMSE [mm]",
+        "ITAE": r"ITAE [m s$^2$]",
+        "IAE": r"IAE [m s]",
+        "ISE": r"ISE [m$^2$ s]"
+    }
+
+    marker_style = {
+        controlTasks[0]: 'o',
+        controlTasks[1]: 's',
+        controlTasks[2]: '^'
+    }
+
+    linestyle_legend = {
+        controlTasks[0]: '-.',
+        controlTasks[1]: '--',
+        controlTasks[2]: ':'
+    }
+
+    simData = nested_dict()
+    rmse = nested_dict()
+    solve_times = nested_dict()
+    targetTrajData = nested_dict()
+    z_centeredData = nested_dict()
+
+    control_normalizer = "ssmr_singleDelay"
+
+    plt.figure(figsize=(5, 3))
+    added_labels = set()
+    legend_elements = []
+
+    all_points_all_tasks = []
+
+    # Go through each possible control task
+    for task in controlTasks:
+        all_points_per_task = []
+
+        legend_elements.append(Line2D([0], [0], marker=marker_style[task], color='w', label=task_legend[task],
+                                  markerfacecolor='gray', markersize=10))  # Change 'black' to any appropriate color
+
+        if dirname is not None:
+            simTaskFolder = join(path, SETTINGS['robot'], dirname, task)
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+        else:
+            taskFile = join(path, SETTINGS['robot'], dirname, 'control_tasks', task + '.pkl')
+            simTaskFolder = join(path, SETTINGS['robot'], task)
+
+        z_target = load_data(taskFile)
+        f_target = interp1d(z_target['t'], z_target['z'], axis=0)
+
+        dt_folders = dt_string if dt_string is not None else os.listdir(simTaskFolder)
+
+        # Iterate through each possible dt
+        for dtFolder in dt_folders:
+            # Get the dt
+            dt = add_decimal(dtFolder)
+
+            # Normalize with respect to ssmr_singleDelay
+            normalizer_file_path = join(simTaskFolder, dtFolder, f"{control_normalizer}_sim.pkl")
+            with open(normalizer_file_path, 'rb') as f:
+                normalizer_data = pickle.load(f)
+            idx_normalizer = np.argwhere(normalizer_data['t'] >= 1.0)[0][0]
+
+            t_normalizer = normalizer_data['t'][idx_normalizer:] - normalizer_data['t'][idx_normalizer]
+            zf_target_normalizer = f_target(t_normalizer[:-1])
+            z_normalizer_centered = normalizer_data['z'][idx_normalizer:, 3:] - Z_EQ
+
+            if task == "circle" or task == "star":
+                error_normalize = (z_normalizer_centered[:-1, :] - zf_target_normalizer)
+            else:
+                error_normalize = (z_normalizer_centered[:-1, :2] - zf_target_normalizer[:, :2])
+
+            if metric == "rmse":
+                normalizer = np.sqrt(np.mean(np.linalg.norm(error_normalize, axis=1)**2, axis=0))
+            elif metric == "ITAE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1) * normalizer_data['t'][:error_normalize.shape[0]])
+            elif metric == "IAE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1), axis=0)
+            elif metric == "ISE":
+                normalizer = np.sum(np.linalg.norm(error_normalize, axis=1)**2, axis=0)
+            
+            # Iterate through each possible simulation
+            for simCLfile in os.listdir(join(simTaskFolder, dtFolder)):
+
+                # Get each control simulation
+                if simCLfile.split("_")[0] == "ssmr":
+                    control = simCLfile.split("_")[0] + "_" + simCLfile.split("_")[1]
+                else:
+                    control = simCLfile.split("_")[0]
+                
+                # Check if the control is in the models we want to compare
+                if control in models:
+                    sim_file_path = join(simTaskFolder, dtFolder, simCLfile)
+                else:
+                    continue
+
+                # Load the simulation data
+                with open(sim_file_path, 'rb') as f:
+                    control_data = pickle.load(f)
+                idx = np.argwhere(control_data['t'] >= 1.0)[0][0]
+                simData[control][dt]['t'] = control_data['t'][idx:] - control_data['t'][idx]
+                simData[control][dt]['z'] = control_data['z'][idx:, 3:]
                 simData[control][dt]['u'] = control_data['u'][idx:, :]
                 simData[control][dt]['info']['solve_times'] = control_data['info']['solve_times']
                 simData[control][dt]['info']['real_time_limit'] = control_data['info']['rollout_time']
@@ -888,147 +1435,71 @@ def plotDiamondResults(dirname=None):
                     error = (z_centered[:-1, :] - zf_target)
                 else:
                     error = (z_centered[:-1, :2] - zf_target[:, :2])
-                rmse[task][control][dt] = np.sqrt(np.mean(np.linalg.norm(error, axis=1)**2, axis=0))
+                
+                if metric == "rmse":
+                    rmse[task][control][dt] = np.sqrt(np.mean(np.linalg.norm(error, axis=1)**2, axis=0))
+                elif metric == "ITAE":
+                    rmse[task][control][dt] = np.sum(np.linalg.norm(error, axis=1) * simData[control][dt]['t'][:error.shape[0]])
+                elif metric == "IAE":
+                    rmse[task][control][dt] = np.sum(np.linalg.norm(error, axis=1), axis=0)
+                elif metric == "ISE":
+                    rmse[task][control][dt] = np.sum(np.linalg.norm(error, axis=1)**2, axis=0)
 
                 # Grab target and control trajectory data for plotting later
                 targetTrajData[task][control][dt] = zf_target
                 z_centeredData[task][control][dt] = z_centered
+                solve_times[task][control][dt] = np.mean(simData[control][dt]['info']['solve_times']) / dt
 
-    # Create main figure and gridspec
-    
-    fig = plt.figure(figsize=(15, 9))
-    gs = gridspec.GridSpec(3, 3, figure=fig, height_ratios=[1.6, 1., 0.8])  # 3x3 grid with height ratios
-    
-    handles, labels = [], []
-    y_axis_limits = None
-    top_row_axes = []  # List to store all axes of the top row
+                all_points_per_task.append((solve_times[task][control][dt], rmse[task][control][dt]))
+                all_points_all_tasks.append((solve_times[task][control][dt], rmse[task][control][dt]))
 
-    for j, task in enumerate(controlTasks):  # Loop over columns
-        DT_PLOT = 0.02
-
-        # Top row: Each plot is further divided into 2x2 grid
-        gs_sub = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[0, j])
-        for k in range(2):
-            for l in range(2):
-                ax = fig.add_subplot(gs_sub[k, l])
-                ax.yaxis.set_major_locator(MaxNLocator(3))  # Set the maximum number of y-axis ticks to 3
-                ax.xaxis.set_major_locator(MaxNLocator(3))  # Set the maximum number of y-axis ticks to 3
-                top_row_axes.append(ax)  # Add the axis to our list
-                current_controls = SUBPLOT_MAPPING[(k, l)]
-
-                # Hide y-axis for plots that are not left-most
-                if l > 0:
-                    ax.tick_params(labelleft=False)
-                
-                # TODO: Refactor this. Should return best performing model
-                if task == "circle":
-                    DT_PLOT = 0.05
-
-                for control in current_controls:
-                    # Get desired trajectory and controlled trajectory
-                    desired_target = targetTrajData[task][control][DT_PLOT]
-                    controlled_traj = z_centeredData[task][control][DT_PLOT]
-                    
-                    if task == "circle" or task == "star":
-                        ax.plot(desired_target[:, 1], desired_target[:, 2], color=SETTINGS['color']['target'], 
-                            ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
-                        controlled_traj = controlled_traj[:, 1:]
-                    else:
-                        ax.plot(desired_target[:, 0], desired_target[:, 1], color=SETTINGS['color']['target'], 
-                            ls=SETTINGS['linestyle']['target'], alpha=.9, linewidth=SETTINGS['linewidth']['target'], label='Target', zorder=1)
-                        controlled_traj = controlled_traj[:, :2]
-
-                    line, = ax.plot(controlled_traj[:, 0], controlled_traj[:, 1],
-                    color=SETTINGS['color'][control],
-                    label=SETTINGS['display_name'][control],
-                    linewidth=SETTINGS['linewidth'][control],
-                    ls=SETTINGS['linestyle'][control], markevery=20,
-                    alpha=SETTINGS['alpha'][control])
-
-                    handles.append(line)
-                    labels.append(SETTINGS['legend_name'][control])
-
-                # If it's the top-left subplot, get its y-axis limits
-                if y_axis_limits is None and j == 0 and k == 0 and l == 0:
-                    y_axis_limits = ax.get_ylim()
-
-        top_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
-        top_ycoord = top_row_bbox.y0  # Get the top y-coordinate of the middle row
-
-        # Middle row (Your bar plots)
-        ax = fig.add_subplot(gs[1, j])
-        ax.set_title(titles[1][j])
-        ax.yaxis.set_major_locator(MaxNLocator(3))
-        plot_bar_chart_for_multiple_dts(ax, rmse[task], set_threshold=False)
-
-        # Set y-axis label for the first column and hide it for the others in the MIDDLE ROW
-        if j == 0:  # First column
-            ax.set_ylabel('RMSE [mm]')
-        else:
-            ax.set_ylabel('')
-            # ax.tick_params(labelleft=False)
-        
-        middle_row_bbox = ax.get_tightbbox(fig.canvas.get_renderer()).transformed(fig.transFigure.inverted())
-        middle_ycoord = middle_row_bbox.y1  # Get the top y-coordinate of the middle row
-
-        ###### Bottom row #######
-        # ax = fig.add_subplot(gs[2, :])  # Adjust this if your grid specification changes
-        bottom_row_gs = gridspec.GridSpecFromSubplotSpec(1, len(CONTROLS), subplot_spec=gs[2, :])
-
-        first_subplot_created = False
-        # Iterate through each control to create a boxplot for its solve times
-        for i, control in enumerate(CONTROLS):
-            ax = fig.add_subplot(bottom_row_gs[0, i])  # Create a subplot for each control within the bottom row
-            ax.set_xscale('log')  # Set x-axis to log scale
-            # Set the locator for the major ticks to be at each power of 10
-            ax.xaxis.set_major_locator(LogLocator(base=10))
-            # Set the formatter for the major ticks to display in the format of 10^x
-            ax.xaxis.set_major_formatter(LogFormatter(base=10))
-            # Optional: If you want to hide minor ticks
-            ax.xaxis.set_minor_locator(LogLocator(base=10, subs=()))
+                # Plotting within the loop
+                # Only label the first occurrence
+                label = SETTINGS['display_name'][control]
+                if label not in added_labels:
+                    plt.scatter(np.array(solve_times[task][control][dt]), rmse[task][control][dt], 
+                            label=f"{legend_name[control]}", color=SETTINGS['color'][control], alpha=0.7, marker=marker_style[task])
+                    added_labels.add(label)
+                else:
+                    plt.scatter(np.array(solve_times[task][control][dt]), rmse[task][control][dt], 
+                            color=SETTINGS['color'][control], alpha=0.7, marker=marker_style[task])
             
-            # Prepare solve times data for the current control method
-            all_solve_times = np.array([1000 * time for dt in simData[control] for time in simData[control][dt]['info']['solve_times']])
-            
-            # Use the custom 'boxplot' function without showing each plot immediately (show=False)
-            # Adjust 'vmax' as needed based on your data or leave it None to use automatic bounds
-            # if control == "tpwl" or control == "koopman":
-            #     vmax_limit = 140
-            # else:
-            #     vmax_limit = 20
+        # Calculate and plot the Pareto front
+        pareto_x, pareto_y = get_pareto_front(all_points_per_task)
+        plt.plot(pareto_x, pareto_y, color='black', linestyle=linestyle_legend[task], label=f'Pareto Front for {task_legend[task]}', alpha=0.5)
 
-            violinplot(all_solve_times, vmax=150, legend_label=singleLine_display_name[control], ax=ax, show=False, color=SETTINGS['color'][control])
+    plt.title(f'Pareto Log-plot for {robot}', fontsize=10)
+    # plt.axvline(x=1, ymin=-10**6, ymax=10**6, color='red', linewidth=2, label="Real-time Limit")  # Adjust the color and linewidth as needed
 
-            if not first_subplot_created:
-                # This is the first (left-most) subplot, so add the y-axis label here
-                ax.set_ylabel("Solve Times [ms]")
-                first_subplot_created = True
-            else:
-                # For all other subplots, remove the y-axis label and ticks if not desired
-                ax.set_yticklabels([])
-            
-            ax.xaxis.grid(True, linestyle='--', which='major', color='grey', alpha=0.5)  # Add grid lines for better readability
-            ax.set_axisbelow(True)  # Ensure grid lines are below the plots
-    
-    # Set the ylim for the top row subplots
-    # for ax in top_row_axes:
-    #     ax.set_ylim(y_axis_limits)
-        
-    # Legend for the top row
-    handle_label_dict = dict(zip(labels, handles))
-    unique_labels = list(handle_label_dict.keys())
-    unique_handles = [handle_label_dict[label] for label in unique_labels]
+    plt.xlabel('Solve Time to Control Period Ratio')
+    plt.ylabel(f'{metric_legend[metric]}')
+    # plt.ylim(0.0, 20.)
+    plt.xscale('log')  # Set x-axis to log scale
+    plt.yscale('log')  # Set y-axis to log scale
 
-    # Place the legend
-    offset = 2.82*(top_ycoord - middle_ycoord)
-    fig.legend(unique_handles, unique_labels, loc='center', 
-            ncol=len(unique_labels), bbox_to_anchor=(0.5, middle_ycoord + offset),
-            bbox_transform=fig.transFigure, fontsize='11')
+    # Take first element of each point in all_points to get the solve times
+    all_solve_times = [point[0] for point in all_points_all_tasks]
+    all_metric_vals = [point[1] for point in all_points_all_tasks]
+    xmin, _ = plt.xlim()
+    ymin, _ = plt.ylim()
 
-    
+    plt.xlim(xmin, max(all_solve_times)*2.0)
+    plt.ylim(ymin, max(all_metric_vals)*2.0)
+
+    # Create the primary legend and save it to a variable
+    primary_legend = plt.legend(loc='upper left', bbox_to_anchor=(1, 1), handlelength=2.5)
+
+    # Add the additional custom legend
+    custom_legend = plt.legend(handles=legend_elements, loc='lower left', bbox_to_anchor=(1, -0.02), 
+                               ncol=len(controlTasks), fontsize=5.7, frameon=False)
+
+    # Re-add the primary legend using add_artist()
+    plt.gca().add_artist(primary_legend)
+
+    plt.grid(True)
     plt.tight_layout()
-    plt.savefig(join(SAVE_DIR, f"diamond_sim_results.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=200)
-    # plt.show()
+    plt.savefig(join(SAVE_DIR, f"{SETTINGS['robot']}_pareto_plot.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=300)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -1039,8 +1510,19 @@ if __name__ == "__main__":
     # traj_inputs_vs_t()
     # traj_x_vs_y()
     # traj_xy_vs_t()
-    traj_xyz_vs_t()
+    # traj_xyz_vs_t()
 
-    # plotTrunkResults(dirname="trunk_results")
-    # plotDiamondResults(dirname="diamond_results")
+    # plotTrunkResults(dirname="trunk_results", dt_string="002", metric="ISE")
+    # plotTrunkResults(dirname="trunk_results", model_comparison=True)
+    
+    plotDiamondResults(dirname="diamond_results", metric="ISE", control_normalizer="ssmr_singleDelay")
+    # plotDiamondResults(dirname="diamond_results", model_comparison=True)
+
     # plotDiamondTrials()
+
+    # plot_solve_times(dirname="trunk_results")
+    # plot_solve_times(dirname="diamond_results")
+
+    # models = ["ssmr_singleDelay", "ssmr_linear", "koopman", "DMD", "tpwl"]
+    # pareto_plot_diamond("ISE", models, dirname="diamond_results", dt_string=["002"])
+    # pareto_plot_diamond("ISE", models, dirname="trunk_results", dt_string=["002"])

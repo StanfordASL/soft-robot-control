@@ -688,6 +688,18 @@ def resample_waypoints(waypoints, total_time, dt=0.01):
 
     return new_waypoints
 
+def get_metric_value(chosen_metric, error_val, ts=None):
+    if chosen_metric == "rmse":
+        metric_val = np.sqrt(np.mean(np.linalg.norm(error_val, axis=1)**2, axis=0))
+    elif chosen_metric == "ITAE":
+        metric_val = np.sum(np.linalg.norm(error_val, axis=1)) * ts
+    elif chosen_metric == "IAE":
+        metric_val = np.sum(np.linalg.norm(error_val, axis=1), axis=0)
+    elif chosen_metric == "ISE":
+        metric_val = np.sum(np.linalg.norm(error_val, axis=1)**2, axis=0)
+    
+    return metric_val
+
 """
 Custom JAX routine for jnp.norm. Takes difference between first len(y) components of x and y.
 """
@@ -796,14 +808,14 @@ def createTargetTrajectory(controlTask, robot, z_eq_point, output_dim, amplitude
         M = 1 # 3
         T = 10
         N = 1000
-        radius = 20.
+        radius = 20. # 40, 20
         t = np.linspace(0, M * T, M * N + 1)
         th = np.linspace(0, M * 2 * np.pi, M * N + 1)
         zf_target = np.tile(np.hstack((z_eq_point, np.zeros(output_dim - len(z_eq_point)))), (M * N + 1, 1))
         # zf_target = np.zeros((M * N, model.output_dim))
         zf_target[:, outdofs[0]] += radius * np.cos(th)
         zf_target[:, outdofs[1]] += radius * np.sin(th)
-        zf_target[:, outdofs[2]] += -np.ones(len(t)) * 10
+        zf_target[:, outdofs[2]] += -np.ones(len(t)) * 10 #30, 10
         t_in_pacman, t_out_pacman = 1., 1.
         zf_target[t < t_in_pacman, :] = z_eq_point + (zf_target[t < t_in_pacman][-1, :] - z_eq_point) * (t[t < t_in_pacman] / t_in_pacman)[..., None]
         zf_target[t > T - t_out_pacman, :] = z_eq_point + (zf_target[t > T - t_out_pacman][0, :] - z_eq_point) * (1 - (t[t > T - t_out_pacman] - (T - t_out_pacman)) / t_out_pacman)[..., None]
@@ -938,15 +950,29 @@ def generateObstacles(num_obstacles, d_min, d_max, min_distance_from_origin, min
         # Otherwise, reset and try a different seed
         seed = np.random.randint(0, 2**32 - 1)  # Generate a new random seed
 
-def confidence_interval(data, confidence=0.95, distance=True):
-    n = data.shape[-1]  # assuming data is a 1D array
-    m = np.mean(data, axis=-1)
-    se = np.std(data, axis=-1, ddof=1) / np.sqrt(n)
-    h = se * stats.t.ppf((1 + confidence) / 2, n - 1)
-    if distance:
-        return m - (m - h), (m + h) - m
-    else:
-        return m - h, m + h
+def confidence_interval(data, confidence=0.95, num_bootstrap_samples=1000):
+    # Generate bootstrap samples
+    bootstrap_samples = np.random.choice(data, (num_bootstrap_samples, len(data)), replace=True)
+    
+    # Calculate the mean for each bootstrap sample
+    bootstrap_means = np.mean(bootstrap_samples, axis=1)
+    
+    # Calculate the lower and upper percentiles
+    lower_percentile = (1 - confidence) / 2 * 100
+    upper_percentile = (1 + confidence) / 2 * 100
+    
+    lower_bound = np.percentile(bootstrap_means, lower_percentile)
+    upper_bound = np.percentile(bootstrap_means, upper_percentile)
+    
+    # Calculate the mean of the original data
+    mean_data = np.mean(data)
+    
+    # Calculate the asymmetrical distances
+    lower_distance = mean_data - lower_bound
+    upper_distance = upper_bound - mean_data
+    
+    return lower_distance, upper_distance
+
 
 def remove_decimal(value):
     return str(value).replace(".", "")

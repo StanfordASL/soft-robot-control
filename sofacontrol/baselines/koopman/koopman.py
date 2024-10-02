@@ -5,7 +5,7 @@ from sofacontrol.baselines.koopman.koopman_utils import KoopmanData
 from sofacontrol.baselines.ros import MPCClientNode
 from sofacontrol.closed_loop_controller import TemplateController
 from sofacontrol.lqr.traj_tracking_lqr import TrajTrackingLQR
-
+import time
 
 # NOTE: Only tested on a single output node, position only (3 dim), and a delay of 1. To test with larger delays and
 # compare with MATLAB code
@@ -214,6 +214,8 @@ class TrajTracking(TemplateController):
         self.u_lb = u_lb
         self.u_ub = u_ub
 
+        self.solve_times = []
+
         if u0 is not None:
             self.u0 = u0
         else:
@@ -254,9 +256,13 @@ class TrajTracking(TemplateController):
             zeta_belief = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*x_belief)))
             zeta_ref = np.dot(self.dyn_sys.W, np.asarray(self.dyn_sys.lift_data(*self.x_bar[step])))
 
+            t0 = time.time()
             # feedforward + feedback
             self.u = np.clip(np.atleast_1d(self.u_bar[step] + self.K[step] @ (zeta_belief - zeta_ref)),
                              self.u_lb, self.u_ub)
+            
+            self.solve_times.append(time.time() - t0)
+
             # feedforward only
             # self.u = np.clip(np.atleast_1d(self.u_bar[step]), self.u_lb, self.u_ub)
 
@@ -297,6 +303,11 @@ class TrajTracking(TemplateController):
         else:
             self.u = np.atleast_1d(self.u)
         return self.u.copy()  # Returns copy of self.u
+    
+    def save_controller_info(self):
+        info = dict()
+        info['solve_times'] = self.solve_times
+        return info
 
 
 class KoopmanObserver:

@@ -67,7 +67,7 @@ for i, control in enumerate(CONTROLS):
     SIM_DATA[control]['z'] = control_data['z'][idx:, 3:]
     SIM_DATA[control]['z'][:, 2] *= -1
     SIM_DATA[control]['u'] = control_data['u'][idx:, :]
-    # SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
+    SIM_DATA[control]['info']['solve_times'] = control_data['info']['solve_times']
     # SIM_DATA[control]['info']['real_time_limit'] = control_data['info']['rollout_time']
     # if control == "tpwl":
     #     # remove first 100 points from z and u and shift t accordingly
@@ -111,7 +111,7 @@ else:
 z_lb = target_settings['z_lb']
 z_ub = target_settings['z_ub']
 
-SAVE_DIR = join(path, "examples", SETTINGS['robot'], SETTINGS['save_dir'])
+SAVE_DIR = join(path, SETTINGS['robot'], SETTINGS['save_dir'])
 if not exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
@@ -127,6 +127,24 @@ if not exists(SAVE_DIR):
 # plot_rollouts = True
 # m_w = 30
 
+def get_metric_value(chosen_metric, error_val, ts=None):
+    if chosen_metric == "rmse":
+        metric_val = np.sqrt(np.mean(np.linalg.norm(error_val, axis=1)**2, axis=0))
+    elif chosen_metric == "ITAE":
+        metric_val = np.sum(np.linalg.norm(error_val, axis=1)) * ts
+    elif chosen_metric == "IAE":
+        metric_val = np.sum(np.linalg.norm(error_val, axis=1), axis=0)
+    elif chosen_metric == "ISE":
+        metric_val = np.sum(np.linalg.norm(error_val, axis=1)**2, axis=0)
+
+    return metric_val
+
+metric_legend = {
+    "rmse": r"Relative RMSE [%]",
+    "ITAE": r"Relative ITAE [%]",
+    "IAE": r"Relative IAE [%]",
+    "ISE": r"Relative ISE [%]"
+}
 
 def adjust_lightness(color, amount=0.5):
     import matplotlib.colors as mc
@@ -158,10 +176,10 @@ def traj_x_vs_y():
         z_centered = SIM_DATA[control]['z'] - Z_EQ
         ax.plot(z_centered[:, 0], z_centered[:, 1],
                 color=SETTINGS['color'][control],
-                label=SETTINGS['display_name'][control],
+                label=SETTINGS['display_name_trunk'][control],
                 linewidth=SETTINGS['linewidth'].get(control, TRAJ_LINEWIDTH),
                 ls=SETTINGS['linestyle'].get(control, TRAJ_LINESTYLE), marker=SETTINGS['markers'].get(control, MARKER), markevery=20,
-                alpha=1.)
+                alpha=SETTINGS['alpha'][control])
     ax.plot(z_target[:, 0], z_target[:, 1],
             color=SETTINGS['color']['target'], alpha=0.9,
             ls=SETTINGS['linestyle'].get('target', TRAJ_LINESTYLE),
@@ -184,7 +202,7 @@ def traj_x_vs_y():
     else:
         bbox = None
 
-    legend = ax.legend(loc="center", ncol=1, bbox_to_anchor=bbox)
+    legend = ax.legend(loc='upper left', bbox_to_anchor=(1, 1), handlelength=2.5)
     for label in legend.get_texts():
         if label.get_text() in ["MIDW", "QPR"]:
             label.set_weight('bold')
@@ -319,7 +337,10 @@ def traj_xyz_vs_t():
                 ax1.plot(t_horizon, z_horizon[:, 0], 'tab:red', marker='o', markevery=2)
                 ax2.plot(t_horizon, z_horizon[:, 1], 'tab:red', marker='o', markevery=2)
     
-    ax2.legend(fontsize="8")
+    # ax2.legend(fontsize="8")
+    ax1.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=8)
+    plt.tight_layout()
+
     plt.savefig(join(SAVE_DIR, f"{TARGET}_xyz_vs_t.{SETTINGS['file_format']}"), bbox_inches='tight', dpi=300)
     if SHOW_PLOTS:
         plt.show()
@@ -357,7 +378,7 @@ def traj_inputs_vs_t():
         plt.show()
 
 
-def rmse_calculations(plot_solve_times=True):
+def rmse_calculations(plot_solve_times=True, metric="rmse", normalizer="ssmr_adiabatic_qp"):
     """Compute, display and plot RMSEs for all controllers"""
     err = {}
     rmse = {}
@@ -373,17 +394,26 @@ def rmse_calculations(plot_solve_times=True):
             # errors are to be measured in 3D
             if control == "koopman":
                 err[control] = (z_centered - z_target[:, :]) # (z_centered - z_target[:-2, :])
+            elif control == "koopman_static":
+                err[control] = (z_centered - z_target[:-2, :])
             else:
                 err[control] = (z_centered - z_target)
         else:
             # errors are to be measured in 2D
             err[control] = (z_centered[:, :2] - z_target[:, :2])
-        rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
-        # solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
+        
+        rmse[control] = get_metric_value(metric, err[control], ts=SIM_DATA[control]['t'][0])
+        # rmse[control] = np.sqrt(np.mean(np.linalg.norm(err[control], axis=1)**2, axis=0))
+        solve_times[control] = 1000 * np.array(SIM_DATA[control]['info']['solve_times'])
 
         print(f"========= {SETTINGS['display_name'][control]} =========")
         print(f"RMSE: {rmse[control]:.3f} mm")
         # print(f"Solve time: Min: {np.min(solve_times[control]):.3f} ms, Mean: {np.mean(solve_times[control]):.3f} ms, Max: {np.max(solve_times[control]):.3f} ms")
+
+    # Normalize error metric
+    rmse_normalizer = rmse[normalizer]
+    for control in CONTROLS:
+        rmse[control] = (rmse[control] / rmse_normalizer - 1.0) * 100.
 
     # Plot RMSEs and solve times (barplot)
     if plot_solve_times:
@@ -392,17 +422,37 @@ def rmse_calculations(plot_solve_times=True):
     else:
         fig, ax1 = plt.subplots(1, 1, figsize=(6, 3))
     xlabels = [SETTINGS['display_name'][control] for control in CONTROLS]
-    ax1.bar(xlabels, [rmse[control] for control in CONTROLS], width=0.7, color=[SETTINGS['color'][control] for control in CONTROLS], zorder=3)
-    ax1.set_ylabel(r'RMSE [mm]')
+    bars = ax1.bar(xlabels, [rmse[control] for control in CONTROLS], width=0.7, color=[SETTINGS['color'][control] for control in CONTROLS], zorder=3)
+    ax1.set_ylabel(metric_legend[metric])
     # ax1.set_title('RMSE')
     ax1.grid(axis="x")
  
-    ax1.set_ylim(0, min(5, max([rmse[control] for control in CONTROLS]) + 0.2))
+    ax1.set_ylim(0, min(800., 1.15*max([rmse[control] for control in CONTROLS])))
     y_max = ax1.get_ylim()[1]
 
     # annotate bars in barplot
-    for i, v in enumerate([rmse[control] for control in CONTROLS]):
-        ax1.text(i, min(v + 0.1 * (y_max / 7), 4.6), f"{v:.2f}", color='#5c5c5c', fontweight='bold', ha='center')
+    for bar, control in zip(bars, CONTROLS):
+        if np.isclose(rmse[control], 0.0):
+            ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, 'Baseline', ha='center', va='bottom', fontsize=15, weight='bold')
+        elif rmse[control] > y_max:
+            ax1.text(bar.get_x() + bar.get_width() / 2, 0.85*y_max, f'↑{round(rmse[control]):,}%', 
+                    ha='center', va='bottom', fontsize=15, bbox=dict(facecolor='white', edgecolor='none', pad=1.0, alpha=0.7), weight='bold')
+            arrow_length = 150.0
+            arrow = patches.FancyArrow(bar.get_x() + bar.get_width() / 2, ax1.get_ylim()[1], 0, arrow_length, 
+                                       width=0.5*bar.get_width(), head_width=0.8*bar.get_width(), 
+                                       head_length=arrow_length / 1.8, length_includes_head=True, color=bar.get_facecolor(), zorder=3)
+            ax1.add_patch(arrow)
+            arrow.set_clip_on(False)
+
+            dots_location = ax1.get_ylim()[1] + 0.5*arrow_length
+            # Vertical dots
+            increment = 0.4 * arrow_length
+            dot_positions = [dots_location, dots_location + 0.5*increment, dots_location + 1.0*increment]
+            for dot_y in dot_positions:
+                ax1.text(bar.get_x() + bar.get_width() / 2, dot_y, '.', ha='center', va='center', fontsize=20, color='white')
+        else:
+            ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1, f'↑{round(rmse[control])}%', ha='center', va='bottom', fontsize=15, weight='bold')
+            # ax1.text(i, min(v + 0.1 * (y_max / 7), 4.6), f"{v:.2f}", color='black', fontweight='bold', ha='center')
 
     # ax1.set_yscale('log')
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: '{:g}'.format(y)))
@@ -427,10 +477,18 @@ def rmse_calculations(plot_solve_times=True):
             whisker.set_linewidth(1.5)
         ax2.set_ylabel(r'Solve time [ms]')
         # ax2.set_title('Average solve time')
-        ax2.set_ylim(0, None)
+        ax2.set_ylim(0, 1.2*max([box_plot['caps'][2*i + 1].get_ydata()[0] for i, _ in enumerate(CONTROLS)])) #1.5*
         ax2.grid(axis="x")
         # ax2.yaxis.set_label_position("right")
         # ax2.yaxis.tick_right()
+    
+        for i, control in enumerate(CONTROLS):
+            upper_whisker = box_plot['caps'][2 * i + 1].get_ydata()[0]
+            if control == "tpwl" or control == "koopman":
+                y_pos_offset = 1.05*upper_whisker
+            else:
+                y_pos_offset = 1.2*upper_whisker
+            ax2.text(i + 1, y_pos_offset, f'{np.mean(solve_times[control]):.2f}', horizontalalignment='center', fontweight='bold', fontsize=15)
 
     # for label in ax1.get_xticklabels() + ax2.get_xticklabels():
     #     if label.get_text() in ["MIDW", "QPR"]:
@@ -676,9 +734,9 @@ def model_contribution_to_rmse(z, use_models, save_dir="", show=True):
 if __name__ == "__main__":
     # rmse_vs_n_models()
     # x_vs_y_bundle()
-    traj_inputs_vs_t()
+    # traj_inputs_vs_t()
     # traj_x_vs_y()
-    rmse_calculations(plot_solve_times=False)
+    # rmse_calculations(plot_solve_times=True, metric="ISE")
     if TARGET == "figure8":
         traj_xy_vs_t()
     elif TARGET in ["circle", "pacman"]:

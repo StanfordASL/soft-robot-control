@@ -77,8 +77,9 @@ class GuSTOSolverNode(Node):
                                      bounds_error=False, fill_value=(u[0, :], u[-1, :]))
 
         # Set up GuSTO and run first solve with a simple initial guess
+        y0 = np.zeros((self.model.dyn_sys.obs_dim,))
         u_init = np.zeros((self.N, self.model.n_u))
-        x_init, _ = self.model.rollout(x0, u_init, self.dt)
+        x_init, _ = self.model.rollout(x0, u_init, self.dt, y0)
         z, zf, u = self.get_target(0.0)
         self.gusto = GuSTO(model, N, dt, Qz, R, x0, u_init, x_init, z=z, u=u,
                            Qzf=Qzf, zf=zf, U=U, X=X, Xf=Xf, dU=dU, Rd=Rd,
@@ -104,6 +105,7 @@ class GuSTOSolverNode(Node):
         """
         t0 = request.t0
         x0 = arr2np(request.x0, self.model.n_x, squeeze=True)
+        y0 = arr2np(request.y0, self.model.dyn_sys.obs_dim, squeeze=True)
 
         # Get target values at proper times by interpolating
         z, zf, u = self.get_target(t0)
@@ -116,7 +118,7 @@ class GuSTOSolverNode(Node):
         x_init[0:self.N + 1 - idx0] = self.xopt[idx0:, :]
 
         # Solve GuSTO and get solution
-        self.gusto.solve(x0, u_init, x_init, z=z, zf=zf, u=u)
+        self.gusto.solve(x0, u_init, x_init, z=z, zf=zf, u=u, y=y0)
         self.xopt, self.uopt, zopt, t_solve = self.gusto.get_solution()
 
         self.topt = t0 + self.dt * np.arange(self.N + 1)
@@ -182,7 +184,7 @@ class GuSTOClientNode(Node):
         # Request message definition
         self.req = GuSTOsrv.Request()
 
-    def send_request(self, t0, x0, wait=True):
+    def send_request(self, t0, x0, y0, wait=True):
         """
         :param t0:
         :param x0:
@@ -191,6 +193,7 @@ class GuSTOClientNode(Node):
         """
         self.req.t0 = t0
         self.req.x0 = np2arr(x0)
+        self.req.y0 = np2arr(y0)
 
         self.future = self.cli.call_async(self.req)
 

@@ -36,7 +36,7 @@ sys.path.append(root)
 from examples import Problem
 from examples.hardware.model import diamondRobot
 from sofacontrol.open_loop_sequences import DiamondRobotSequences
-from sofacontrol.utils import load_data, qv2x
+from sofacontrol.utils import load_data, qv2x, remove_decimal
 from sofacontrol.measurement_models import linearModel
 
 
@@ -54,7 +54,8 @@ x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 output_model = linearModel(nodes=[TIP_NODE], num_nodes=N_NODES)
 z_eq_point = output_model.evaluate(x_eq, qv=False)
 
-modelType = 'linear' # "nonlinear", "linear"
+modelType = 'nonlinear' # "nonlinear", "linear"
+dt = 0.02
 
 def collect_koopman_data():
     """
@@ -155,12 +156,13 @@ def run_koopman(T=11.):
     from sofacontrol.measurement_models import MeasurementModel
     from sofacontrol.utils import Polyhedron
     
+    ######## Generate Koopman model and setup control task ########
     if modelType == 'linear':
-        koopman_data = loadmat(join(path, 'DMD.mat'))['py_data'][0, 0]
+        koopman_data = loadmat(join(path, 'DMD_' + remove_decimal(dt) + '.mat'))['py_data'][0, 0]
         raw_model = koopman_data['model']
         raw_params = koopman_data['params']
     else:
-        koopman_data = loadmat(join(path, 'koopman_model.mat'))['py_data'][0, 0]
+        koopman_data = loadmat(join(path, 'koopman_model_' + remove_decimal(dt) + '.mat'))['py_data'][0, 0]
         raw_model = koopman_data['model']
         raw_params = koopman_data['params']
     
@@ -170,7 +172,7 @@ def run_koopman(T=11.):
     prob.Robot = diamondRobot()
     prob.ControllerClass = ClosedLoopController
 
-    cov_q = 0.001 * np.eye(3)
+    cov_q = 0.00001 * np.eye(3)
     prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=prob.Robot.nb_nodes, pos=True, vel=False, S_q=cov_q)
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
 
@@ -304,10 +306,10 @@ def run_koopman_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    cost.R = .00001 * np.eye(model.m)
+    cost.R = .000001 * np.eye(model.m)
     cost.Q = np.zeros((model.n, model.n))
-    cost.Q[0, 0] = 100  # corresponding to x position of end effector
-    cost.Q[1, 1] = 100  # corresponding to y position of end effector
+    cost.Q[0, 0] = 500  # corresponding to x position of end effector
+    cost.Q[1, 1] = 500  # corresponding to y position of end effector
     cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
 
     #############################################

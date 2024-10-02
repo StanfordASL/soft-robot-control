@@ -205,8 +205,8 @@ def run_koopman_lqr(T=11.):
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
 
     # Define target trajectory for optimization
-    createNewTask = True
-    saveControlTask = True
+    createNewTask = False
+    saveControlTask = False
     
     controlTask = "pacman"  # figure8, circle, or custom
 
@@ -233,7 +233,7 @@ def run_koopman_lqr(T=11.):
         trajDir = join(path, "control_tasks")
         taskFile = join(trajDir, controlTask + ".pkl")
         taskParams = load_data(taskFile)
-        if controlTask == "circle":
+        if controlTask == "circle" or controlTask == "pacman":
             taskParams['z'] += z_eq_point[3:]
         else:
             taskParams['z'][:, 0:2] += z_eq_point[3:-1]
@@ -243,11 +243,11 @@ def run_koopman_lqr(T=11.):
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    cost.R = 0.01 * np.eye(model.m) # (default: 0.001)
+    cost.R = 0.05 * np.eye(model.m) # (default: 0.001 or 0.01 for 3D)
     cost.Q = np.zeros((model.n, model.n))
     cost.Q[0, 0] = 100  # corresponding to x position of end effector
     cost.Q[1, 1] = 100  # corresponding to y position of end effector
-    cost.Q[2, 2] = 100  # corresponding to z position of end effector
+    cost.Q[2, 2] = 100.0  # corresponding to z position of end effector
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
@@ -268,7 +268,7 @@ def run_koopman_lqr(T=11.):
     target.u = (model.G @ scaling.scale_down(y=taskParams['z']).T).T
 
     # Control constraints
-    u_ub = 1500. * np.ones(model.m) # TODO: Typically 950 for 2D
+    u_ub = 1200. * np.ones(model.m) # TODO: Typically 950 for 2D
     u_lb = 0. * np.ones(model.m)
     u_ub_norm = scaling.scale_down(u=u_ub).reshape(-1)
     u_lb_norm = scaling.scale_down(u=u_lb).reshape(-1)
@@ -313,7 +313,7 @@ def run_koopman_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 800.0
+    u_min, u_max = 0.0, 1200.0
     du_max = None
 
     ######## Generate Koopman model and setup control task ########
@@ -395,7 +395,14 @@ def run_koopman_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    cost.R = .001 * np.eye(model.m) #0.00001
+    # cost.R = .00001 * np.eye(model.m) #0.00001
+    # cost.Q = np.zeros((model.n, model.n))
+    # cost.Q[0, 0] = 100  # corresponding to x position of end effector
+    # cost.Q[1, 1] = 100  # corresponding to y position of end effector
+    # cost.Q[2, 2] = 0.0  # corresponding to z position of end effector
+
+    # For Pacman
+    cost.R = .00001 * np.eye(model.m) #0.00001
     cost.Q = np.zeros((model.n, model.n))
     cost.Q[0, 0] = 100  # corresponding to x position of end effector
     cost.Q[1, 1] = 100  # corresponding to y position of end effector
@@ -413,6 +420,11 @@ def run_koopman_solver():
     # Consider same "scaled" cost parameters as other models
     cost.R *= np.diag(scaling.u_factor[0])
     cost.Q *= np.diag(scaling.y_factor[0])
+
+    u_ub = scaling.scale_down(u=[200] * model.m).reshape(-1)
+    u_lb = scaling.scale_down(u=[-200] * model.m).reshape(-1)
+
+    dU = HyperRectangle(u_ub, u_lb)
 
 
     runMPCSolverNode(model=model, N=N, cost_params=cost, target=target, dt=model.Ts, verbose=1,
@@ -602,5 +614,7 @@ if __name__ == '__main__':
         generate_koopman_data()
     elif sys.argv[1] == 'run_koopman_solver':
         run_koopman_solver()
+    elif sys.argv[1] == 'run_koopman_lqr':
+        run_koopman_lqr()
     else:
         raise RuntimeError('Not a valid function argument')

@@ -61,7 +61,7 @@ def run_scp():
     model = generateModel(path, pathToModel, [TIP_NODE], N_NODES, modelType=modelType)
 
     ######## Specify a measurement of what we observe during simulation ########
-    cov_q = 0.001 * np.eye(3)
+    cov_q = 0.00001 * np.eye(3)
     cov_v = 60.0 * np.eye(3) # * len(DEFAULT_OUTPUT_NODES))
     prob.output_model = prob.Robot.get_measurement_model(nodes=[TIP_NODE])
     if model.params['delay_embedding']:
@@ -103,8 +103,8 @@ def run_gusto_solver():
     import pickle
     
     ######## User Options ########
-    saveControlTask = True
-    createNewTask = True
+    saveControlTask = False
+    createNewTask = False
     N = 3
 
     ###### Circle Parameters ######
@@ -121,9 +121,12 @@ def run_gusto_solver():
 
     # ###### Other Traj Parameters ######
     # # Control Task Params
-    controlTask = "figure8" # figure8, circle, or custom
+    controlTask = "figure8_fast" # figure8, circle, or custom
     trajAmplitude = 15
     trajFreq = None # rad/s
+    Mper = 20
+    Tper = 0.5
+    Nper = 1
 
     # # Star trajectory - only used when custom trajectory is selected
     # pathToTraceImage = "/home/jalora/Desktop/star.png"
@@ -137,7 +140,7 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 0.0, 4200.0
+    u_min, u_max = 0.0, 4200.0 # 4200.0 or 5000.0
     du_max = None
 
     ######## Generate SSM model and setup control task ########
@@ -154,8 +157,8 @@ def run_gusto_solver():
     if createNewTask:
         ######## Define the trajectory ########
         zf_target, t = createTargetTrajectory(controlTask, 'diamond', model.y_eq, model.output_dim, amplitude=trajAmplitude, 
-                                              freq=trajFreq, pathToImage=pathToTraceImage, outdofs=outdofs, z_offset=z_offset,
-                                              repeat_traj=repeat_traj)
+                                              freq=trajFreq, Mper=Mper, Tper=Tper, pathToImage=pathToTraceImage, outdofs=outdofs, 
+                                              z_offset=z_offset, repeat_traj=repeat_traj)
         z = model.zfyf_to_zy(zf=zf_target)
 
         ######## Define a new state constraint (q, v) format ########
@@ -186,20 +189,20 @@ def run_gusto_solver():
     #############################################
     # Problem 1, X-Y plane cost function
     #############################################
-    # Qz = np.zeros((model.output_dim, model.output_dim))
-    # Qz[0, 0] = 100  # corresponding to x position of end effector
-    # Qz[1, 1] = 100  # corresponding to y position of end effector
-    # Qz[2, 2] = 0.0  # corresponding to z position of end effector
-    # R = .00001 * np.eye(model.input_dim)
+    Qz = np.zeros((model.output_dim, model.output_dim))
+    Qz[0, 0] = 100  # corresponding to x position of end effector
+    Qz[1, 1] = 100  # corresponding to y position of end effector
+    Qz[2, 2] = 0.0  # corresponding to z position of end effector
+    R = .000001 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
     #############################################
-    R = .00001 * np.eye(model.input_dim)
-    Qz = np.zeros((model.output_dim, model.output_dim))
-    Qz[0, 0] = 100.0  # corresponding to x position of end effector
-    Qz[1, 1] = 100.0  # corresponding to y position of end effector
-    Qz[2, 2] = 100.0  # corresponding to z position of end effector
+    # R = .000001 * np.eye(model.input_dim)
+    # Qz = np.zeros((model.output_dim, model.output_dim))
+    # Qz[0, 0] = 100.0  # corresponding to x position of end effector
+    # Qz[1, 1] = 200.0  # corresponding to y position of end effector
+    # Qz[2, 2] = 200.0  # corresponding to z position of end effector
 
     # Define initial condition to be x_ref for initial solve
     x0 = np.zeros(model.state_dim)

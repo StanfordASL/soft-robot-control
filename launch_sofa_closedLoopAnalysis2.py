@@ -291,7 +291,7 @@ def plotResults():
             # solve_times_i.append(np.mean(sim['info']['solve_times']))
             z[control].append(z_j)
 
-    plot.rmse_and_violations_MC(z, z_target, taskParams, save_dir=split(sim_save_dir)[0])
+    plot.rmse_and_violations_MC(z, taskParams['t'], z_target, taskParams, save_dir=split(sim_save_dir)[0])
 
 
 if __name__ == '__main__':

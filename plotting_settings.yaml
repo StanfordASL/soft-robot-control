@@ -1,6 +1,6 @@
 robot: "trunk" #trunk, hardware
 save_dir: "plots/"
-file_format: "png"
+file_format: "eps"
 
 #traj_dir: "sim_trajs/circle_z=-10" # figure8" #
 traj_dir: ""

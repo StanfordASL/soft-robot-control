@@ -274,7 +274,7 @@ def doSimulationsRandomizeObstacles():
 
     print('All simulations finished, exiting...')
 
-def plotResults():
+def plotResults(metric="rmse"):
     import plotting as plot
     from scipy.interpolate import interp1d
 
@@ -283,6 +283,7 @@ def plotResults():
     t0 = 1.
     z = {}
     z_target = {}
+    t_control = {}
     # solve_times = {}
 
     taskParams = load_data(taskFile)
@@ -290,6 +291,7 @@ def plotResults():
     for control in ["ssm", "linear", "koopman", "tpwl"]: # ["idw", "nn", "qp"]: # "ct", 
         z[control] = []
         z_target[control] = []
+        t_control[control] = []
         z_interp = interp1d(taskParams['t'], taskParams['z'], axis=0)
         for j in range(NUM_SIMS):
             sim_save_dir = join(SAVE_DIR, control)
@@ -311,11 +313,13 @@ def plotResults():
                 raise RuntimeError(f"simulation not found: {dir}, {j}")
             # solve_times_i.append(np.mean(sim['info']['solve_times']))
             z[control].append(z_j)
+            t_control[control].append(sim['t'])
 
-    plot.rmse_and_violations_MC(z, z_target, taskParams, save_dir=split(sim_save_dir)[0])
+
+    plot.rmse_and_violations_MC(z, t_control, z_target, taskParams, save_dir=split(sim_save_dir)[0], metric=metric)
 
 
 if __name__ == '__main__':
     # generate_task_params_obstacles()
     # doSimulationsRandomizeObstacles()
-    plotResults()
+    plotResults(metric="ISE")

@@ -57,13 +57,13 @@
 # from examples.trunk import trunk
 # problem = trunk.run_scp
 
-from examples.trunk import trunk_koopman
-problem = trunk_koopman.run_koopman
+# from examples.trunk import trunk_koopman
+# problem = trunk_koopman.run_koopman
 # problem = trunk_koopman.run_koopman_lqr
 # problem = trunk_koopman.collect_koopman_static_data
 
-# from examples.trunk import trunk_SSM
-# problem = trunk_SSM.run_scp
+from examples.trunk import trunk_SSM
+problem = trunk_SSM.run_scp
 
 # from examples.trunk import trunk_adiabaticSSM
 # problem = trunk_adiabaticSSM.run_scp

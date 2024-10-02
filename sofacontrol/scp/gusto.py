@@ -133,11 +133,17 @@ class GuSTO:
         # Get observer type
         self.nonlinear_observer = model.nonlinear_observer
 
-        self.locp = LOCP(self.N, self.model.H, self.Qz, self.R, Qzf=self.Qzf,
-                         U=self.U, X=self.X, Xf=self.Xf, dU=self.dU,
-                         verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char,
-                         nonlinear_observer=self.nonlinear_observer, **kwargs)
-
+        if hasattr(self.model.dyn_sys, 'isLinear'):
+            self.locp = LOCP(self.N, self.model.H, self.Qz, self.R, Qzf=self.Qzf,
+                            U=self.U, X=self.X, Xf=self.Xf, dU=self.dU,
+                            verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char,
+                            nonlinear_observer=self.nonlinear_observer, 
+                            is_tr_active=False if self.model.dyn_sys.isLinear else True, **kwargs)
+        else:
+            self.locp = LOCP(self.N, self.model.H, self.Qz, self.R, Qzf=self.Qzf,
+                            U=self.U, X=self.X, Xf=self.Xf, dU=self.dU,
+                            verbose=locp_verbose, warm_start=warm_start, x_char=self.x_char,
+                            nonlinear_observer=self.nonlinear_observer, **kwargs)
         # Solve SCP
         self.jit = kwargs.pop('jit', True)
         self.max_gusto_iters = MAX_ITERS # let first solve take more time
@@ -182,7 +188,7 @@ class GuSTO:
         else:
             return 0.0, True
 
-    def state_constraints_violated(self, x):
+    def state_constraints_violated(self, x, y):
         """
         For GuSTO state constraints get enforced as penalties, not as strict constraints. Computes whether the state
         constraints are within a user-chosen tolerance epsilon
@@ -196,7 +202,7 @@ class GuSTO:
                 # with respect to the performance variable
                 if self.nonlinear_observer:
                     x_curr = np.atleast_2d(x[i, :])
-                    H_curr, c_curr = self.get_observer_linearizations(x_curr)
+                    H_curr, c_curr = self.get_observer_linearizations(x_curr, y)
                     
                     # updates A and b in the constraints, handling the evaluation of constraint in observed coordinates
                     self.X.update(H_curr[0], c_curr[0])
@@ -248,7 +254,7 @@ class GuSTO:
 
         return A_d, B_d, d_d
 
-    def get_observer_linearizations(self, x, u=None):
+    def get_observer_linearizations(self, x, y, u=None):
         """
         Return the affine observer mappings at each point along trajectory in a list
         TODO: Add input contribution to the dynamics
@@ -256,7 +262,7 @@ class GuSTO:
         H_d = []
         c_d = []
         for i in range(x.shape[0]):
-            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt)
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], y, u=None, dt=self.dt)
             H_d.append(H_d_i)
             c_d.append(c_d_i)
 
@@ -279,14 +285,14 @@ class GuSTO:
         return A_d, B_d, d_d
 
     # @partial(jax.jit, static_argnums=(0,))
-    def get_observer_linearizations_jit(self, x, u):
+    def get_observer_linearizations_jit(self, x, y, u=None):
         """
         Return the affine observer mappings at each point along trajectory in a list
         """
         H_d = []
         c_d = []
         for i in range(x.shape[0]):
-            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], None, self.dt)
+            H_d_i, c_d_i = self.model.get_observer_jacobians(x[i, :], y, u=None, dt=self.dt)
             H_d.append(H_d_i)
             c_d.append(c_d_i)
 
@@ -313,7 +319,7 @@ class GuSTO:
 
         return G_d, b_d
 
-    def solve(self, x0, u_init, x_init, z=None, zf=None, u=None):
+    def solve(self, x0, u_init, x_init, z=None, zf=None, u=None, y=None):
         """
         :x0: initial condition np.array
         :u_init: control initial guess (N, n_u)
@@ -330,6 +336,9 @@ class GuSTO:
         self.u_k = u_init
         self.x_k = x_init
 
+        if y is None:
+            y = np.zeros(self.model.dyn_sys.obs_dim)
+
         # Grab Jacobians for first solve
         if self.jit:
             A_d, B_d, d_d = self.get_traj_dynamics_jit(self.x_k, self.u_k)
@@ -338,9 +347,9 @@ class GuSTO:
 
         if self.nonlinear_observer:
             if self.jit:
-                H_d, c_d = self.get_observer_linearizations_jit(self.x_k, self.u_k)
+                H_d, c_d = self.get_observer_linearizations_jit(self.x_k, y, self.u_k)
             else:
-                H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+                H_d, c_d = self.get_observer_linearizations(self.x_k, y, self.u_k)
         else:
             H_d, c_d = None, None
         
@@ -375,14 +384,31 @@ class GuSTO:
             omega_cur = omega  # just for printing
 
             # Update the LOCP with new parameters and solve
-            if new_solution:
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
-                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d)
-                new_solution = False
+            if hasattr(self.model.dyn_sys, 'isLinear'):
+                if self.model.dyn_sys.isLinear:
+                    self.locp.update(A_d, B_d, d_d, x0, None, 0, 0, z=z, zf=zf, u=u)
+                    new_solution = False
+                else:
+                    # Nonlinear solution
+                    if new_solution:
+                        self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
+                                        Hd=H_d, cd=c_d, Gd=G_d, bd=b_d)
+                        new_solution = False
+                    else:
+                        # Build new problem if no new solution
+                        self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
+                                        Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, full=False)
+            # This is for backward compatibility for models without isLinear
             else:
-                # Build new problem if no new solution
-                self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
-                                 Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, full=False)
+                if new_solution:
+                    self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
+                                    Hd=H_d, cd=c_d, Gd=G_d, bd=b_d)
+                    new_solution = False
+                else:
+                    # Build new problem if no new solution
+                    self.locp.update(A_d, B_d, d_d, x0, self.x_k, delta, omega, z=z, zf=zf, u=u, 
+                                    Hd=H_d, cd=c_d, Gd=G_d, bd=b_d, full=False)
+
 
             # TODO: Timing computations
             # print('DEBUG: Routines pre-solve computed in {:.4f} seconds'.format(time.time() - t0))
@@ -437,7 +463,7 @@ class GuSTO:
                     #     delta = delta
 
                     # Computes g2
-                    max_violation, X_satisfied = self.state_constraints_violated(x_next)
+                    max_violation, X_satisfied = self.state_constraints_violated(x_next, y)
 
                     """
                     Third modification to GuSTO: remove decreases of omega for satisifed X (creates oscillations)
@@ -501,9 +527,9 @@ class GuSTO:
 
                     if self.nonlinear_observer:
                         if self.jit:
-                            H_d, c_d = self.get_observer_linearizations_jit(self.x_k, self.u_k)
+                            H_d, c_d = self.get_observer_linearizations_jit(self.x_k, y, self.u_k)
                         else:
-                            H_d, c_d = self.get_observer_linearizations(self.x_k, self.u_k)
+                            H_d, c_d = self.get_observer_linearizations(self.x_k, y, self.u_k)
                     else:
                         H_d, c_d = None, None
 
@@ -521,7 +547,7 @@ class GuSTO:
         self.zopt = np.transpose(self.model.H @ self.xopt.T)
         if hasattr(self.model.dyn_sys, 'isLinear'):
             if self.model.dyn_sys.isLinear:
-                self.locp_solve_time = t_locp # TODO: Pretend like we didn't calculate jacobians. Refactor
+                self.locp_solve_time = stats.solve_time # TODO: Pretend like we didn't calculate jacobians. Refactor
             else:
                 self.locp_solve_time = time.time() - t0 # t_locp
         else:

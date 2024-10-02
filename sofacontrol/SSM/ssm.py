@@ -94,8 +94,12 @@ class SSM:
         self.d_d = None
 
         # Set performance to zero matrix with appropriate dimension (n_z, n_x)
-        self.H = np.zeros((self.output_dim, self.state_dim))
-        self.nonlinear_observer = True
+        if self.isLinear:
+            self.H = self.get_observer_jacobians(np.zeros(self.state_dim))[0]
+            self.nonlinear_observer = False
+        else:
+            self.H = np.zeros((self.output_dim, self.state_dim))
+            self.nonlinear_observer = True
 
     def update_state(self, x, u, dt):
         raise NotImplementedError("update_state must be overriden by a child class")
@@ -126,22 +130,22 @@ class SSM:
 
     # x is reduced state => This function goes from reduced state to (shifted) observation
     # W_map expects (n, N) where n is the ROM state. W_map takes reduced to performance vars
-    def x_to_zfyf(self, x, zf=True):
+    def x_to_zfyf(self, x, y_bar, zf=True):
         """
         :x: (N, n_x) or (n_x,) array
         :zf: boolean
         :yf: boolean
         """
-        return self.W_map(x.T).T + self.y_ref
+        return self.W_map(x.T, y_bar[np.newaxis, :].T).T + self.y_ref.T
 
 
-    def x_to_zy(self, x):
+    def x_to_zy(self, x, y_bar):
         """
         :x: (N, n_x) or (n_x,) array
         :z: boolean
         :y: boolean
         """
-        return self.W_map(x)
+        return self.W_map(x, y_bar)
 
     def get_sim_params(self):
         return {'beta_weighting': self.beta_weighting, 'discr_method': self.discr_method,
@@ -156,7 +160,7 @@ class SSM:
     def get_output_dim(self):
         return self.obs_dim
 
-    def rollout(self, x0, u, dt):
+    def rollout(self, x0, u, dt, y_bar):
         """
         :x0: initial condition
         :u: array of control (N, n_u)
@@ -174,9 +178,9 @@ class SSM:
         # Simulate
         for i in range(N):
             x[i+1,:] = self.update_state(x[i,:], u[i,:], dt)
-            z_lin[i,:] = self.update_observer_state(x[i, :])
+            z_lin[i,:] = self.update_observer_state(x[i, :], y_bar)
 
-        z = self.x_to_zfyf(x)
+        z = self.x_to_zfyf(x, y_bar)
 
         return x, z
 
@@ -192,8 +196,8 @@ class SSM:
     def reduced_dynamics(self, x, u):
         return jnp.dot(self.r_coeff, jnp.asarray(self.rom_phi(*x))) + jnp.dot(self.B_r, u) # jnp.dot(self.B_r, jnp.asarray(self.control_phi(*jnp.hstack([u, x]))))
 
-    def reduced_to_output(self, x):
-        return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_phi(*x))))
+    def reduced_to_output(self, x, y_bar):
+        return jnp.dot(jnp.asarray(self.C), jnp.dot(jnp.asarray(self.w_coeff), jnp.asarray(self.ssm_phi(*x))) + y_bar)
 
     @partial(jax.jit, static_argnums=(0,))
     def observed_to_reduced(self, y):
@@ -271,23 +275,25 @@ class SSMDynamics(SSM):
     # TODO: Testing jax capes
     @partial(jax.jit, static_argnums=(0,))
     def get_observer_jacobians(self,
-                               x: jnp.ndarray):
-        H = jax.jacobian(self.W_map, 0)(x)
-        c_res = self.W_map(x) - jnp.dot(H, x)
+                               x: jnp.ndarray,
+                               y_bar: jnp.ndarray):
+        H = jax.jacobian(self.W_map, 0)(x, y_bar)
+        c_res = self.W_map(x, y_bar) - jnp.dot(H, x)
         return H, c_res
 
     def get_observer_jacobians_nojit(self,
-                               x: jnp.ndarray):
+                               x: jnp.ndarray,
+                               y_bar: jnp.ndarray):
         # x = x.reshape(self.state_dim, 1)
 
-        H = jax.jacobian(self.W_map, 0)(x)
-        c_res = self.W_map(x) - jnp.dot(H, x)
+        H = jax.jacobian(self.W_map, 0)(x, y_bar)
+        c_res = self.W_map(x, y_bar) - jnp.dot(H, x)
         return H, c_res
     
     def get_obstacleConstraint_jacobians(self,
-                                      x: jnp.ndarray, obs_center: jnp.ndarray):
+                                      x: jnp.ndarray, obs_center: jnp.ndarray, y_bar: jnp.ndarray):
         normFunc = partial(norm2Diff, y=obs_center)
-        g = lambda x: normFunc(self.W_map(x))
+        g = lambda x: normFunc(self.W_map(x, y_bar))
         G = jax.jacobian(g)(x)
         b = g(x) - G @ x
         return G, b
@@ -327,12 +333,12 @@ class SSMDynamics(SSM):
     #     c_res = c_nl - H @ x
     #     return H, c_res
 
-    def update_observer_state(self, x, dt=None, u=None):
+    def update_observer_state(self, x, y_bar, dt=None, u=None):
         # TODO: Testing jax capes
         # H, c = self.get_observer_jacobians(x, dt=dt, u=u)
         # return np.squeeze(H @ x) + np.squeeze(c)
 
-        H, c = self.get_observer_jacobians(x)
+        H, c = self.get_observer_jacobians(x, y_bar)
         return np.squeeze(jnp.dot(H, x)) + np.squeeze(c)
 
     def discretize_dynamics(self, A_c, B_c, d_c, dt):

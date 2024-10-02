@@ -146,8 +146,11 @@ class TemplateController(closed_loop_controller.TemplateController):
 
                 self.observer.update(u_prev, y_belief, self.dt)
 
+                # TODO: Make this conditional
+                y_curr = self.observer.y # self.observer.y
+
                 if self.recompute_policy(self.t_compute):
-                    self.compute_policy(self.t_compute, self.observer.x)
+                    self.compute_policy(self.t_compute, self.observer.x, y_curr)
 
                 self.u = self.compute_input(self.t_compute, self.observer.x)
 
@@ -200,7 +203,7 @@ class scp(TemplateController):
         self.GuSTO = GuSTOClientNode()
         self.feedback = kwargs.pop('feedback', False)
 
-    def compute_policy(self, t_step, x_belief):
+    def compute_policy(self, t_step, x_belief, y_belief):
         """
         Policy computed online based on observer belief state and current time
         """
@@ -210,23 +213,23 @@ class scp(TemplateController):
         # If the controller hasn't been initialized yet start with x_belief and solve
         if not self.initialized:
             # x_belief = self.dyn_sys.rom.compute_RO_state(xf=self.dyn_sys.rom.x_ref)
-            self.run_GuSTO(t_step, x_belief, wait=True)  # Upon instantiation always wait
-            self.update_policy(init=True)
+            self.run_GuSTO(t_step, x_belief, y_belief, wait=True)  # Upon instantiation always wait
+            self.update_policy(y_belief, init=True)
             self.initialized = True
         else:
-            self.run_GuSTO(t_step, x_belief, wait=self.wait)
-            self.update_policy()
+            self.run_GuSTO(t_step, x_belief, y_belief, wait=self.wait)
+            self.update_policy(y_belief)
 
-    def run_GuSTO(self, t0, x0, wait):
+    def run_GuSTO(self, t0, x0, y0, wait):
         # Instantiate the GuSTO problem over the horizon
-        self.GuSTO.send_request(t0, x0, wait=wait)
+        self.GuSTO.send_request(t0, x0, y0, wait=wait)
 
     def recompute_policy(self, t_step):
         step = round(round(t_step, 4) / self.dt)
         i = int(step % self.N_replan)
         return True if i == 0 else False  # Recompute if rollout horizon reached (more explicit than: not i)
 
-    def update_policy(self, init=False):
+    def update_policy(self, y_belief, init=False):
         # Query whether the solution is ready
         if not self.GuSTO.check_if_done():  # If running with wait=True, this is always False
             print('GuSTO cannot provide real-time compatibility, consider modifying problem')
@@ -256,7 +259,7 @@ class scp(TemplateController):
             self.x_opt = np.concatenate((self.x_opt, x_opt_new[1:, :]))
 
         # Define short time optimal horizon solutions
-        self.z_opt_horizon.append(self.dyn_sys.x_to_zfyf(x_opt_p))
+        self.z_opt_horizon.append(self.dyn_sys.x_to_zfyf(x_opt_p, y_belief))
         self.t_opt_horizon.append(t_opt_p)
 
         # Define interpolation functions for new optimal trajectory, note
@@ -293,7 +296,7 @@ class scp(TemplateController):
         info = dict()
         info['t_opt'] = self.t_opt
         info['u_opt'] = self.u_opt
-        info['z_opt'] = self.dyn_sys.x_to_zfyf(self.x_opt, zf=True)
+        info['z_opt'] = self.dyn_sys.x_to_zfyf(self.x_opt, np.zeros(self.dyn_sys.obs_dim), zf=True)
         info['solve_times'] = self.solve_times
         info['rollout_time'] = self.N_replan * self.dt
         info['z_rollout'] = self.z_opt_horizon

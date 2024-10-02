@@ -247,7 +247,7 @@ def run_scp():
     model = tpwl.TPWLATV(data=tpwl_model_file, params=config.constants_sim, Hf=prob.output_model.C,
                          Cf=prob.measurement_model.C, discr_method='zoh')
 
-    dt = 0.01
+    dt = 0.02
     model.pre_discretize(dt=dt)
 
     # Set up an EKF observer
@@ -266,7 +266,7 @@ def run_scp():
     Qz[4, 4] = 100  # corresponding to y position of end effector
     Qz[5, 5] = 0.0  # corresponding to z position of end effector
     cost.Q = model.H.T @ Qz @ model.H
-    cost.R = .003 * np.eye(model.input_dim)
+    cost.R = .00001 * np.eye(model.input_dim)
 
     ##############################################
     # Problem 2, Circle on side
@@ -303,11 +303,11 @@ def run_gusto_solver():
      ######## User Options ########
     saveControlTask = False
     createNewTask = False
-    dt = 0.01
+    dt = 0.02
     N = 3
 
     # Control Task Params
-    controlTask = "figure8" # figure8, circle, or custom
+    controlTask = "figure8_fast" # figure8, circle, or custom
     trajAmplitude = 15
     trajFreq = None # rad/s
     flipCoords = True # Use this only when the saved trajectory is from SSM run
@@ -318,7 +318,7 @@ def run_gusto_solver():
     obstacleLoc = [np.array([-12, 12]), np.array([8, 12])]
 
     # Constrol Constraints
-    u_min, u_max = 200.0, 2500.0
+    u_min, u_max = 200.0, 5000.0
     du_max = None
 
     ######## Generate SSM model and setup control task ########
@@ -349,8 +349,8 @@ def run_gusto_solver():
         X = None
 
         ######## Define new control constraint ########
-        U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
-        # dU = None
+        # U, dU = createControlConstraint(u_min, u_max, model.input_dim, du_max=du_max)
+        dU = None
 
         ######## Save Target Trajectory and Constraints ########
         taskParams = {'z': z, 't': t, 'X': X, 'U': U, 'dU': dU}
@@ -385,7 +385,7 @@ def run_gusto_solver():
     Qz[3, 3] = 100  # corresponding to x position of end effector
     Qz[4, 4] = 100  # corresponding to y position of end effector
     Qz[5, 5] = 0.0  # corresponding to z position of end effector
-    R = .00001 * np.eye(model.input_dim)
+    R = .001 * np.eye(model.input_dim)
 
     #############################################
     # Problem 2, X-Y-Z plane cost function
@@ -401,7 +401,7 @@ def run_gusto_solver():
 
     gusto_model = TPWLGuSTO(model)
     gusto_model.pre_discretize(dt)
-    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=taskParams['X'],
+    runGuSTOSolverNode(gusto_model, N, dt, Qz, R, x0, t=taskParams['t'], z=taskParams['z'], U=taskParams['U'], X=None,
                        verbose=1, warm_start=True, convg_thresh=0.001, solver='GUROBI',
                        max_gusto_iters=0, input_nullspace=None, dU=taskParams['dU'], jit=True)
 
