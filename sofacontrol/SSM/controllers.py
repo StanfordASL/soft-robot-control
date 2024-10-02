@@ -141,6 +141,8 @@ class TemplateController(closed_loop_controller.TemplateController):
                 # print('debug belief positions ', y_belief + np.tile(self.dyn_sys.y_ref, self.dyn_sys.delays + 1))
                 # print('Error between true output and estimated output on manifold', np.linalg.norm(self.dyn_sys.W_map(self.dyn_sys.V_map(y_belief)) + self.dyn_sys.y_ref - y))
                 # TODO: Update estimated state based on past measurements
+                
+                # import pdb; pdb.sset_trace()
 
                 self.observer.update(u_prev, y_belief, self.dt)
 

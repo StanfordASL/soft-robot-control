@@ -53,7 +53,7 @@ class SSMGuSTO(TemplateModel):
             R = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "r_coeff")
             B_r = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "B_r")
             u_bar = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "u_bar")
-            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), 5)
+            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), self.dyn_sys.delays + 1)
             A, B, d = self.dyn_sys.get_continuous_jacobians(x, u, R, B_r, x_bar, u_bar)
         else:
             A, B, d = self.dyn_sys.get_continuous_jacobians(x, u=u)
@@ -71,7 +71,7 @@ class SSMGuSTO(TemplateModel):
             R = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "r_coeff")
             B_r = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "B_r")
             u_bar = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "u_bar")
-            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), 5)
+            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), self.dyn_sys.delays + 1)
             return self.dyn_sys.get_jacobians(x, u, dt, R, B_r, x_bar, u_bar)
         else:
             return self.dyn_sys.get_jacobians(x, dt=dt, u=u)
@@ -84,8 +84,8 @@ class SSMGuSTO(TemplateModel):
         """
         if hasattr(self.dyn_sys, "adiabatic") and self.dyn_sys.adiabatic and x0_interp is not None:
             W = self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "w_coeff")
-            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), 5)
-            y_bar = np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), 5)
+            x_bar = self.dyn_sys.V[0].T @ np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), self.dyn_sys.delays + 1)
+            y_bar = np.tile(self.dyn_sys.interpolator.transform(x0_interp[self.dyn_sys.interp_slice], "q_bar"), self.dyn_sys.delays + 1)
             return self.dyn_sys.get_observer_jacobians(x, W, x_bar, y_bar)
         else:
             return self.dyn_sys.get_observer_jacobians(x)

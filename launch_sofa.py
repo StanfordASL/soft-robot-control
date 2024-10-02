@@ -66,7 +66,7 @@ def main(prob):
     print("Running launch_sofa.main()...")
     #  Allows executing from terminal directly
     #  Requires adjusting to own path
-    sofa_lib_path = "/home/jalora/sofa/build/lib"
+    sofa_lib_path = "/home/lpabon/sofa/build/lib"
     # sofa_lib_path = "/home/jonas/Projects/stanford/sofa/build/lib"
     if not os.path.exists(sofa_lib_path):
         raise RuntimeError('Path non-existent, sofa_lib_path should be modified to point to local SOFA installation'

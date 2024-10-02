@@ -56,7 +56,7 @@ def run_scp():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9/000/SSMmodel_delay-embedding_ROMOrder=3_localV_fixed-delay"
+    pathToModel = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2/000/SSMmodel_delay-embedding_ROMOrder=2_localV"
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3)
@@ -74,7 +74,7 @@ def run_scp():
         outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
         prob.measurement_model = MeasurementModel(nodes=[TIP_NODE], num_nodes=N_NODES, pos=True, vel=False, S_q=cov_q)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(12, 3) # TODO: modify this
         # outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
@@ -133,7 +133,7 @@ def run_gusto_solver():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/jonas/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=9/000/SSMmodel_delay-embedding_ROMOrder=3_localV_fixed-delay"
+    pathToModel = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2/000/SSMmodel_delay-embedding_ROMOrder=2_localV"
 
     # load SSM model
     with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
@@ -145,7 +145,7 @@ def run_gusto_solver():
     if raw_params['delay_embedding']:
         outputModel = linearModel([TIP_NODE], N_NODES, vel=False)
         z_eq_point = outputModel.evaluate(x_eq, qv=False)
-        outputSSMModel = OutputModel(15, 3) # TODO: modify this
+        outputSSMModel = OutputModel(12, 3) # TODO: modify this
         # outputSSMModel = OutputModel(6, 3) # TODO: modify this
         Cout = outputSSMModel.C
     else:
