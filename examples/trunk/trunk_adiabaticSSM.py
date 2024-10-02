@@ -20,21 +20,28 @@ from sofacontrol.SSM import adiabatic_ssm
 import pickle
 
 import matplotlib.pyplot as plt
+import pdb
 
 # Default nodes are the "end effector (51)" and the "along trunk (22, 37) = (4th, 7th) top link "
 DEFAULT_OUTPUT_NODES = [51, 22, 37]
 TIP_NODE = 51
 N_NODES = 709
+
+SSM_model_subdir = "SSMmodel_delay-embedding_ROMOrder=2_globalV" # SSMmodel_delay-embedding_globalV SSMmodel_delay-embedding_ROMOrder=2_localV SSMmodel_delay-embedding_ROMOrder=2_globalV
+
 # Set directory for SSM Models
-PATH_TO_MODEL = "/media/jalora/Crucial X8/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100" # 147" # 
+# /media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2
+PATH_TO_MODEL = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2" # 147" # 
 MODEL_NAMES = [name for name in sorted(listdir(PATH_TO_MODEL)) if isdir(join(PATH_TO_MODEL, name))]
-# if exists(join(PATH_TO_MODEL, "use_models.pkl")):
-#     with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
-#         USE_MODELS = pickle.load(f)
-# else:
-#     raise FileNotFoundError("No use_models.pkl file found in model directory")
-# USE_MODELS = list(range(len(MODEL_NAMES)))
-USE_MODELS = []
+if exists(join(PATH_TO_MODEL, "use_models.pkl")):
+     with open(join(PATH_TO_MODEL, "use_models.pkl"), "rb") as f:
+         USE_MODELS = pickle.load(f)
+else:
+     raise FileNotFoundError("No use_models.pkl file found in model directory")
+USE_MODELS = list(range(len(MODEL_NAMES)))
+
+# For origin based only
+#USE_MODELS = []
 MODEL_NAMES = [MODEL_NAMES[i] for i in USE_MODELS]
 print("Using models: ", MODEL_NAMES)
 
@@ -54,11 +61,11 @@ raw_params = {}
 raw_models = []
 
 if useDefaultModels:
-    PATH_TO_DEFAULT_MODELS = "/media/jalora/Crucial X8/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100"
+    PATH_TO_DEFAULT_MODELS = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2" # 147* #
     # for model_name in [name for name in sorted(listdir(PATH_TO_DEFAULT_MODELS)) if isdir(join(PATH_TO_DEFAULT_MODELS, name))]:
     #     with open(join(PATH_TO_DEFAULT_MODELS, model_name, "SSMmodel_delay-embedding_ROMOrder=3_globalV_fixed-delay", "SSM_model.pkl"), 'rb') as f:
     for model_name in [name for name in sorted(listdir(PATH_TO_DEFAULT_MODELS)) if isdir(join(PATH_TO_DEFAULT_MODELS, name))]:
-        with open(join(PATH_TO_DEFAULT_MODELS, model_name, "SSMmodel_delay-embedding_globalV", "SSM_model.pkl"), 'rb') as f:
+        with open(join(PATH_TO_DEFAULT_MODELS, model_name, SSM_model_subdir, "SSM_model.pkl"), 'rb') as f:
             SSM_data = pickle.load(f)
         with open(join(PATH_TO_DEFAULT_MODELS, model_name, "rest_q.pkl"), "rb") as f:
             q_eq = pickle.load(f)
@@ -67,7 +74,7 @@ if useDefaultModels:
         raw_params = SSM_data['params']
 
 for model_name in MODEL_NAMES:
-    with open(join(PATH_TO_MODEL, model_name, "SSMmodel_delay-embedding_globalV", "SSM_model.pkl"), 'rb') as f:
+    with open(join(PATH_TO_MODEL, model_name, SSM_model_subdir, "SSM_model.pkl"), 'rb') as f:
         SSM_data = pickle.load(f)
     with open(join(PATH_TO_MODEL, model_name, "rest_q.pkl"), "rb") as f:
         q_eq = pickle.load(f)
@@ -80,7 +87,7 @@ if raw_params['delay_embedding']:
     z_eq_point = outputModel.evaluate(x_eq, qv=False)
     if useTimeDelay:
         # obs are pos of tip + n_delay time-delayed versions of it
-        outputSSMModel = OutputModel(15, 3) # TODO: hardcoded n_delay = 4
+        outputSSMModel = OutputModel(12, 3) # TODO: hardcoded n_delay = 4
     else:
         # obs are pos and vel of tip
         outputSSMModel = OutputModel(6, 3)
@@ -100,7 +107,7 @@ Qz = np.zeros((model.output_dim, model.output_dim))
 Qz[0, 0] = 100.  # corresponding to x position of end effector
 Qz[1, 1] = 100.  # corresponding to y position of end effector
 Qz[2, 2] = 100.  # corresponding to z position of end effector
-R = 0.0001 * np.eye(model.input_dim)
+R = 0.00001 * np.eye(model.input_dim)
 cost.R = R
 cost.Q = model.H.T @ Qz @ model.H
 # # control rate cost
@@ -141,10 +148,11 @@ cost.Q = model.H.T @ Qz @ model.H
 M = 1
 T = 10
 N = 1000
-radius = 20.
+radius = 40.
 tf = np.linspace(0, M * T, M * N + 1)
 th = np.linspace(0, M * 2 * np.pi, M * N + 1)
 zf_target = np.tile(np.hstack((z_eq_point, np.zeros(model.output_dim - len(z_eq_point)))), (M * N + 1, 1))
+
 # zf_target = np.zeros((M * N, model.output_dim))
 zf_target[:, 0] += radius * np.cos(th)
 zf_target[:, 1] += radius * np.sin(th)

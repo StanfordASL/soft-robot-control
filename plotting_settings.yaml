@@ -7,13 +7,13 @@ traj_dir: "sim_trajs/pac-man/" # figure8" # pac-man" # circle_z=-10" #
 show: {
     'ssmr': False,
     'ssmr_adiabatic_idw': False,
-    'ssmr_adiabatic_modified_idw': True,
+    'ssmr_adiabatic_modified_idw': False,
     'ssmr_adiabatic_qp': True,
     'ssmr_adiabatic_nn': False,
     'ssmr_adiabatic_linear': False,
     'ssmr_adiabatic_ct': False,
-    'ssmr_origin': False,
-    'tpwl': False,
+    'ssmr_origin': True,
+    'tpwl': True,
     'koopman': False,
 }
 display_name: {

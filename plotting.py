@@ -671,13 +671,14 @@ def model_contribution_to_rmse(z, use_models, save_dir="", show=True):
 
 
 if __name__ == "__main__":
-    # rmse_vs_n_models()
-    # x_vs_y_bundle()
+    #rmse_vs_n_models()
+    #x_vs_y_bundle()
     traj_inputs_vs_t()
     traj_x_vs_y()
     rmse_calculations(plot_solve_times=True)
+    #traj_3D()
     if TARGET == "figure8":
         traj_xy_vs_t()
     elif TARGET in ["circle", "pac-man"]:
         traj_xyz_vs_t()
-    # traj_3D()
+    traj_3D()

@@ -7,11 +7,11 @@ import jax.scipy as jsp
 import jax
 from functools import partial
 import pickle
-
+import pdb
 from .interpolators import InterpolatorFactory
 
 
-INTERPOLATION_METHOD = "modified_idw" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
+INTERPOLATION_METHOD = "qp" # "qp", "modified_idw", "linear", "ct", "nn", "idw"
 ORIGIN_IDX = 0
 
 
@@ -37,12 +37,12 @@ class AdiabaticSSM:
         #     self.interp_3d = True
         # else:
         #     self.interp_3d = False
-        if self.interp_method in ["idw", "modified_idw", "nn"]:
+        if self.interp_method in ["idw", "c", "nn"]:
             self.interp_slice = np.s_[:]
         elif self.interp_method in ["krg", "rbf", "tps"]:
             self.interp_slice = np.s_[:3]
         else:
-            self.interp_slice = np.s_[:2]
+            self.interp_slice = np.s_[:2] # could this be the problem?
         
         # Model dimensions
         self.state_dim = self.params['state_dim']
@@ -89,7 +89,7 @@ class AdiabaticSSM:
         if self.v_coeff[0] is not None:
             self.coeff_dict['V'] = self.v_coeff
 
-        self.interpolator = InterpolatorFactory(self.interp_method, [(self.V[0].T @ np.tile(q, 5))[self.interp_slice] for q in self.q_bar], self.coeff_dict).get_interpolator()
+        self.interpolator = InterpolatorFactory(self.interp_method, [(self.V[0].T @ np.tile(q, self.delays + 1))[self.interp_slice] for q in self.q_bar], self.coeff_dict).get_interpolator()
 
         # Manifold parametrization
         self.W_map = self.reduced_to_output
@@ -145,8 +145,8 @@ class AdiabaticSSM:
         :yf: boolean
         """
         W = self.interpolator.transform(x[0, self.interp_slice], "w_coeff")
-        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
-        y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
+        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), self.delays + 1)
+        y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), self.delays + 1)
         return self.W_map(W, x.T, x_bar, y_bar).T + self.y_ref
 
 
@@ -157,8 +157,8 @@ class AdiabaticSSM:
         :y: boolean
         """
         W = self.interpolator.transform(x[0, self.interp_slice], "w_coeff")
-        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
-        y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), 5)
+        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), self.delays + 1)
+        y_bar = np.tile(self.interpolator.transform(x[0, self.interp_slice], "q_bar"), self.delays + 1)
         return self.W_map(W, x.T, x_bar, y_bar)
 
     def get_sim_params(self):
@@ -188,10 +188,19 @@ class AdiabaticSSM:
         # Set initial condition
         x[0,:] = x0
 
+        # Interpolation only at the initial condition
+        R = self.interpolator.transform(x0[self.interp_slice], 'r_coeff')
+        B_r = self.interpolator.transform(x0[self.interp_slice], 'B_r')
+        u_bar = self.interpolator.transform(x0[self.interp_slice], 'u_bar')
+        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x0[self.interp_slice], 'q_bar'), self.delays + 1)
+
+        W = self.interpolator.transform(x0[self.interp_slice], "w_coeff")
+        y_bar = np.tile(self.interpolator.transform(x0[self.interp_slice], "q_bar"), self.delays + 1)
+
         # Simulate
         for i in range(N):
-            x[i+1,:] = self.update_state(x[i,:], u[i,:], dt)
-            z_lin[i,:] = self.update_observer_state(x[i, :])
+            x[i+1,:] = self.update_state(x[i,:], u[i,:], dt, R, B_r, u_bar, x_bar)
+            z_lin[i,:] = self.update_observer_state(x[i, :], W, x_bar, y_bar)
 
         z = self.x_to_zfyf(x)
         return x, z
@@ -213,31 +222,8 @@ class AdiabaticSSM:
         output = jnp.dot(jnp.asarray(self.C), (jnp.dot(jnp.asarray(W), jnp.asarray(self.ssm_map_phi(*(x.T - x_bar).T))).T + y_bar).T)
         return output
 
-    # @partial(jax.jit, static_argnums=(0,))
-    # def observed_to_reduced(self, y):
-    #     # memorize the observation for interpolation (adiabatic framework)
-    #     self.last_observation_y = y
-    #     if self.v_coeff[0] is not None:
-    #         return jnp.dot(self.interpolate_coeffs(y[-3:-1], 'v_coeff'), jnp.asarray(self.ssm_chart_phi(*(y - jnp.tile(self.interpolate_coeffs(y[-3:-1], 'q_bar'), 5)))))
-    #     else:
-    #         return jnp.dot(jnp.transpose(self.interpolate_coeffs(self.last_observation_y[-3:-1], 'V')), y - jnp.tile(self.interpolate_coeffs(y[-3:-1], 'q_bar'), 5))
-    
     # no jit
     def observed_to_reduced(self, V, y):
-        # if not jnp.allclose(y, self.last_observation_y):
-        #     with open("/home/jonas/Projects/stanford/soft-robot-control/examples/trunk/y_last_obs.pkl", "wb") as f:
-        #         pickle.dump(y, f)
-        #     # if self.interp_3d:
-        #     #     xy_z = y[-3:]
-        #     # else:
-        #     #     xy_z = y[-3:-1]
-        #     xy_z = jnp.dot(jnp.transpose(V), y - y_bar)
-        #     self.y_bar_current = np.tile(self.interpolator.transform(xy_z, 'q_bar'), 5) # np.concatenate([self.interpolator.transform(xy_z, 'q_bar'), np.zeros(3)]) # 
-        #     self.u_bar_current = self.interpolator.transform(xy_z, 'u_bar')
-        #     self.B_r_current = self.interpolator.transform(xy_z, 'B_r')
-        #     self.R_current = self.interpolator.transform(xy_z, 'r_coeff')
-        #     self.V_current = self.interpolator.transform(xy_z, 'V')
-        #     self.W_current = self.interpolator.transform(xy_z, 'w_coeff')
         return jnp.dot(jnp.transpose(V), y) # jnp.dot(V, jnp.asarray(self.ssm_chart_phi(*(y - y_bar)))) # 
 
 
@@ -245,17 +231,13 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
     def __init__(self, eq_point, models, params, discrete=False, discr_method='fe', C=None, **kwargs):
         super(AdiabaticSSMDynamics, self).__init__(eq_point, models, params, discrete=discrete, discr_method=discr_method, C=C, **kwargs)
 
-    def update_state(self, x, u, dt):
+    def update_state(self, x, u, dt, R, B_r, u_bar, x_bar):
         """
         Compute x+ based on a discretization time of dt.
         :x: current state
         :u: current input
         :dt: time step
         """
-        R = self.interpolator.transform(x[self.interp_slice], 'r_coeff')
-        B_r = self.interpolator.transform(x[self.interp_slice], 'B_r')
-        u_bar = self.interpolator.transform(x[self.interp_slice], 'u_bar')
-        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[self.interp_slice], 'q_bar'), 5)
         A_d, B_d, d_d = self.get_jacobians(x, u, dt, R, B_r, x_bar, u_bar) # self.R_current, self.B_r_current, self.u_bar_current)
         return self.update_dynamics(x, u, A_d, B_d, d_d)
 
@@ -348,10 +330,7 @@ class AdiabaticSSMDynamics(AdiabaticSSM):
     #     c_res = c_nl - H @ x
     #     return H, c_res
 
-    def update_observer_state(self, x, dt=None, u=None):
-        W = self.interpolator.transform(x[self.interp_slice], "w_coeff")
-        x_bar = self.V[0].T @ np.tile(self.interpolator.transform(x[self.interp_slice], "q_bar"), 5)
-        y_bar = np.tile(self.interpolator.transform(x[self.interp_slice], "q_bar"), 5)
+    def update_observer_state(self, x, W, x_bar, y_bar):
         H, c = self.get_observer_jacobians(x, W, x_bar, y_bar) # self.W_current, self.y_bar_current)
         return np.squeeze(jnp.dot(H, x)) + np.squeeze(c)
 
