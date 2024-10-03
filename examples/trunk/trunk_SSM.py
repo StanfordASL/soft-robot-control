@@ -56,7 +56,7 @@ def run_scp():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2/000/SSMmodel_delay-embedding_ROMOrder=2_localV"
+    pathToModel = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2/000/SSMmodel_delay-embedding_ROMOrder=2_globalV"
 
     # Specify a measurement and output model
     cov_q = 0.0 * np.eye(3)
@@ -133,7 +133,7 @@ def run_gusto_solver():
     x_eq = qv2x(q=q_equilibrium, v=np.zeros_like(q_equilibrium))
 
     # Set directory for SSM Models
-    pathToModel = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2/000/SSMmodel_delay-embedding_ROMOrder=2_localV"
+    pathToModel = "/media/lpabon/Backup Plus/jonas_soft_robot_data/trunk_adiabatic_10ms_N=100_v2/000/SSMmodel_delay-embedding_ROMOrder=2_globalV"
 
     # load SSM model
     with open(join(pathToModel, 'SSM_model.pkl'), 'rb') as f:
